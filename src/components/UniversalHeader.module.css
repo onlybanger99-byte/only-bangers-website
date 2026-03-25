@@ -1,0 +1,408 @@
+/* UniversalHeader.module.css - UPDATED WITH IMAGE BACKGROUND */
+
+/* Header Container */
+.headerMainContainer {
+  position: relative;
+  width: 100%;
+  margin-bottom: 70px;
+}
+
+/* Image Section (replaces video section) */
+.headerImageSection {
+  position: relative;
+  height: 300px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.headerBackgroundImage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.imageFallback {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #000000 0%, #222222 100%);
+}
+
+.imageOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* Logo */
+.headerLogo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logoMain {
+  font-size: 3.5rem;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  color: white;
+  text-transform: uppercase;
+  margin: 0 0 0.5rem 0;
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeInUp 1s ease 0.3s forwards;
+}
+
+.logoSub {
+  font-size: 1.25rem;
+  font-weight: 300;
+  letter-spacing: 0.3em;
+  color: #d1d5db;
+  margin: 0;
+  text-transform: uppercase;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeInUp 1s ease 0.5s forwards;
+}
+
+@keyframes fadeInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Search Bar Container - CRITICAL COMPONENT */
+.searchBarContainer {
+  position: relative;
+  width: 100%;
+  background: rgba(10, 10, 10, 0.95);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid #333;
+  border-bottom: 1px solid #333;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 100;
+}
+
+/* Fixed state class - added via JS */
+.searchBarContainerFixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  transform: translateY(0);
+  border-top: none;
+  border-bottom: 1px solid #333;
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Search Bar Wrapper */
+.searchBarWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0.75rem 1rem;
+  height: 70px;
+}
+
+/* Menu Button */
+.navMenuButton {
+  background: none;
+  border: none;
+  padding: 0.5rem;
+  cursor: pointer;
+  border-radius: 0.375rem;
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.navMenuButton:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.navMenuIcon {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: #d1d5db;
+}
+
+/* Search Bar */
+.searchBar {
+  flex: 1;
+  max-width: 600px;
+  margin: 0 1.5rem;
+}
+
+.searchForm {
+  position: relative;
+  width: 100%;
+}
+
+.searchBarIcon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #9ca3af;
+}
+
+.searchBarInput {
+  width: 100%;
+  padding: 0.625rem 0.75rem 0.625rem 2.5rem;
+  border: 1px solid #444;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  background-color: #1a1a1a;
+  color: white;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.searchBarInput:focus {
+  outline: none;
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+}
+
+.searchBarInput::placeholder {
+  color: #6b7280;
+}
+
+/* Cart Button */
+.navCartButton {
+  position: relative;
+  background: none;
+  border: none;
+  padding: 0.5rem;
+  cursor: pointer;
+  border-radius: 0.375rem;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.navCartButton:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.navCartIcon {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: #d1d5db;
+}
+
+.navCartBadge {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
+  background-color: #ef4444;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.25rem;
+}
+
+/* Menu Overlay */
+.menuOverlayBackdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 1999;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.menuOverlayBackdropActive {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Sidebar Menu */
+.sidebarNavMenu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 280px;
+  background: #0a0a0a;
+  z-index: 2000;
+  transform: translateX(-100%);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  border-right: 1px solid #333;
+}
+
+.sidebarNavMenuOpen {
+  transform: translateX(0);
+}
+
+.menuNavHeader {
+  display: flex;
+  align-items: center;
+  padding: 1.25rem 1rem;
+  border-bottom: 1px solid #333;
+  background: #1a1a1a;
+}
+
+.menuCloseButton {
+  background: none;
+  border: none;
+  padding: 0.5rem;
+  cursor: pointer;
+  margin-right: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.menuCloseIcon {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: white;
+}
+
+.menuNavTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+  color: white;
+}
+
+.menuNavContent {
+  padding: 1.5rem 1rem;
+  overflow-y: auto;
+  height: calc(100% - 70px);
+}
+
+.menuNavSection {
+  margin-bottom: 2rem;
+}
+
+.menuSectionHeading {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9ca3af;
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #333;
+}
+
+.menuNavItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 0.75rem;
+  text-decoration: none;
+  color: #d1d5db;
+  border-radius: 0.375rem;
+  transition: all 0.2s ease;
+  margin-bottom: 0.25rem;
+  font-size: 1rem;
+}
+
+.menuNavItem:hover {
+  background-color: #1a1a1a;
+  color: white;
+  padding-left: 1rem;
+}
+
+.menuCartBadge {
+  background-color: #ef4444;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.5rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .logoMain {
+    font-size: 2.5rem;
+  }
+  
+  .logoSub {
+    font-size: 1rem;
+  }
+  
+  .searchBar {
+    margin: 0 0.75rem;
+  }
+  
+  .searchBarWrapper {
+    padding: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .headerImageSection {
+    height: 250px;
+  }
+  
+  .logoMain {
+    font-size: 2rem;
+  }
+  
+  .searchBarInput {
+    font-size: 0.75rem;
+    padding-left: 2rem;
+  }
+  
+  .searchBarIcon {
+    left: 0.5rem;
+    width: 1rem;
+    height: 1rem;
+  }
+}
