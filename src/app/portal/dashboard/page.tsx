@@ -4,7 +4,7 @@ import { UserAuthHandler } from "@/components/UserAuthHandler";
 import styles from "./dashboard.module.css";
 
 export default async function DashboardPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
@@ -14,7 +14,7 @@ export default async function DashboardPage() {
   const userInitials = user.email
     ?.split("@")[0]
     .split(".")
-    .map((part) => part.charAt(0).toUpperCase())
+    .map((part: string) => part.charAt(0).toUpperCase())
     .join("")
     .slice(0, 2) || "U";
 
