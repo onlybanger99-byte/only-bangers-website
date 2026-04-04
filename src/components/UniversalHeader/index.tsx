@@ -1,9 +1,11 @@
 // components/UniversalHeader/index.tsx - UPDATED WITH CSS MODULES
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { services } from '@/data/services'
+import { barbers } from '@/data/barbers'
 import styles from './UniversalHeader.module.css'
 
 export default function UniversalHeader() {
@@ -17,6 +19,7 @@ export default function UniversalHeader() {
   
   const pathname = usePathname()
   const router = useRouter()
+  const searchContainerRef = useRef<HTMLDivElement>(null)
 
   // Initialize on client
   useEffect(() => {
@@ -32,6 +35,20 @@ export default function UniversalHeader() {
       window.removeEventListener('cartUpdated', handleCartUpdate)
     }
   }, [pathname])
+
+  // Handle click outside search
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setShowResults(false)
+      }
+    }
+
+    if (showResults) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showResults])
 
   const updateCartCount = () => {
     if (typeof window !== 'undefined' && !isAdminPage) {
@@ -56,13 +73,122 @@ export default function UniversalHeader() {
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     setSearchQuery(value)
-    // Simple search logic
+    
     if (value.trim()) {
-      setSearchResults([
-        { id: '1', name: 'Classic Precision Cut', type: 'service', price: 180 },
-        { id: '2', name: 'Premium Hair Pomade', type: 'product', price: 150 },
-      ])
-      setShowResults(true)
+      const query = value.toLowerCase()
+      const allSearchableContent = [
+        // All services
+        ...services.map(service => ({
+          id: service.id,
+          name: service.name,
+          description: service.description,
+          type: 'service',
+          price: service.price,
+          duration: service.duration,
+          category: service.category,
+          keywords: [service.name, service.description, service.category].join(' ').toLowerCase()
+        })),
+        // All barbers
+        ...barbers.map(barber => ({
+          id: barber.id,
+          name: barber.name,
+          description: barber.specialty,
+          type: 'barber',
+          specialty: barber.specialty,
+          keywords: [barber.name, barber.specialty].join(' ').toLowerCase()
+        })),
+        // All pages
+        {
+          id: 'home',
+          name: 'Home',
+          description: 'Back to home page',
+          type: 'page',
+          url: '/',
+          keywords: 'home page main'
+        },
+        {
+          id: 'about',
+          name: 'About Us',
+          description: 'Learn about Only Bangers',
+          type: 'page',
+          url: '/about',
+          keywords: 'about story brand'
+        },
+        {
+          id: 'services',
+          name: 'Services',
+          description: 'View all our services',
+          type: 'page',
+          url: '/services',
+          keywords: 'services haircut fade beard'
+        },
+        {
+          id: 'products',
+          name: 'Products',
+          description: 'Shop grooming products',
+          type: 'page',
+          url: '/products',
+          keywords: 'products shop pomade oils'
+        },
+        {
+          id: 'cart',
+          name: 'Shopping Cart',
+          description: 'View your shopping cart',
+          type: 'page',
+          url: '/cart',
+          keywords: 'cart checkout shopping'
+        },
+        {
+          id: 'contact',
+          name: 'Contact Us',
+          description: 'Get in touch with us',
+          type: 'page',
+          url: '/contact',
+          keywords: 'contact email message support'
+        },
+        {
+          id: 'blogs',
+          name: 'Blog',
+          description: 'Read our latest blog posts',
+          type: 'page',
+          url: '/blogs',
+          keywords: 'blog articles news posts'
+        },
+        {
+          id: 'privacy',
+          name: 'Privacy Policy',
+          description: 'Our privacy policy',
+          type: 'page',
+          url: '/privacy',
+          keywords: 'privacy policy legal'
+        },
+        {
+          id: 'terms',
+          name: 'Terms of Service',
+          description: 'Our terms and conditions',
+          type: 'page',
+          url: '/terms',
+          keywords: 'terms conditions service legal'
+        },
+        {
+          id: 'booking',
+          name: 'Book Appointment',
+          description: 'Schedule with Antonio Prince',
+          type: 'action',
+          url: 'https://calendly.com/onlybangers',
+          external: true,
+          keywords: 'book appointment booking calendar schedule'
+        }
+      ]
+      
+      // Filter results that match the search query
+      const filtered = allSearchableContent.filter(item => {
+        const searchableText = `${item.name} ${item.description} ${item.keywords || ''}`.toLowerCase()
+        return searchableText.includes(query)
+      })
+      
+      setSearchResults(filtered)
+      setShowResults(filtered.length > 0)
     } else {
       setSearchResults([])
       setShowResults(false)
@@ -71,8 +197,32 @@ export default function UniversalHeader() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    if (searchQuery.trim()) {
-      console.log('Searching for:', searchQuery)
+    if (searchQuery.trim() && searchResults.length > 0) {
+      handleNavigateToResult(searchResults[0])
+    }
+  }
+
+  const handleNavigateToResult = (result: any) => {
+    setShowResults(false)
+    setSearchQuery('')
+    setSearchResults([])
+    
+    if (result.type === 'page' || result.type === 'action') {
+      if (result.external) {
+        window.open(result.url, '_blank')
+      } else {
+        router.push(result.url)
+      }
+    } else if (result.type === 'service') {
+      router.push('/services')
+    } else if (result.type === 'barber') {
+      router.push('/services')
+    }
+  }
+
+  // Handle keyboard navigation in search
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
       setShowResults(false)
     }
   }
@@ -140,7 +290,7 @@ export default function UniversalHeader() {
               </svg>
             </button>
 
-            <div className={styles.searchContainer}>
+            <div className={styles.searchContainer} ref={searchContainerRef}>
               <form onSubmit={handleSearch} className={styles.searchBox}>
                 <svg className={styles.searchIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -150,9 +300,34 @@ export default function UniversalHeader() {
                   placeholder="Search services or products..."
                   value={searchQuery}
                   onChange={handleSearchChange}
+                  onKeyDown={handleSearchKeyDown}
                   className={styles.searchInput}
+                  autoComplete="off"
                 />
               </form>
+              
+              {/* Search Results Dropdown */}
+              {showResults && searchResults.length > 0 && (
+                <div className={styles.searchResults}>
+                  {searchResults.map((result) => (
+                    <button
+                      key={`${result.type}-${result.id}`}
+                      className={styles.searchResultItem}
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        handleNavigateToResult(result)
+                      }}
+                      type="button"
+                    >
+                      <div className={styles.resultContent}>
+                        <div className={styles.resultName}>{result.name}</div>
+                        <div className={styles.resultDescription}>{result.description}</div>
+                      </div>
+                      <span className={styles.resultBadge}>{result.type}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Cart Button */}

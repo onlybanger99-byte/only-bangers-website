@@ -1,0 +1,269 @@
+/* Contact Page Styles */
+
+/* Two-column grid layout for contact cards */
+.contactGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 2.5rem;
+  margin-bottom: 3rem;
+}
+
+/* Contact Card Styles */
+.contactCard {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  border: 1px solid var(--premium-border);
+  border-radius: 1.5rem;
+  padding: 2rem;
+  box-shadow: 
+    0 10px 40px rgba(0, 0, 0, 0.5),
+    0 2px 10px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.contactCard:hover {
+  transform: translateY(-6px);
+  box-shadow: 
+    0 15px 50px rgba(0, 0, 0, 0.6),
+    0 4px 15px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border-color: var(--premium-gold);
+}
+
+/* Card Title */
+.cardTitle {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--premium-gold);
+  margin: 0 0 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-shadow: 0 0 15px rgba(212, 175, 55, 0.2);
+}
+
+/* Contact Information List */
+.contactList {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.contactItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.contactIcon {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--premium-gold);
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.3));
+}
+
+.contactLink {
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-bottom: 1px solid transparent;
+}
+
+.contactLink:hover {
+  color: var(--premium-gold);
+  border-bottom-color: var(--premium-gold);
+}
+
+/* Business Hours Section */
+.businessHours {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--premium-border);
+}
+
+.hoursTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.hoursList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.hoursItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.hoursTime {
+  color: var(--premium-gold);
+  font-weight: 600;
+}
+
+/* Contact Form Styles */
+.contactForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.formLabel {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.formInput {
+  padding: 0.875rem 1rem;
+  background: rgba(15, 15, 15, 0.8);
+  border: 1px solid var(--premium-border);
+  border-radius: 0.75rem;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-family: inherit;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+}
+
+.formInput:focus {
+  border-color: var(--premium-gold);
+  box-shadow: 
+    0 0 0 3px rgba(212, 175, 55, 0.1),
+    inset 0 0 10px rgba(212, 175, 55, 0.05);
+  background: rgba(15, 15, 15, 0.95);
+}
+
+.formInput::placeholder {
+  color: var(--text-muted);
+}
+
+/* Submit Button */
+.submitButton {
+  padding: 1rem;
+  background: linear-gradient(135deg, var(--premium-gold) 0%, #E6C158 100%);
+  color: #1a1a1a;
+  border: none;
+  border-radius: 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 25px rgba(212, 175, 55, 0.3);
+  margin-top: 0.5rem;
+}
+
+.submitButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 35px rgba(212, 175, 55, 0.4);
+  background: linear-gradient(135deg, #E6C158 0%, var(--premium-gold) 100%);
+}
+
+.submitButton:active {
+  transform: translateY(0);
+}
+
+/* Success Message */
+.successMessage {
+  padding: 1rem;
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.5);
+  border-radius: 0.75rem;
+  color: #86efac;
+  text-align: center;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  animation: slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Maps Container */
+.mapsContainer {
+  margin-top: 3rem;
+  border-radius: 1.5rem;
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--premium-border);
+}
+
+.mapsFrame {
+  border-radius: 1.5rem;
+  display: block;
+}
+
+/* Animation */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .contactGrid {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .contactCard {
+    padding: 1.5rem;
+  }
+
+  .cardTitle {
+    font-size: 1.5rem;
+  }
+
+  .mapsContainer {
+    margin-top: 2rem;
+  }
+
+  .mapsFrame {
+    height: 300px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .contactItem {
+    font-size: 0.9rem;
+  }
+
+  .cardTitle {
+    font-size: 1.25rem;
+  }
+
+  .submitButton {
+    font-size: 0.875rem;
+    padding: 0.875rem;
+  }
+
+  .mapsFrame {
+    height: 250px !important;
+  }
+}
