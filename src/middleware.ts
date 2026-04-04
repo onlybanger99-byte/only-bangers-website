@@ -35,6 +35,22 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
+  // Phase 4: Temporary admin gate - check admin secret cookie for /admin routes
+  if (pathname.startsWith('/admin')) {
+    const adminCookie = request.cookies.get('ob_admin')?.value;
+    const adminSecret = process.env.ADMIN_SECRET;
+
+    // Allow access to /admin/unlock without admin cookie
+    if (pathname === '/admin/unlock') {
+      return response;
+    }
+
+    // For all other /admin routes, require valid admin cookie
+    if (!adminCookie || adminCookie !== adminSecret) {
+      return NextResponse.redirect(new URL('/admin/unlock', request.url));
+    }
+  }
+
   return response;
 }
 
