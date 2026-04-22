@@ -1,14 +1,21 @@
 /**
  * GET /api/admin/whoami
  * Return current user's email and role.
- * Used by client to populate admin dashboard with role information.
+ * Requires the authenticated admin role.
  */
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { getUserRole } from '@/lib/auth/get-user-role';
+import { requireRole } from '@/lib/auth/require-role';
 
 export async function GET(request: NextRequest) {
   try {
+    const roleError = await requireRole(request, ['admin']);
+
+    if (roleError) {
+      return roleError;
+    }
+
     const { user, role } = await getUserRole();
 
     if (!user) {

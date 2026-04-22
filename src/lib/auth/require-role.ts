@@ -1,12 +1,11 @@
 /**
  * Middleware helper for API routes that require specific roles.
- * Phase 5: This will replace the temporary ADMIN_SECRET check.
- * Phase 4: Used alongside cookie checks for defense-in-depth.
+ * Keeps API authorization aligned with the same role model used by pages and middleware.
  */
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
-import type { UserRole } from './get-user-role';
+import { hasRequiredRole, normalizeRole, type AppRole, type UserRole } from './roles';
 
 /**
  * Requires that the request is from an authenticated user with one of the allowed roles.
@@ -14,14 +13,14 @@ import type { UserRole } from './get-user-role';
  *
  * Usage in API routes:
  * ```
- * const error = await requireRole(request, ['admin', 'owner']);
+ * const error = await requireRole(request, ['admin']);
  * if (error) return error;
  * // Safe to proceed with authenticated admin user
  * ```
  */
 export async function requireRole(
   request: NextRequest,
-  allowedRoles: UserRole[]
+  allowedRoles: readonly AppRole[]
 ): Promise<NextResponse | null> {
   try {
     // Create Supabase client
@@ -64,9 +63,9 @@ export async function requireRole(
       .eq('user_id', user.id)
       .single();
 
-    const userRole = data?.role as UserRole;
+    const userRole: UserRole = normalizeRole(data?.role);
 
-    if (!userRole || !allowedRoles.includes(userRole)) {
+    if (!hasRequiredRole(userRole, allowedRoles)) {
       return NextResponse.json(
         {
           error: 'Forbidden: Insufficient permissions',

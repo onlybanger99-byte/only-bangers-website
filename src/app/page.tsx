@@ -1,316 +1,419 @@
-// src/app/page.tsx - CONVERSION-FOCUSED VERSION
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import styles from './page.module.css'
 
+type OfferKey = 'one-time' | 'committed' | 'loyal'
+
+const PROOF_TILES = [
+  {
+    eyebrow: '01',
+    title: 'Precision in Every Detail',
+    text: 'Every cut is shaped with clean lines, careful finishing, and the kind of consistency clients come back for.',
+    image: '/images/feature-fade.jpg',
+    alt: 'Clean skin fade haircut with sharp detailing',
+  },
+  {
+    eyebrow: '02',
+    title: 'Premium Grooming Standards',
+    text: 'From beard work to final presentation, the experience is built around quality that feels elevated from start to finish.',
+    image: '/images/feature-beard.jpg',
+    alt: 'Premium beard grooming and haircut service',
+  },
+  {
+    eyebrow: '03',
+    title: 'Style That Holds Up',
+    text: 'Modern cuts, polished finishes, and a tailored approach that keeps your look fresh beyond the chair.',
+    image: '/images/feature-glowup.jpg',
+    alt: 'Styled haircut with polished premium finish',
+  },
+] as const
+
+const OFFER_DETAILS: Record<
+  OfferKey,
+  {
+    title: string
+    label: string
+    summary: string
+    benefits: string[]
+    cta: string
+  }
+> = {
+  'one-time': {
+    title: 'ONE-TIME',
+    label: 'STANDARD RATE',
+    summary:
+      'Book a single appointment with standard pricing and full access to our barbers.',
+    benefits: [
+      'Book whenever you want',
+      'Expert barber service',
+      'No long-term commitment',
+      'Standard pricing',
+    ],
+    cta: 'BOOK NOW',
+  },
+  committed: {
+    title: 'COMMITTED',
+    label: 'BEST VALUE',
+    summary:
+      'Lock in priority booking, preferred pricing, and bonus perks with a commitment to regular appointments.',
+    benefits: [
+      'Preferred pricing on every cut',
+      'Priority booking access',
+      'Consistency rewards',
+      'Premium experience',
+    ],
+    cta: 'GET COMMITTED',
+  },
+  loyal: {
+    title: 'LOYAL',
+    label: 'ELITE ACCESS',
+    summary:
+      'Join our VIP tier for the best long-term value, exclusive benefits, and premium treatment.',
+    benefits: [
+      'Best long-term pricing',
+      'VIP booking priority',
+      'Exclusive member events',
+      'Personal barber relationship',
+    ],
+    cta: 'JOIN ELITE',
+  },
+}
+
+const OFFER_CARDS = [
+  {
+    key: 'one-time' as OfferKey,
+    title: 'ONE-TIME',
+    label: 'STANDARD',
+    points: ['Single visit', 'Full access', 'No commitment'],
+  },
+  {
+    key: 'committed' as OfferKey,
+    title: 'COMMITTED',
+    label: 'BEST VALUE',
+    points: ['Better pricing', 'Priority booking', 'Exclusive perks'],
+  },
+  {
+    key: 'loyal' as OfferKey,
+    title: 'LOYAL',
+    label: 'ELITE',
+    points: ['Premium pricing', 'VIP treatment', 'Member benefits'],
+  },
+] as const
+
 export default function HomePage() {
-  const processSectionRef = useRef<HTMLDivElement>(null)
-  const [animated, setAnimated] = useState(false)
+  const [activeOffer, setActiveOffer] = useState<OfferKey>('committed')
+  const [activeProof, setActiveProof] = useState(0)
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
 
-  // Intersection Observer for scroll animations
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && !animated) {
-            setAnimated(true)
-          }
-        })
-      },
-      { threshold: 0.2 }
-    )
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const updateMotionPreference = () => setPrefersReducedMotion(mediaQuery.matches)
 
-    if (processSectionRef.current) {
-      observer.observe(processSectionRef.current)
+    updateMotionPreference()
+
+    mediaQuery.addEventListener('change', updateMotionPreference)
+
+    return () => mediaQuery.removeEventListener('change', updateMotionPreference)
+  }, [])
+
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      return
     }
 
-    return () => observer.disconnect()
-  }, [animated])
+    const timer = window.setInterval(() => {
+      setActiveProof((current) => (current + 1) % PROOF_TILES.length)
+    }, 5500)
 
-  // Featured barber - Antonio Prince
-  const featuredBarber = {
-    name: 'ANTONIO PRINCE',
-    specialty: 'FOUNDER & LEAD BARBER',
-    instagram: '@only_bangers_',
-    bookingLink: 'https://calendly.com/onlybangers',
-    featuredContent: '15+ years experience, content creation specialist'
+    return () => window.clearInterval(timer)
+  }, [prefersReducedMotion])
+
+  const activeProofTile = PROOF_TILES[activeProof]
+
+  const showPreviousProof = () => {
+    setActiveProof((current) => (current - 1 + PROOF_TILES.length) % PROOF_TILES.length)
   }
 
-  // How it works with images
-  const howItWorks = [
-    {
-      step: '01',
-      title: 'BOOK A RECORDED CUT',
-      description: 'Reserve your slot for a haircut designed for content creation',
-      image: 'book-cut.jpg'
-    },
-    {
-      step: '02',
-      title: 'GET FILMED IN 4K',
-      description: 'Professional recording of your transformation from multiple angles',
-      image: 'record-cut.jpg'
-    },
-    {
-      step: '03',
-      title: 'RECEIVE YOUR FOOTAGE',
-      description: 'Get all raw footage to edit and post on your channels',
-      image: 'receive-footage.jpg'
-    },
-    {
-      step: '04',
-      title: 'GET FEATURED & EARN',
-      description: '50% off next cut when you post and tag us. Top content gets featured',
-      image: 'get-featured.jpg'
-    }
-  ]
-
-  // This week's features with images
-  const weeklyFeatures = [
-    {
-      id: 1,
-      title: 'FADE TRANSFORMATION',
-      creator: '@marcus_stylez',
-      image: 'feature-fade.jpg',
-      views: '25K'
-    },
-    {
-      id: 2,
-      title: 'BEARD SCULPT REEL',
-      creator: '@beardkingleo',
-      image: 'feature-beard.jpg',
-      views: '42K'
-    },
-    {
-      id: 3,
-      title: 'GLOW-UP SERIES',
-      creator: '@stylejourney',
-      image: 'feature-glowup.jpg',
-      views: '68K'
-    }
-  ]
+  const showNextProof = () => {
+    setActiveProof((current) => (current + 1) % PROOF_TILES.length)
+  }
 
   return (
-    <div className={styles.homepageContainer}>
-      {/* HERO: Join the Vibe */}
+    <div className="page-background">
+      <main className={`main-content ${styles.page}`}>
       <section className={styles.heroSection}>
-        <div className={`${styles.contentCard} ${styles.heroCard}`}>
-          <div className={styles.heroContent}>
-            <div className={styles.heroBadge}>WELCOME TO THE VIBE</div>
+        <div className={styles.heroContent}>
+          <div className={styles.heroCopy}>
+            <span className={styles.heroKicker}>Only Bangers Premium Grooming</span>
+
             <h1 className={styles.heroTitle}>
-              GET YOUR CUT RECORDED<br />
-              GET <span className={styles.highlight}>FEATURED</span><br />
-              GET <span className={styles.highlight}>50% OFF</span>
+              Premium Cuts.
+              <br />
+              Exceptional Service.
             </h1>
+
             <p className={styles.heroSubtitle}>
-              Book a recorded haircut with our content specialists. Receive professional footage, 
-              post for your audience, and get 50% off your next cut when you tag us.
+              Experience the craft of professional grooming. Whether you&apos;re
+              visiting once or becoming a regular, Only Bangers delivers
+              precision, style, and premium service.
             </p>
-            
-            <div className={styles.heroCta}>
-              <a 
-                href="https://calendly.com/onlybangers" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className={styles.primaryButton}
-              >
-                BOOK RECORDED CUT
+
+            <div className={styles.heroActions}>
+              <a href="/services" className={styles.primaryButton}>
+                BOOK APPOINTMENT
               </a>
-              <a 
-                href="#creators" 
-                className={styles.secondaryButton}
-              >
-                SEE SUCCESS STORIES
+
+              <a href="#pricing" className={styles.secondaryButton}>
+                VIEW PLANS
               </a>
+            </div>
+          </div>
+
+          <div className={styles.heroImageFrame}>
+            <div className={styles.heroImage}>
+              <img
+                src="/images/feature-fade.jpg"
+                alt="Premium haircut service at Only Bangers"
+              />
             </div>
           </div>
         </div>
       </section>
 
-      {/* Featured Barber */}
-      <section className={styles.section}>
+      <section className={styles.proofSection}>
         <div className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle}>OUR BARBER CREATOR</h2>
-          <p className={styles.sectionSubtitle}>Work with a content creation specialist</p>
+          <h2 className={styles.sectionTitle}>Why Choose Only Bangers</h2>
+          <p className={styles.sectionDescription}>
+            Trusted by clients who demand quality, consistency, and a premium
+            finish.
+          </p>
         </div>
-        
-        <div className={styles.barberContainer}>
-          <div className={`${styles.contentCard} ${styles.barberCard}`}>
-            <div className={styles.barberHeader}>
-              <h3 className={styles.barberName}>{featuredBarber.name}</h3>
-              <span className={styles.barberSpecialty}>{featuredBarber.specialty}</span>
-            </div>
-            
-            <div className={styles.barberContent}>
-              <p className={styles.barberInstagram}>{featuredBarber.instagram}</p>
-              <p className={styles.barberFeature}>{featuredBarber.featuredContent}</p>
-              <p className={styles.barberExpertise}>
-                Specializes in creating viral haircut content with proven track record of 
-                helping clients grow their social media through professional barbering footage.
-              </p>
-            </div>
-            
-            <div className={styles.barberActions}>
-              <a 
-                href={featuredBarber.bookingLink} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className={styles.barberButton}
-              >
-                BOOK WITH ANTONIO
-              </a>
-              <a 
-                href="https://www.instagram.com/only_bangers_"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={styles.barberLink}
-              >
-                VIEW PORTFOLIO
-              </a>
-            </div>
-          </div>
-        </div>
-      </section>
 
-      {/* How It Works - With Animations */}
-      <section ref={processSectionRef} className={styles.section}>
-        <div className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle}>HOW TO GET FEATURED</h2>
-          <p className={styles.sectionSubtitle}>Your path to viral content and discounts</p>
-        </div>
-        
-        <div className={`${styles.processContainer} ${animated ? styles.animated : ''}`}>
-          {howItWorks.map((step, index) => (
-            <div 
-              key={step.step} 
-              className={`${styles.contentCard} ${styles.processCard} ${styles[`processCard${index + 1}`]}`}
-              style={{ animationDelay: `${index * 0.2}s` }}
+        <div className={styles.proofExperience}>
+          <div className={styles.proofStage}>
+            <div
+              className={styles.proofSlides}
+              aria-live={prefersReducedMotion ? 'polite' : 'off'}
             >
-              <div className={styles.processStep}>{step.step}</div>
-              <h3 className={styles.processTitle}>{step.title}</h3>
-              <p className={styles.processDescription}>{step.description}</p>
-              <div className={styles.processImage}></div>
+              {PROOF_TILES.map((tile, index) => {
+                const isActive = index === activeProof
+
+                return (
+                  <article
+                    key={tile.title}
+                    className={`${styles.proofSlide} ${
+                      isActive ? styles.proofSlideActive : ''
+                    }`}
+                    aria-hidden={!isActive}
+                  >
+                    <img src={tile.image} alt={tile.alt} />
+                    <div className={styles.proofOverlay} />
+                  </article>
+                )
+              })}
             </div>
+
+            <div className={styles.proofStageContent}>
+              <span className={styles.proofEyebrow}>
+                {activeProofTile.eyebrow} / PROOF OF WORK
+              </span>
+              <h3 className={styles.proofStageTitle}>{activeProofTile.title}</h3>
+              <p className={styles.proofStageText}>{activeProofTile.text}</p>
+
+              <div className={styles.proofControls}>
+                <button
+                  type="button"
+                  onClick={showPreviousProof}
+                  className={styles.proofArrow}
+                  aria-label="Show previous proof image"
+                >
+                  PREV
+                </button>
+
+                <div className={styles.proofIndicators} aria-label="Proof slides">
+                  {PROOF_TILES.map((tile, index) => (
+                    <button
+                      key={tile.title}
+                      type="button"
+                      onClick={() => setActiveProof(index)}
+                      className={`${styles.proofIndicator} ${
+                        index === activeProof ? styles.proofIndicatorActive : ''
+                      }`}
+                      aria-label={`Show ${tile.title}`}
+                      aria-pressed={index === activeProof}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={showNextProof}
+                  className={styles.proofArrow}
+                  aria-label="Show next proof image"
+                >
+                  NEXT
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.proofRail}>
+            {PROOF_TILES.map((tile, index) => {
+              const isActive = index === activeProof
+
+              return (
+                <button
+                  key={tile.title}
+                  type="button"
+                  onClick={() => setActiveProof(index)}
+                  className={`${styles.proofRailCard} ${
+                    isActive ? styles.proofRailCardActive : ''
+                  }`}
+                  aria-pressed={isActive}
+                >
+                  <div className={styles.proofRailImage}>
+                    <img src={tile.image} alt={tile.alt} />
+                  </div>
+                  <div className={styles.proofRailCopy}>
+                    <span className={styles.proofRailIndex}>{tile.eyebrow}</span>
+                    <h3 className={styles.proofRailTitle}>{tile.title}</h3>
+                    <p className={styles.proofRailText}>{tile.text}</p>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section id="pricing" className={styles.pricingSection}>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionTitle}>Choose Your Plan</h2>
+          <p className={styles.sectionDescription}>
+            Every client is valued. Select the option that works best for you.
+          </p>
+        </div>
+
+        <div className={styles.offerGrid}>
+          {OFFER_CARDS.map((card) => (
+            <button
+              key={card.key}
+              type="button"
+              onClick={() => setActiveOffer(card.key)}
+              className={`${styles.offerCard} ${
+                activeOffer === card.key ? styles.offerCardActive : ''
+              }`}
+              data-active={activeOffer === card.key}
+            >
+              <span className={styles.offerBadge}>{card.label}</span>
+              <h3 className={styles.offerTitle}>{card.title}</h3>
+
+              <ul className={styles.offerList}>
+                {card.points.map((point) => (
+                  <li key={point} className={styles.offerListItem}>
+                    {point}
+                  </li>
+                ))}
+              </ul>
+            </button>
           ))}
         </div>
-      </section>
 
-      {/* Featured Creators - Conversion Point */}
-      <section id="creators" className={styles.section}>
-        <div className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle}>FEATURED CREATORS</h2>
-          <p className={styles.sectionSubtitle}>Clients who turned recorded cuts into viral content</p>
-        </div>
-        
-        <div className={styles.conversionCard}>
-          <div className={styles.conversionContent}>
-            <h3 className={styles.conversionTitle}>YOUR CONTENT COULD BE HERE</h3>
-            <p className={styles.conversionSubtitle}>
-              Every week, we feature the best content from our recorded cuts on our Instagram 
-              with over 50K followers.
-            </p>
-            
-            <div className={styles.conversionStats}>
-              <div className={styles.stat}>
-                <div className={styles.statNumber}>50%</div>
-                <div className={styles.statLabel}>OFF NEXT CUT</div>
-              </div>
-              <div className={styles.stat}>
-                <div className={styles.statNumber}>4K</div>
-                <div className={styles.statLabel}>PRO FOOTAGE</div>
-              </div>
-              <div className={styles.stat}>
-                <div className={styles.statNumber}>24H</div>
-                <div className={styles.statLabel}>DELIVERY TIME</div>
-              </div>
-            </div>
-            
-            <div className={styles.conversionCta}>
-              <a 
-                href="https://calendly.com/onlybangers" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className={styles.primaryButton}
-              >
-                BOOK YOUR RECORDED CUT
-              </a>
-              <p className={styles.conversionNote}>
-                Limited slots available. Book now to secure your content creation session.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+        <div className={styles.offerDetail}>
+          <h3 className={styles.offerDetailTitle}>
+            {OFFER_DETAILS[activeOffer].title}
+          </h3>
+          <p className={styles.offerDetailLabel}>
+            {OFFER_DETAILS[activeOffer].label}
+          </p>
+          <p className={styles.offerDetailText}>
+            {OFFER_DETAILS[activeOffer].summary}
+          </p>
 
-      {/* Weekly Feature Wall */}
-      <section className={styles.section}>
-        <div className={`${styles.contentCard} ${styles.featureWallCard}`}>
-          <div className={styles.featureWallHeader}>
-            <h2 className={styles.featureWallTitle}>THIS WEEK'S FEATURES</h2>
-            <p className={styles.featureWallSubtitle}>Real content from recorded cuts</p>
-          </div>
-          
-          <div className={styles.featureWallGrid}>
-            {weeklyFeatures.map((feature) => (
-              <div key={feature.id} className={styles.featureCard}>
-                <div className={styles.featureImage}></div>
-                <div className={styles.featureInfo}>
-                  <h4 className={styles.featureTitle}>{feature.title}</h4>
-                  <p className={styles.featureCreator}>by {feature.creator}</p>
-                  <p className={styles.featureViews}>{feature.views} views</p>
-                </div>
-              </div>
+          <ul className={styles.offerDetailList}>
+            {OFFER_DETAILS[activeOffer].benefits.map((benefit) => (
+              <li key={benefit}>{benefit}</li>
             ))}
+          </ul>
+
+          <a
+            href="https://calendly.com/onlybangers"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.primaryButton}
+          >
+            {OFFER_DETAILS[activeOffer].cta}
+          </a>
+        </div>
+      </section>
+
+      <section className={styles.valueSection}>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionTitle}>Membership Benefits</h2>
+          <p className={styles.sectionDescription}>
+            Regular clients enjoy exclusive advantages.
+          </p>
+        </div>
+
+        <div className={styles.valueGrid}>
+          <div className={styles.valueCard}>
+            <h3 className={styles.valueCardTitle}>Preferred Pricing</h3>
+            <p className={styles.valueCardText}>
+              Lock in better rates and save with every visit when you commit to
+              regular appointments.
+            </p>
           </div>
-          
-          <div className={styles.featureWallCta}>
-            <a 
-              href="https://www.instagram.com/only_bangers99" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className={styles.primaryButton}
-            >
-              SEE LIVE FEATURES ON INSTAGRAM
-            </a>
-            <p className={styles.featureWallNote}>
-              Follow us to see weekly features and get inspired for your own content.
+
+          <div className={styles.valueCard}>
+            <h3 className={styles.valueCardTitle}>Priority Booking</h3>
+            <p className={styles.valueCardText}>
+              Get first access to available time slots and never wait long for
+              your scheduled cut.
+            </p>
+          </div>
+
+          <div className={styles.valueCard}>
+            <h3 className={styles.valueCardTitle}>Consistency Rewards</h3>
+            <p className={styles.valueCardText}>
+              Build a relationship with your barber and receive exclusive perks
+              as a loyal member.
+            </p>
+          </div>
+
+          <div className={styles.valueCard}>
+            <h3 className={styles.valueCardTitle}>Premium Experience</h3>
+            <p className={styles.valueCardText}>
+              VIP treatment, personalized service, and access to exclusive
+              member-only events.
             </p>
           </div>
         </div>
       </section>
 
-      {/* Final CTA */}
-      <section className={styles.section}>
-        <div className={`${styles.contentCard} ${styles.finalCtaCard}`}>
-          <div className={styles.finalCtaContent}>
-            <h2 className={styles.finalCtaTitle}>READY TO CREATE VIRAL CONTENT?</h2>
-            <p className={styles.finalCtaText}>
-              Book your recorded cut today. Get professional footage, grow your audience, 
-              and get 50% off your next cut when you post and tag us.
-            </p>
-            
-            <div className={styles.finalCtaActions}>
-              <a 
-                href="https://calendly.com/onlybangers" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className={styles.primaryButton}
-              >
-                BOOK NOW
-              </a>
-              <a 
-                href="https://www.instagram.com/only_bangers99"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={styles.secondaryButton}
-              >
-                SEE EXAMPLES
-              </a>
-            </div>
+        <section className={styles.ctaSection}>
+          <h2 className={styles.ctaTitle}>Ready to Experience the Difference?</h2>
+          <p className={styles.ctaSubtitle}>
+            Book your appointment and discover why clients trust Only Bangers for
+            premium grooming.
+          </p>
+
+          <div className={styles.ctaActions}>
+            <a href="/services" className={styles.primaryButton}>
+              SCHEDULE NOW
+            </a>
+
+            <a
+              href="https://www.instagram.com/only_bangers99"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.secondaryButton}
+            >
+              FOLLOW US
+            </a>
           </div>
-        </div>
-      </section>
+        </section>
+      </main>
     </div>
   )
 }

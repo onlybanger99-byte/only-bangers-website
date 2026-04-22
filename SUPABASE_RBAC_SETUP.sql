@@ -1,119 +1,259 @@
-/**
- * Supabase RBAC Setup for Only Bangers
- * Phase 4-5: Role-Based Access Control Foundation
- * 
- * Instructions:
- * 1. Go to Supabase Dashboard → SQL Editor
- * 2. Create a new query
- * 3. Copy and paste the entire SQL script below
- * 4. Run it (Select all, then Execute)
- * 
- * This creates:
- * - user_role enum type
- * - user_roles table with RLS policies
- * - SQL function to get current user's role
- * - Bootstrap function to assign first owner
- */
+/*
+  Only Bangers - Supabase RBAC + RLS Setup
 
--- 1. Create the user_role enum type
-CREATE TYPE user_role AS ENUM ('owner', 'admin', 'barber', 'client');
+  Canonical application roles:
+  - admin
+  - barber
+  - customer
 
--- 2. Create the user_roles table
-CREATE TABLE IF NOT EXISTS user_roles (
-  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  role user_role NOT NULL DEFAULT 'client',
-  assigned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  Notes:
+  - This script is intended for the current role model used by the app.
+  - Supabase service role bypasses RLS automatically.
+  - It assumes the protected app areas are:
+    - /admin/* for admin
+    - /barber/* for barber
+    - /portal/* for customer
+*/
+
+begin;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_type
+    where typname = 'user_role'
+  ) then
+    create type public.user_role as enum ('admin', 'barber', 'customer');
+  end if;
+end
+$$;
+
+create table if not exists public.user_roles (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  role public.user_role not null default 'customer',
+  assigned_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
 );
 
--- 3. Add RLS (Row Level Security) to user_roles table
-ALTER TABLE user_roles ENABLE ROW LEVEL SECURITY;
+create index if not exists idx_user_roles_role on public.user_roles (role);
+create index if not exists idx_user_roles_assigned_at on public.user_roles (assigned_at desc);
 
--- 4. RLS Policy: Users can only read their own role
-CREATE POLICY "Users can read only their own role"
-  ON user_roles
-  FOR SELECT
-  USING (auth.uid() = user_id);
+alter table public.user_roles enable row level security;
 
--- 5. RLS Policy: Only authenticated users can insert (for signup), or service role
-CREATE POLICY "Service role can manage roles"
-  ON user_roles
-  FOR ALL
-  USING (auth.role() = 'authenticated' OR auth.role() = 'service_role')
-  WITH CHECK (auth.role() = 'authenticated' OR auth.role() = 'service_role');
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = timezone('utc', now());
+  return new;
+end;
+$$;
 
--- 6. Create index on user_id for faster lookups
-CREATE INDEX IF NOT EXISTS idx_user_roles_user_id ON user_roles(user_id);
+drop trigger if exists trg_user_roles_set_updated_at on public.user_roles;
+create trigger trg_user_roles_set_updated_at
+before update on public.user_roles
+for each row
+execute function public.set_updated_at();
 
--- 7. SQL function to get current user's role (easy to call from app)
-CREATE OR REPLACE FUNCTION get_my_role()
-RETURNS user_role AS $$
-  SELECT role FROM user_roles WHERE user_id = auth.uid();
-$$ LANGUAGE sql STABLE;
+create or replace function public.current_user_role()
+returns public.user_role
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select ur.role
+  from public.user_roles ur
+  where ur.user_id = auth.uid()
+  limit 1;
+$$;
 
--- 8. Bootstrap function: Assign owner role to first admin by email
--- Usage: SELECT assign_owner_by_email('your-email@example.com');
-CREATE OR REPLACE FUNCTION assign_owner_by_email(email TEXT)
-RETURNS TABLE(user_id UUID, email TEXT, role user_role, assigned BOOLEAN) AS $$
-DECLARE
-  target_user UUID;
-BEGIN
-  -- Find user by email
-  SELECT id INTO target_user FROM auth.users WHERE email = $1;
-  
-  IF target_user IS NULL THEN
-    RAISE EXCEPTION 'User not found with email: %', $1;
-  END IF;
-  
-  -- Upsert role
-  INSERT INTO user_roles (user_id, role, assigned_at)
-  VALUES (target_user, 'owner'::user_role, NOW())
-  ON CONFLICT (user_id)
-  DO UPDATE SET 
-    role = 'owner'::user_role,
-    updated_at = NOW();
-  
-  -- Return confirmation
-  RETURN QUERY
-    SELECT target_user, $1::TEXT, 'owner'::user_role, TRUE;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+create or replace function public.has_role(required_roles public.user_role[])
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(public.current_user_role() = any(required_roles), false);
+$$;
 
--- 9. Create function to check if user has a specific role
--- Usage: SELECT user_has_role(auth.uid(), 'owner');
-CREATE OR REPLACE FUNCTION user_has_role(check_user_id UUID, check_role user_role)
-RETURNS BOOLEAN AS $$
-DECLARE
-  user_actual_role user_role;
-BEGIN
-  SELECT role INTO user_actual_role FROM user_roles WHERE user_id = check_user_id;
-  RETURN user_actual_role = check_role;
-END;
-$$ LANGUAGE plpgsql STABLE;
+grant execute on function public.current_user_role() to authenticated;
+grant execute on function public.has_role(public.user_role[]) to authenticated;
 
--- 10. Grant execute permissions on functions to authenticated users
-GRANT EXECUTE ON FUNCTION get_my_role() TO authenticated;
-GRANT EXECUTE ON FUNCTION user_has_role(UUID, user_role) TO authenticated;
-GRANT EXECUTE ON FUNCTION assign_owner_by_email(TEXT) TO authenticated;
+drop policy if exists "user_roles_select_self_or_admin" on public.user_roles;
+create policy "user_roles_select_self_or_admin"
+on public.user_roles
+for select
+using (
+  auth.uid() = user_id
+  or public.has_role(array['admin']::public.user_role[])
+);
 
--- ============================================================================
--- HOW TO USE:
--- ============================================================================
---
--- A. Assign the first owner (run this once):
---    SELECT assign_owner_by_email('your-email@example.com');
---
--- B. Check a user's role (from SQL):
---    SELECT get_my_role();
---
--- C. To manually assign roles:
---    INSERT INTO user_roles (user_id, role) 
---    VALUES ('some-uuid-here', 'admin'::user_role)
---    ON CONFLICT (user_id) DO UPDATE SET role = 'admin'::user_role;
---
--- D. To view all roles (admin only):
---    SELECT u.email, ur.role, ur.assigned_at 
---    FROM user_roles ur
---    JOIN auth.users u ON ur.user_id = u.id;
---
--- ============================================================================
+drop policy if exists "user_roles_insert_admin_only" on public.user_roles;
+create policy "user_roles_insert_admin_only"
+on public.user_roles
+for insert
+with check (public.has_role(array['admin']::public.user_role[]));
+
+drop policy if exists "user_roles_update_admin_only" on public.user_roles;
+create policy "user_roles_update_admin_only"
+on public.user_roles
+for update
+using (public.has_role(array['admin']::public.user_role[]))
+with check (public.has_role(array['admin']::public.user_role[]));
+
+drop policy if exists "user_roles_delete_admin_only" on public.user_roles;
+create policy "user_roles_delete_admin_only"
+on public.user_roles
+for delete
+using (public.has_role(array['admin']::public.user_role[]));
+
+do $content_items$
+begin
+  if to_regclass('public.content_items') is not null then
+    execute 'alter table public.content_items add column if not exists user_id uuid references auth.users (id) on delete set null';
+    execute 'alter table public.content_items add column if not exists barber_id uuid references auth.users (id) on delete set null';
+    execute 'create index if not exists idx_content_items_user_id on public.content_items (user_id)';
+    execute 'create index if not exists idx_content_items_barber_id on public.content_items (barber_id)';
+    execute 'create index if not exists idx_content_items_status on public.content_items (status)';
+    execute 'alter table public.content_items enable row level security';
+
+    execute 'drop policy if exists "content_items_select_by_role_scope" on public.content_items';
+    execute $sql$
+      create policy "content_items_select_by_role_scope"
+      on public.content_items
+      for select
+      using (
+        public.has_role(array['admin']::public.user_role[])
+        or auth.uid() = user_id
+        or auth.uid() = barber_id
+      )
+    $sql$;
+
+    execute 'drop policy if exists "content_items_insert_by_role_scope" on public.content_items';
+    execute $sql$
+      create policy "content_items_insert_by_role_scope"
+      on public.content_items
+      for insert
+      with check (
+        public.has_role(array['admin', 'barber']::public.user_role[])
+        or auth.uid() = user_id
+        or auth.uid() = barber_id
+      )
+    $sql$;
+
+    execute 'drop policy if exists "content_items_update_by_role_scope" on public.content_items';
+    execute $sql$
+      create policy "content_items_update_by_role_scope"
+      on public.content_items
+      for update
+      using (
+        public.has_role(array['admin']::public.user_role[])
+        or auth.uid() = user_id
+        or auth.uid() = barber_id
+      )
+      with check (
+        public.has_role(array['admin']::public.user_role[])
+        or auth.uid() = user_id
+        or auth.uid() = barber_id
+      )
+    $sql$;
+  end if;
+end
+$content_items$;
+
+do $transactions$
+begin
+  if to_regclass('public.transactions') is not null then
+    execute 'alter table public.transactions add column if not exists user_id uuid references auth.users (id) on delete set null';
+    execute 'create index if not exists idx_transactions_user_id on public.transactions (user_id)';
+    execute 'create index if not exists idx_transactions_processed_at on public.transactions (processed_at desc)';
+    execute 'alter table public.transactions enable row level security';
+
+    execute 'drop policy if exists "transactions_select_by_role_scope" on public.transactions';
+    execute $sql$
+      create policy "transactions_select_by_role_scope"
+      on public.transactions
+      for select
+      using (
+        public.has_role(array['admin']::public.user_role[])
+        or auth.uid() = user_id
+      )
+    $sql$;
+
+    execute 'drop policy if exists "transactions_insert_admin_only" on public.transactions';
+    execute $sql$
+      create policy "transactions_insert_admin_only"
+      on public.transactions
+      for insert
+      with check (public.has_role(array['admin']::public.user_role[]))
+    $sql$;
+
+    execute 'drop policy if exists "transactions_update_admin_only" on public.transactions';
+    execute $sql$
+      create policy "transactions_update_admin_only"
+      on public.transactions
+      for update
+      using (public.has_role(array['admin']::public.user_role[]))
+      with check (public.has_role(array['admin']::public.user_role[]))
+    $sql$;
+  end if;
+end
+$transactions$;
+
+do $email_subscribers$
+begin
+  if to_regclass('public.email_subscribers') is not null then
+    execute 'alter table public.email_subscribers add column if not exists user_id uuid references auth.users (id) on delete set null';
+    execute 'create index if not exists idx_email_subscribers_user_id on public.email_subscribers (user_id)';
+    execute 'create index if not exists idx_email_subscribers_email on public.email_subscribers (lower(email))';
+    execute 'alter table public.email_subscribers enable row level security';
+
+    execute 'drop policy if exists "email_subscribers_select_by_role_scope" on public.email_subscribers';
+    execute $sql$
+      create policy "email_subscribers_select_by_role_scope"
+      on public.email_subscribers
+      for select
+      using (
+        public.has_role(array['admin']::public.user_role[])
+        or auth.uid() = user_id
+        or lower(email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+      )
+    $sql$;
+
+    execute 'drop policy if exists "email_subscribers_insert_self_or_admin" on public.email_subscribers';
+    execute $sql$
+      create policy "email_subscribers_insert_self_or_admin"
+      on public.email_subscribers
+      for insert
+      with check (
+        public.has_role(array['admin']::public.user_role[])
+        or auth.uid() = user_id
+        or lower(email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+      )
+    $sql$;
+
+    execute 'drop policy if exists "email_subscribers_update_self_or_admin" on public.email_subscribers';
+    execute $sql$
+      create policy "email_subscribers_update_self_or_admin"
+      on public.email_subscribers
+      for update
+      using (
+        public.has_role(array['admin']::public.user_role[])
+        or auth.uid() = user_id
+        or lower(email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+      )
+      with check (
+        public.has_role(array['admin']::public.user_role[])
+        or auth.uid() = user_id
+        or lower(email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+      )
+    $sql$;
+  end if;
+end
+$email_subscribers$;
+
+commit;

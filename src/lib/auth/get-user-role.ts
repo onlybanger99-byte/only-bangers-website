@@ -1,12 +1,12 @@
 /**
  * Helper to get the current authenticated user and their role.
- * Phase 5: This will be the single source for role-based access control.
- * Phase 4: Works alongside temporary ADMIN_SECRET cookie check.
+ * This is the shared source of truth for app-level role checks.
  */
 
 import { createClient } from '@/lib/supabase/server';
+import { hasRequiredRole, normalizeRole, type AppRole, type UserRole } from './roles';
 
-export type UserRole = 'owner' | 'admin' | 'barber' | 'client' | null;
+export type { AppRole, UserRole } from './roles';
 
 export interface UserWithRole {
   user: {
@@ -47,7 +47,7 @@ export async function getUserRole(): Promise<UserWithRole> {
       return { user, role: null };
     }
 
-    const role = (data?.role as UserRole) || null;
+    const role = normalizeRole(data?.role);
 
     return {
       user: {
@@ -66,7 +66,7 @@ export async function getUserRole(): Promise<UserWithRole> {
  * Check if a user has any of the allowed roles.
  * Useful for page-level access checks.
  */
-export async function hasRole(allowedRoles: UserRole[]): Promise<boolean> {
+export async function hasRole(allowedRoles: readonly AppRole[]): Promise<boolean> {
   const { role } = await getUserRole();
-  return allowedRoles.includes(role);
+  return hasRequiredRole(role, allowedRoles);
 }

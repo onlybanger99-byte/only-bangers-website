@@ -1,19 +1,88 @@
 "use client";
 
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
-import { useState, useEffect } from "react";
+import { getDefaultDashboardForRole, normalizeRole } from "@/lib/auth/roles";
 import styles from "./login.module.css";
 
-export default function LoginPage() {
+function getFriendlyErrorMessage(errorCode: string | null) {
+  switch (errorCode) {
+    case "missing-role":
+      return "Your account is authenticated, but no supported role is assigned yet. Please contact Only Bangers support."
+    case "role-lookup-failed":
+      return "We could not verify your role right now. Please try again."
+    case "auth-failed":
+    case "session-missing":
+    case "missing-code":
+      return "We could not complete sign-in. Please try again."
+    default:
+      return ""
+  }
+}
+
+function LoginPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [authMessage, setAuthMessage] = useState("");
 
-  // Clear user flag when on login page (user is logged out)
   useEffect(() => {
-    localStorage.removeItem('onlyBangersUser')
-    window.dispatchEvent(new Event('userLoggedOut'))
-  }, [])
+    let isMounted = true
+
+    const syncExistingSession = async () => {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser()
+
+      if (userError || !user) {
+        return
+      }
+
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .maybeSingle()
+
+      if (error) {
+        console.error("[login] Failed to resolve existing session role:", error)
+        if (isMounted) {
+          setAuthMessage("We found your session, but your role could not be verified.")
+        }
+        return
+      }
+
+      const role = normalizeRole(data?.role)
+
+      if (!role) {
+        if (isMounted) {
+          setAuthMessage(
+            "Your account is signed in, but no supported role is assigned yet. Please contact Only Bangers support."
+          )
+        }
+        return
+      }
+
+      router.replace(getDefaultDashboardForRole(role))
+    }
+
+    const errorCode = searchParams.get("error")
+    const message = getFriendlyErrorMessage(errorCode)
+
+    if (message) {
+      setAuthMessage(message)
+    }
+
+    syncExistingSession()
+
+    return () => {
+      isMounted = false
+    }
+  }, [router, searchParams])
 
   const signInWithGoogle = async () => {
     setLoading(true);
@@ -36,11 +105,20 @@ export default function LoginPage() {
   const sendMagicLink = async () => {
     if (!email) return;
     setLoading(true);
-    await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithOtp({
       email,
       options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
+
+    if (error) {
+      setAuthMessage("We could not send the magic link. Please try again.")
+      setSent(false)
+      setLoading(false);
+      return
+    }
+
     setSent(true);
+    setAuthMessage("")
     setLoading(false);
   };
 
@@ -48,7 +126,13 @@ export default function LoginPage() {
     <div className={styles.loginContainer}>
       <div className={styles.loginCard}>
         <h1 className={styles.loginTitle}>Only Bangers Sign In</h1>
-        <p className={styles.loginSubtitle}>Access your barber account and manage bookings</p>
+        <p className={styles.loginSubtitle}>Access your account, bookings, and role-based dashboard.</p>
+
+        {authMessage ? (
+          <div className={styles.successMessage} role="alert">
+            <p className={styles.successText}>{authMessage}</p>
+          </div>
+        ) : null}
 
         <div className={styles.oauthSection}>
           <button 
@@ -90,7 +174,7 @@ export default function LoginPage() {
             placeholder="your@email.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && sendMagicLink()}
+            onKeyDown={(e) => e.key === 'Enter' && sendMagicLink()}
             aria-label="Email address"
             className={styles.emailInput}
           />
@@ -105,12 +189,20 @@ export default function LoginPage() {
           {sent && (
             <div className={styles.successMessage}>
               <p className={styles.successText}>
-                Magic link sent! Check your inbox and click the link to sign in.
+                Magic link sent. Check your inbox and click the link to finish signing in.
               </p>
             </div>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className={styles.loginContainer} />}>
+      <LoginPageContent />
+    </Suspense>
   );
 }

@@ -1,0 +1,428 @@
+.page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(212, 175, 55, 0.12), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(212, 175, 55, 0.08), transparent 24%),
+    linear-gradient(180deg, #090909 0%, #050505 100%);
+  color: var(--text-primary);
+}
+
+.shell {
+  width: min(1360px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 2rem 0 3rem;
+}
+
+.dashboardGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.7fr);
+  gap: 1rem;
+}
+
+.primaryColumn,
+.sidebarColumn,
+.detailGrid,
+.scheduleList,
+.performanceGrid,
+.workspaceList,
+.clientInfoGrid,
+.historyList,
+.captureGrid,
+.workflowGrid,
+.notesForm,
+.loadingGrid {
+  display: grid;
+  gap: 1rem;
+}
+
+.heroCard,
+.sectionCard,
+.detailCard,
+.scheduleCard,
+.performanceCard,
+.captureSlot,
+.workspaceItem,
+.errorCard,
+.loadingHero,
+.loadingCard {
+  background: linear-gradient(180deg, rgba(17, 17, 17, 0.96), rgba(7, 7, 7, 0.93));
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  box-shadow: var(--shadow-premium);
+}
+
+.heroCard,
+.sectionCard,
+.detailCard,
+.errorCard {
+  border-radius: 1.6rem;
+  padding: 1.3rem;
+}
+
+.heroCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 1rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.6rem;
+  color: var(--premium-gold);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.74rem;
+}
+
+.heroTitle {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3.3rem);
+  line-height: 0.97;
+  color: var(--text-primary);
+}
+
+.heroSubtitle {
+  margin: 0.55rem 0 0;
+  color: var(--premium-gold-light);
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.heroText,
+.panelText,
+.infoText,
+.cardMeta,
+.cardSubmeta,
+.savedMessage {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+.heroMeta {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.heroStat,
+.performanceCard,
+.workspaceItem,
+.infoBlock,
+.captureSlot {
+  padding: 1rem;
+  border-radius: 1.1rem;
+  border: 1px solid rgba(212, 175, 55, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.infoLabel {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.heroValue,
+.performanceValue,
+.workspaceValue {
+  display: block;
+  margin-top: 0.5rem;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.panelTitle,
+.cardTitle {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.scheduleCard {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 1.15rem;
+  padding: 1rem;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.scheduleCard:hover,
+.scheduleCard[data-active='true'] {
+  transform: translateY(-1px);
+  border-color: rgba(212, 175, 55, 0.35);
+  background: linear-gradient(180deg, rgba(26, 26, 26, 0.98), rgba(10, 10, 10, 0.95));
+}
+
+.scheduleTop,
+.captureTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.scheduleTime {
+  display: block;
+  color: var(--premium-gold);
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.42rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.statusBadge[data-tone='scheduled'],
+.statusBadge[data-tone='missing'],
+.statusBadge[data-tone='consent_no'] {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+.statusBadge[data-tone='arrived'],
+.statusBadge[data-tone='ready'],
+.statusBadge[data-tone='consent_yes'] {
+  background: rgba(212, 175, 55, 0.12);
+  color: var(--premium-gold-light);
+}
+
+.statusBadge[data-tone='in_progress'] {
+  background: rgba(96, 165, 250, 0.16);
+  color: #bfdbfe;
+}
+
+.statusBadge[data-tone='completed'] {
+  background: rgba(16, 185, 129, 0.14);
+  color: #9bf4cf;
+}
+
+.statusBadge[data-tone='cancelled'] {
+  background: rgba(244, 63, 94, 0.14);
+  color: #fecdd3;
+}
+
+.detailGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 1rem;
+}
+
+.historyList {
+  margin: 0.9rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--text-secondary);
+}
+
+.workflowGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.workflowButton,
+.captureButton,
+.primaryAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  transition: all 0.22s ease;
+}
+
+.workflowButton {
+  padding: 0.8rem 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(212, 175, 55, 0.16);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.workflowButton[data-active='true'],
+.workflowButton:hover {
+  color: var(--premium-gold);
+  border-color: rgba(212, 175, 55, 0.36);
+  background: rgba(212, 175, 55, 0.08);
+}
+
+.captureGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.capturePreview {
+  min-height: 7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0.9rem 0;
+  border-radius: 1rem;
+  border: 1px dashed rgba(212, 175, 55, 0.18);
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.hiddenInput {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.captureButton,
+.primaryAction {
+  width: fit-content;
+  padding: 0.78rem 1rem;
+  cursor: pointer;
+}
+
+.captureButton {
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.captureButton:hover {
+  color: var(--premium-gold);
+  border-color: rgba(212, 175, 55, 0.36);
+  background: rgba(212, 175, 55, 0.08);
+}
+
+.textArea {
+  width: 100%;
+  padding: 0.9rem 1rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  resize: vertical;
+  font: inherit;
+}
+
+.textArea:focus {
+  outline: none;
+  border-color: rgba(212, 175, 55, 0.4);
+}
+
+.formField {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.notesFooter {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.primaryAction {
+  border: none;
+  background: var(--premium-gold);
+  color: var(--premium-dark);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.primaryAction:hover {
+  background: var(--premium-gold-hover);
+}
+
+.emptyState {
+  padding: 1.2rem;
+  border: 1px dashed rgba(212, 175, 55, 0.2);
+  border-radius: 1.2rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.emptyState p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+.errorCard {
+  margin-top: 4rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.loadingHero,
+.loadingCard {
+  position: relative;
+  overflow: hidden;
+}
+
+.loadingHero::after,
+.loadingCard::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  animation: shimmer 1.6s infinite;
+}
+
+.loadingHero {
+  min-height: 12rem;
+  border-radius: 1.7rem;
+}
+
+.loadingGrid {
+  margin-top: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.loadingCard {
+  min-height: 12rem;
+  border-radius: 1.5rem;
+}
+
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (max-width: 1180px) {
+  .dashboardGrid,
+  .heroCard,
+  .detailGrid,
+  .loadingGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 860px) {
+  .shell {
+    width: min(100%, calc(100% - 1rem));
+    padding-top: 1rem;
+  }
+
+  .workflowGrid,
+  .captureGrid,
+  .clientInfoGrid,
+  .performanceGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .panelHeader,
+  .scheduleTop,
+  .captureTop,
+  .notesFooter {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

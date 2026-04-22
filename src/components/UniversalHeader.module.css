@@ -116,6 +116,12 @@
   animation: slideDown 0.3s ease;
 }
 
+.searchBarContainerHidden {
+  transform: translateY(-100%);
+  box-shadow: none;
+  pointer-events: none;
+}
+
 @keyframes slideDown {
   from {
     transform: translateY(-100%);
@@ -454,7 +460,35 @@
   font-size: 1rem;
 }
 
+.menuNavForm {
+  margin: 0;
+}
+
+.menuNavButton {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 0.75rem;
+  border: none;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: #d1d5db;
+  transition: all 0.2s ease;
+  margin-bottom: 0.25rem;
+  font-size: 1rem;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
 .menuNavItem:hover {
+  background-color: #1a1a1a;
+  color: white;
+  padding-left: 1rem;
+}
+
+.menuNavButton:hover {
   background-color: #1a1a1a;
   color: white;
   padding-left: 1rem;
