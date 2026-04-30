@@ -28,9 +28,6 @@ export async function PUT(request: NextRequest) {
     facebookUrl: body.facebookUrl,
     portfolioUrl: body.portfolioUrl,
     bio: body.bio,
-    availableDays: Array.isArray(body.availableDays) ? body.availableDays : [],
-    availableStartTime: body.availableStartTime,
-    availableEndTime: body.availableEndTime,
   })
 
   if (!result.ok) {

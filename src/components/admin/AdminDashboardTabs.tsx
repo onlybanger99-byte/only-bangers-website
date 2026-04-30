@@ -221,20 +221,24 @@ function BarberApplicationCard({
         <div>
           <span className={styles.metaLabel}>Availability</span>
           <strong className={styles.metaValue}>
-            {application.availableDays.length > 0 ? application.availableDays.join(', ') : 'Days pending'}
-          </strong>
-        </div>
-        <div>
-          <span className={styles.metaLabel}>Hours</span>
-          <strong className={styles.metaValue}>
-            {application.availableStartTime && application.availableEndTime
-              ? `${application.availableStartTime} - ${application.availableEndTime}`
-              : 'Hours pending'}
+            {application.availabilitySlots.length > 0
+              ? `${application.availabilitySlots.length} slot${application.availabilitySlots.length === 1 ? '' : 's'} submitted`
+              : 'No slots submitted'}
           </strong>
         </div>
       </div>
 
       <p className={styles.cardText}>{application.bio}</p>
+
+      {application.availabilitySlots.length > 0 ? (
+        <div className={styles.inlineActions}>
+          {application.availabilitySlots.map((slot) => (
+            <span key={slot.id} className={styles.secondaryButton}>
+              {slot.availableDate} {slot.startTime} - {slot.endTime}
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       <div className={styles.inlineActions}>
         {application.instagramUrl ? (

@@ -75,9 +75,12 @@ export interface AdminBarberApplicationRow {
   facebookUrl: string | null
   portfolioUrl: string | null
   bio: string
-  availableDays: string[]
-  availableStartTime: string | null
-  availableEndTime: string | null
+  availabilitySlots: Array<{
+    id: string
+    availableDate: string
+    startTime: string
+    endTime: string
+  }>
   submittedAtLabel: string
   status: BarberApplicationStatus
   rejectionReason: string | null

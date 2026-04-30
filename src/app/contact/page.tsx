@@ -59,19 +59,19 @@ export default function ContactPage() {
             </div>
 
             <div className={styles.businessHours}>
-              <h3 className={styles.hoursTitle}>Business Hours</h3>
+              <h3 className={styles.hoursTitle}>Booking Availability</h3>
               <div className={styles.hoursList}>
                 <div className={styles.hoursItem}>
-                  <span>Monday - Friday:</span>
-                  <span className={styles.hoursTime}>9:00 AM - 6:00 PM</span>
+                  <span>Scheduling:</span>
+                  <span className={styles.hoursTime}>Availability depends on each barber</span>
                 </div>
                 <div className={styles.hoursItem}>
-                  <span>Saturday:</span>
-                  <span className={styles.hoursTime}>9:00 AM - 4:00 PM</span>
+                  <span>Booking flow:</span>
+                  <span className={styles.hoursTime}>Choose an available barber and time</span>
                 </div>
                 <div className={styles.hoursItem}>
-                  <span>Sunday:</span>
-                  <span className={styles.hoursTime}>Closed</span>
+                  <span>Updates:</span>
+                  <span className={styles.hoursTime}>Barbers manage their own schedules</span>
                 </div>
               </div>
             </div>

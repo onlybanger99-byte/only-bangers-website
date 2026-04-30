@@ -95,6 +95,12 @@ export interface UpdateBookingInput {
 export interface BookingAvailability {
   barberId: string
   date: string
+  availabilitySlots: Array<{
+    id: string
+    availableDate: string
+    startTime: string
+    endTime: string
+  }>
   availableSlots: string[]
   bookedSlots: string[]
   temporarilyReservedSlots: string[]

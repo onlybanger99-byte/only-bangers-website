@@ -79,12 +79,22 @@
 
 .dayOption {
   display: flex;
+  justify-content: space-between;
   gap: 0.55rem;
   align-items: center;
   border-radius: 0.95rem;
   padding: 0.85rem 0.95rem;
   border: 1px solid rgba(212, 175, 55, 0.12);
   background: rgba(255, 255, 255, 0.02);
+}
+
+.removeButton {
+  border: 1px solid rgba(244, 63, 94, 0.22);
+  background: rgba(244, 63, 94, 0.08);
+  color: #fecdd3;
+  border-radius: 999px;
+  padding: 0.5rem 0.8rem;
+  cursor: pointer;
 }
 
 .actions {

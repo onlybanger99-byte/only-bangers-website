@@ -1,3 +1,5 @@
+import type { AvailabilitySlotInput, AvailabilitySlotSummary } from '@/lib/barber-availability/types'
+
 export const BARBER_APPLICATION_STATUSES = ['pending', 'approved', 'rejected'] as const
 
 export type BarberApplicationStatus = (typeof BARBER_APPLICATION_STATUSES)[number]
@@ -32,9 +34,7 @@ export interface CreateBarberApplicationInput {
   facebookUrl?: string | null
   portfolioUrl?: string | null
   bio: string
-  availableDays: string[]
-  availableStartTime: string
-  availableEndTime: string
+  availabilitySlots: AvailabilitySlotInput[]
   notes?: string | null
 }
 
@@ -46,9 +46,6 @@ export interface UpdateBarberProfileInput {
   facebookUrl?: string | null
   portfolioUrl?: string | null
   bio: string
-  availableDays: string[]
-  availableStartTime: string
-  availableEndTime: string
 }
 
 export interface BarberApplicationSummary {
@@ -66,6 +63,7 @@ export interface BarberApplicationSummary {
   availableDays: string[]
   availableStartTime: string | null
   availableEndTime: string | null
+  availabilitySlots: AvailabilitySlotSummary[]
   notes: string | null
   reviewedBy: string | null
   reviewedAt: string | null

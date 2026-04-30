@@ -2,9 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import type { AvailabilitySlotInput } from '@/lib/barber-availability/types'
 import styles from '@/app/portal/barber-application/barber-application.module.css'
-
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 type FormState = {
   cuttingLocation: string
@@ -13,9 +12,7 @@ type FormState = {
   facebookUrl: string
   portfolioUrl: string
   bio: string
-  availableDays: string[]
-  availableStartTime: string
-  availableEndTime: string
+  availabilitySlots: AvailabilitySlotInput[]
   notes: string
 }
 
@@ -32,20 +29,48 @@ export function BarberApplicationForm({
     facebookUrl: initialValues?.facebookUrl ?? '',
     portfolioUrl: initialValues?.portfolioUrl ?? '',
     bio: initialValues?.bio ?? '',
-    availableDays: initialValues?.availableDays ?? [],
-    availableStartTime: initialValues?.availableStartTime ?? '',
-    availableEndTime: initialValues?.availableEndTime ?? '',
+    availabilitySlots: initialValues?.availabilitySlots ?? [],
     notes: initialValues?.notes ?? '',
+  })
+  const [slotDraft, setSlotDraft] = useState<AvailabilitySlotInput>({
+    availableDate: '',
+    startTime: '',
+    endTime: '',
   })
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const toggleDay = (day: string) => {
+  const addSlot = () => {
+    if (!slotDraft.availableDate || !slotDraft.startTime || !slotDraft.endTime) {
+      setError('Add a valid date, start time, and end time before saving an availability slot.')
+      return
+    }
+
+    if (slotDraft.startTime >= slotDraft.endTime) {
+      setError('End time must be after the start time.')
+      return
+    }
+
+    setError('')
     setForm((current) => ({
       ...current,
-      availableDays: current.availableDays.includes(day)
-        ? current.availableDays.filter((item) => item !== day)
-        : [...current.availableDays, day],
+      availabilitySlots: [...current.availabilitySlots, slotDraft].sort((left, right) => {
+        const leftKey = `${left.availableDate}T${left.startTime}`
+        const rightKey = `${right.availableDate}T${right.startTime}`
+        return leftKey.localeCompare(rightKey)
+      }),
+    }))
+    setSlotDraft({
+      availableDate: '',
+      startTime: '',
+      endTime: '',
+    })
+  }
+
+  const removeSlot = (index: number) => {
+    setForm((current) => ({
+      ...current,
+      availabilitySlots: current.availabilitySlots.filter((_, currentIndex) => currentIndex !== index),
     }))
   }
 
@@ -129,43 +154,70 @@ export function BarberApplicationForm({
           />
         </label>
 
+        <label className={styles.field}>
+          <span className={styles.label}>Availability Slot Date</span>
+          <input
+            type="date"
+            className={styles.input}
+            value={slotDraft.availableDate}
+            onChange={(event) =>
+              setSlotDraft((current) => ({ ...current, availableDate: event.target.value }))
+            }
+          />
+        </label>
+
+        <label className={styles.field}>
+          <span className={styles.label}>Availability Slot Start</span>
+          <input
+            type="time"
+            className={styles.input}
+            value={slotDraft.startTime}
+            onChange={(event) =>
+              setSlotDraft((current) => ({ ...current, startTime: event.target.value }))
+            }
+          />
+        </label>
+
+        <label className={styles.field}>
+          <span className={styles.label}>Availability Slot End</span>
+          <input
+            type="time"
+            className={styles.input}
+            value={slotDraft.endTime}
+            onChange={(event) =>
+              setSlotDraft((current) => ({ ...current, endTime: event.target.value }))
+            }
+          />
+        </label>
+
         <div className={styles.field}>
-          <span className={styles.label}>Available Days</span>
-          <div className={styles.dayGrid}>
-            {DAYS.map((day) => (
-              <label key={day} className={styles.dayOption}>
-                <input
-                  type="checkbox"
-                  checked={form.availableDays.includes(day)}
-                  onChange={() => toggleDay(day)}
-                />
-                <span>{day}</span>
-              </label>
-            ))}
-          </div>
+          <span className={styles.label}>Add Slot</span>
+          <button type="button" className={styles.primaryButton} onClick={addSlot}>
+            Add Availability Slot
+          </button>
         </div>
+      </div>
 
-        <label className={styles.field}>
-          <span className={styles.label}>Available Start Time</span>
-          <input
-            type="time"
-            className={styles.input}
-            value={form.availableStartTime}
-            onChange={(event) => setForm((current) => ({ ...current, availableStartTime: event.target.value }))}
-            required
-          />
-        </label>
-
-        <label className={styles.field}>
-          <span className={styles.label}>Available End Time</span>
-          <input
-            type="time"
-            className={styles.input}
-            value={form.availableEndTime}
-            onChange={(event) => setForm((current) => ({ ...current, availableEndTime: event.target.value }))}
-            required
-          />
-        </label>
+      <div className={styles.field}>
+        <span className={styles.label}>Selected Availability Slots</span>
+        <div className={styles.dayGrid}>
+          {form.availabilitySlots.length > 0 ? (
+            form.availabilitySlots.map((slot, index) => (
+              <div key={`${slot.availableDate}-${slot.startTime}-${slot.endTime}-${index}`} className={styles.dayOption}>
+                <span>
+                  {slot.availableDate} | {slot.startTime} - {slot.endTime}
+                </span>
+                <button type="button" className={styles.removeButton} onClick={() => removeSlot(index)}>
+                  Remove
+                </button>
+              </div>
+            ))
+          ) : (
+            <div className={styles.dayOption}>
+              <span>No availability slots added yet.</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <label className={styles.field}>
@@ -187,7 +239,7 @@ export function BarberApplicationForm({
           value={form.notes}
           onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
           rows={4}
-          placeholder="Anything else admin should know about your setup or availability."
+          placeholder="Anything else admin should know about your setup."
         />
       </label>
 

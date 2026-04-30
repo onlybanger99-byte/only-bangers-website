@@ -43,7 +43,7 @@ export default async function BarberApplicationPage() {
           <p className={styles.eyebrow}>Barber Application</p>
           <h1 className={styles.title}>Apply to join the Only Bangers barber lineup</h1>
           <p className={styles.text}>
-            Share where you cut, how clients can view your work, and when you are available. Admin will review your application before your barber role is activated.
+            Share where you cut, how clients can view your work, and the dates and time slots you want to offer. Admin will review your application before your barber role is activated.
           </p>
         </section>
 
@@ -63,9 +63,7 @@ export default async function BarberApplicationPage() {
                     facebookUrl: latestApplication.facebookUrl ?? '',
                     portfolioUrl: latestApplication.portfolioUrl ?? '',
                     bio: latestApplication.bio,
-                    availableDays: latestApplication.availableDays,
-                    availableStartTime: latestApplication.availableStartTime ?? '',
-                    availableEndTime: latestApplication.availableEndTime ?? '',
+                    availabilitySlots: latestApplication.availabilitySlots,
                     notes: latestApplication.notes ?? '',
                   }
                 : undefined

@@ -4,12 +4,6 @@ import styles from './page.module.css'
 
 export const dynamic = 'force-dynamic'
 
-function formatAvailability(days: string[], start?: string | null, end?: string | null) {
-  const dayLabel = days.length > 0 ? days.join(', ') : 'Availability coming soon'
-  const timeLabel = start && end ? `${start} - ${end}` : 'Times pending'
-  return `${dayLabel} | ${timeLabel}`
-}
-
 function toExternalHref(platform: 'instagram' | 'tiktok' | 'facebook' | 'portfolio', value: string) {
   const normalized = value.trim()
 
@@ -46,7 +40,7 @@ export default async function PublicBarberPage() {
           <p className={styles.eyebrow}>Only Bangers Barbers</p>
           <h1 className={styles.title}>Book approved active barbers with confidence</h1>
           <p className={styles.text}>
-            Every barber shown here has been approved and activated in the Only Bangers booking flow.
+            Every barber shown here has been approved and activated in the Only Bangers booking flow. Availability depends on each barber.
           </p>
         </section>
 
@@ -59,13 +53,7 @@ export default async function PublicBarberPage() {
                 <p className={styles.text}>{barber.bio}</p>
                 <div className={styles.badgeRow}>
                   {barber.cutting_location ? <span className={styles.badge}>{barber.cutting_location}</span> : null}
-                  <span className={styles.badge}>
-                    {formatAvailability(
-                      barber.available_days,
-                      barber.available_start_time,
-                      barber.available_end_time
-                    )}
-                  </span>
+                  <span className={styles.badge}>Choose an available barber and time</span>
                 </div>
                 <div className={styles.linksRow}>
                   {barber.instagram_url ? (

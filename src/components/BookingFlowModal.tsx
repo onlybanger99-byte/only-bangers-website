@@ -37,9 +37,8 @@ function isSelectableDate(dateStr: string) {
   const todayUtc = new Date(
     Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
   )
-  const day = date.getUTCDay()
 
-  return date >= todayUtc && day !== 0 && day !== 6
+  return date >= todayUtc
 }
 
 export default function BookingFlowModal({
@@ -432,7 +431,7 @@ export default function BookingFlowModal({
           {step === 'barber' ? (
             <>
               <h2>Choose Your Barber</h2>
-              <p className="modal-subtitle">Select from our available team members</p>
+              <p className="modal-subtitle">Choose an available barber and time</p>
               {loadingBarbers ? (
                 <div className="loading-times">Loading barbers...</div>
               ) : barbers.length === 0 ? (
@@ -526,7 +525,7 @@ export default function BookingFlowModal({
                 <div className="loading-times">Loading available times...</div>
               ) : availableTimes.length === 0 ? (
                 <div className="no-times-message">
-                  <p>No available time slots for this date.</p>
+                  <p>No availability set for this date.</p>
                   <button className="modal-btn primary" onClick={() => setStep('date')}>
                     Back to Calendar
                   </button>

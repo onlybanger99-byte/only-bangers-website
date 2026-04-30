@@ -1,6 +1,11 @@
 import { getCustomerProfileCompletionState } from '@/lib/customer-profiles/service'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import {
+  copyApplicationAvailabilityToBarber,
+  listApplicationAvailabilitySlots,
+  replaceApplicationAvailabilitySlots,
+} from '@/lib/barber-availability/service'
 import type {
   BarberApplicationRecord,
   BarberApplicationStatus,
@@ -28,7 +33,9 @@ function normalizeDays(value: unknown) {
     .filter(Boolean)
 }
 
-function toSummary(row: BarberApplicationRecord): BarberApplicationSummary {
+async function toSummary(row: BarberApplicationRecord): Promise<BarberApplicationSummary> {
+  const availabilitySlots = await listApplicationAvailabilitySlots(row.id)
+
   return {
     id: row.id,
     userId: row.user_id,
@@ -44,6 +51,7 @@ function toSummary(row: BarberApplicationRecord): BarberApplicationSummary {
     availableDays: normalizeDays(row.available_days),
     availableStartTime: normalizeNullableText(row.available_start_time),
     availableEndTime: normalizeNullableText(row.available_end_time),
+    availabilitySlots,
     notes: normalizeNullableText(row.notes),
     reviewedBy: normalizeNullableText(row.reviewed_by),
     reviewedAt: normalizeNullableText(row.reviewed_at),
@@ -74,32 +82,34 @@ function ensureLinks(input: CreateBarberApplicationInput | UpdateBarberProfileIn
   ].filter(Boolean)
 }
 
-function validateAvailability(
-  input: Pick<
-    CreateBarberApplicationInput | UpdateBarberProfileInput,
-    'availableDays' | 'availableStartTime' | 'availableEndTime'
-  >
-) {
+function validateAvailability(input: Pick<CreateBarberApplicationInput, 'availabilitySlots'>) {
   const details: string[] = []
 
-  if (input.availableDays.length === 0) {
-    details.push('Select at least one available day.')
+  if (!Array.isArray(input.availabilitySlots) || input.availabilitySlots.length === 0) {
+    details.push('Add at least one availability slot.')
+    return details
   }
 
-  if (!normalizeText(input.availableStartTime)) {
-    details.push('Available start time is required.')
-  }
+  for (const [index, slot] of input.availabilitySlots.entries()) {
+    const date = normalizeText(slot?.availableDate)
+    const startTime = normalizeText(slot?.startTime)
+    const endTime = normalizeText(slot?.endTime)
 
-  if (!normalizeText(input.availableEndTime)) {
-    details.push('Available end time is required.')
-  }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(`${date}T00:00:00.000Z`).getTime())) {
+      details.push(`Availability slot ${index + 1} must include a valid date.`)
+    }
 
-  if (
-    normalizeText(input.availableStartTime) &&
-    normalizeText(input.availableEndTime) &&
-    normalizeText(input.availableStartTime) >= normalizeText(input.availableEndTime)
-  ) {
-    details.push('Available end time must be after the start time.')
+    if (!/^\d{2}:\d{2}$/.test(startTime)) {
+      details.push(`Availability slot ${index + 1} must include a valid start time.`)
+    }
+
+    if (!/^\d{2}:\d{2}$/.test(endTime)) {
+      details.push(`Availability slot ${index + 1} must include a valid end time.`)
+    }
+
+    if (/^\d{2}:\d{2}$/.test(startTime) && /^\d{2}:\d{2}$/.test(endTime) && startTime >= endTime) {
+      details.push(`Availability slot ${index + 1} must end after it starts.`)
+    }
   }
 
   return details
@@ -120,7 +130,9 @@ function validateInput(input: CreateBarberApplicationInput | UpdateBarberProfile
     details.push('Add at least one social profile or portfolio link.')
   }
 
-  details.push(...validateAvailability(input))
+  if ('availabilitySlots' in input) {
+    details.push(...validateAvailability(input))
+  }
 
   return details
 }
@@ -170,9 +182,7 @@ export async function listBarberApplicationsForAdmin() {
 
   return {
     ok: true as const,
-    data: ((data ?? []) as BarberApplicationRecord[])
-      .map(toSummary)
-      .sort((left, right) => {
+    data: (await Promise.all(((data ?? []) as BarberApplicationRecord[]).map(toSummary))).sort((left, right) => {
         const statusDiff = getStatusOrder(left.status) - getStatusOrder(right.status)
 
         if (statusDiff !== 0) {
@@ -246,9 +256,9 @@ export async function createBarberApplication(userId: string, input: CreateBarbe
     facebook_url: normalizeNullableText(input.facebookUrl),
     portfolio_url: normalizeNullableText(input.portfolioUrl),
     bio: normalizeText(input.bio),
-    available_days: input.availableDays.map((day) => normalizeText(day)).filter(Boolean),
-    available_start_time: normalizeText(input.availableStartTime),
-    available_end_time: normalizeText(input.availableEndTime),
+    available_days: [],
+    available_start_time: null,
+    available_end_time: null,
     notes: normalizeNullableText(input.notes),
   }
 
@@ -268,9 +278,15 @@ export async function createBarberApplication(userId: string, input: CreateBarbe
     }
   }
 
+  await replaceApplicationAvailabilitySlots(
+    (data as BarberApplicationRecord).id,
+    userId,
+    input.availabilitySlots
+  )
+
   return {
     ok: true as const,
-    data: toSummary(data as BarberApplicationRecord),
+    data: await toSummary(data as BarberApplicationRecord),
   }
 }
 
@@ -317,9 +333,9 @@ export async function approveBarberApplication(applicationId: string, reviewerId
     tiktok_url: normalizeNullableText(application.tiktok_url),
     facebook_url: normalizeNullableText(application.facebook_url),
     portfolio_url: normalizeNullableText(application.portfolio_url),
-    available_days: normalizeDays(application.available_days),
-    available_start_time: normalizeNullableText(application.available_start_time),
-    available_end_time: normalizeNullableText(application.available_end_time),
+    available_days: [],
+    available_start_time: null,
+    available_end_time: null,
     is_active: true,
     updated_at: new Date().toISOString(),
   }
@@ -350,6 +366,8 @@ export async function approveBarberApplication(applicationId: string, reviewerId
     }
   }
 
+  await copyApplicationAvailabilityToBarber(application.id, application.user_id)
+
   const { data: updated, error: updateError } = await supabase
     .from('barber_applications')
     .update({
@@ -374,7 +392,7 @@ export async function approveBarberApplication(applicationId: string, reviewerId
 
   return {
     ok: true as const,
-    data: toSummary(updated as BarberApplicationRecord),
+    data: await toSummary(updated as BarberApplicationRecord),
   }
 }
 
@@ -418,7 +436,7 @@ export async function rejectBarberApplication(
 
   return {
     ok: true as const,
-    data: toSummary(data as BarberApplicationRecord),
+    data: await toSummary(data as BarberApplicationRecord),
   }
 }
 
@@ -443,9 +461,9 @@ export async function updateApprovedBarberProfile(userId: string, input: UpdateB
     facebook_url: normalizeNullableText(input.facebookUrl),
     portfolio_url: normalizeNullableText(input.portfolioUrl),
     bio: normalizeText(input.bio),
-    available_days: input.availableDays.map((day) => normalizeText(day)).filter(Boolean),
-    available_start_time: normalizeText(input.availableStartTime),
-    available_end_time: normalizeText(input.availableEndTime),
+    available_days: [],
+    available_start_time: null,
+    available_end_time: null,
     updated_at: new Date().toISOString(),
   }
 

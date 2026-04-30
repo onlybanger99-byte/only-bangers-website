@@ -7,6 +7,7 @@ import type { BarberDashboardBooking, BarberDashboardViewModel } from '@/lib/bar
 import { DashboardTabs } from '@/components/dashboard/DashboardTabs'
 import { EmptyState } from '@/components/dashboard/EmptyState'
 import { StatusBadge } from '@/components/dashboard/StatusBadge'
+import { AvailabilitySlotManager } from './AvailabilitySlotManager'
 import { BarberProfileEditor } from './BarberProfileEditor'
 import styles from '@/app/barber/dashboard/dashboard.module.css'
 
@@ -218,17 +219,13 @@ export function BarberDashboardTabs({
                 <div>
                   <span className={styles.metaLabel}>Availability</span>
                   <strong className={styles.metaValue}>
-                    {dashboard.operator.availableDays.length > 0
-                      ? dashboard.operator.availableDays.join(', ')
-                      : 'Days not set'}
+                    Barbers manage their own schedules
                   </strong>
                 </div>
                 <div>
-                  <span className={styles.metaLabel}>Hours</span>
+                  <span className={styles.metaLabel}>Booking Flow</span>
                   <strong className={styles.metaValue}>
-                    {dashboard.operator.availableStartTime && dashboard.operator.availableEndTime
-                      ? `${dashboard.operator.availableStartTime} - ${dashboard.operator.availableEndTime}`
-                      : 'Hours not set'}
+                    Customers only see the slots you publish
                   </strong>
                 </div>
               </div>
@@ -269,6 +266,17 @@ export function BarberDashboardTabs({
               </div>
 
               <BarberProfileEditor profile={dashboard.operator} />
+
+              <div className={styles.formStack}>
+                <div>
+                  <p className={styles.eyebrow}>Availability</p>
+                  <h3 className={styles.cardTitle}>Manage date-based availability slots</h3>
+                  <p className={styles.cardText}>
+                    Add the exact dates and times you want customers to book. Availability depends on each barber.
+                  </p>
+                </div>
+                <AvailabilitySlotManager />
+              </div>
             </article>
           </section>
         ) : null}

@@ -64,7 +64,7 @@ export default function UniversalFooter() {
               {themeSettings?.siteTitle?.split(' - ')[0] || 'ONLY BANGERS'}
             </h3>
             <p>
-              {themeSettings?.siteDescription || 'Premium haircuts and professional barber services'}
+              {themeSettings?.siteDescription || 'Premium haircuts with barber-managed scheduling and professional service'}
             </p>
             <div className={styles.contactInfo}>
               <a 

@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation'
 import type { BarberOperatorProfile } from '@/lib/barber-dashboard/types'
 import styles from '@/app/barber/dashboard/dashboard.module.css'
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-
 export function BarberProfileEditor({
   profile,
 }: {
@@ -21,22 +19,10 @@ export function BarberProfileEditor({
     facebookUrl: profile.facebookUrl ?? '',
     portfolioUrl: profile.portfolioUrl ?? '',
     bio: profile.bio,
-    availableDays: profile.availableDays,
-    availableStartTime: profile.availableStartTime ?? '',
-    availableEndTime: profile.availableEndTime ?? '',
   })
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-
-  const toggleDay = (day: string) => {
-    setForm((current) => ({
-      ...current,
-      availableDays: current.availableDays.includes(day)
-        ? current.availableDays.filter((item) => item !== day)
-        : [...current.availableDays, day],
-    }))
-  }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -118,42 +104,6 @@ export function BarberProfileEditor({
             onChange={(event) => setForm((current) => ({ ...current, portfolioUrl: event.target.value }))}
           />
         </label>
-        <label className={styles.field}>
-          <span className={styles.metaLabel}>Start Time</span>
-          <input
-            type="time"
-            className={styles.input}
-            value={form.availableStartTime}
-            onChange={(event) => setForm((current) => ({ ...current, availableStartTime: event.target.value }))}
-            required
-          />
-        </label>
-        <label className={styles.field}>
-          <span className={styles.metaLabel}>End Time</span>
-          <input
-            type="time"
-            className={styles.input}
-            value={form.availableEndTime}
-            onChange={(event) => setForm((current) => ({ ...current, availableEndTime: event.target.value }))}
-            required
-          />
-        </label>
-      </div>
-
-      <div className={styles.field}>
-        <span className={styles.metaLabel}>Available Days</span>
-        <div className={styles.dayGrid}>
-          {DAYS.map((day) => (
-            <label key={day} className={styles.dayOption}>
-              <input
-                type="checkbox"
-                checked={form.availableDays.includes(day)}
-                onChange={() => toggleDay(day)}
-              />
-              <span>{day}</span>
-            </label>
-          ))}
-        </div>
       </div>
 
       <label className={styles.field}>

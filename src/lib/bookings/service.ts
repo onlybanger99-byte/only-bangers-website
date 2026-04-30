@@ -1,4 +1,5 @@
 import { getUserRole } from '@/lib/auth/get-user-role'
+import { listBarberAvailabilitySlotsForDate } from '@/lib/barber-availability/service'
 import { getBarberProfileByUserId } from '@/lib/barbers/service'
 import {
   getCustomerProfile,
@@ -37,7 +38,6 @@ type SupabaseLikeError = {
 
 const BOOKING_SELECT = '*'
 
-const BOOKABLE_TIME_SLOTS = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00']
 const PENDING_BOOKING_WINDOW_MINUTES = 15
 
 type RawBookingRecord = {
@@ -493,11 +493,6 @@ function getTimeOnly(value: string) {
   return value.slice(11, 16)
 }
 
-function isWeekendDate(date: Date) {
-  const day = date.getUTCDay()
-  return day === 0 || day === 6
-}
-
 function isValidBookableSlot(startsAt: string) {
   const parsed = new Date(startsAt)
 
@@ -505,15 +500,7 @@ function isValidBookableSlot(startsAt: string) {
     return false
   }
 
-  if (parsed.getTime() <= Date.now()) {
-    return false
-  }
-
-  if (isWeekendDate(parsed)) {
-    return false
-  }
-
-  return BOOKABLE_TIME_SLOTS.includes(getTimeOnly(parsed.toISOString()))
+  return parsed.getTime() > Date.now()
 }
 
 function buildDateRange(date: string) {
@@ -1072,10 +1059,11 @@ export async function getAvailabilityForBarberDate(
 
   const dateStart = new Date(`${date}T00:00:00.000Z`)
 
-  if (Number.isNaN(dateStart.getTime()) || isWeekendDate(dateStart)) {
+  if (Number.isNaN(dateStart.getTime())) {
     return success({
       barberId,
       date,
+      availabilitySlots: [],
       availableSlots: [],
       bookedSlots: [],
       temporarilyReservedSlots: [],
@@ -1086,6 +1074,12 @@ export async function getAvailabilityForBarberDate(
 
   if (!barber) {
     return failure('VALIDATION_ERROR', 'Selected barber does not exist.')
+  }
+
+  const slotsResult = await listBarberAvailabilitySlotsForDate(barberId, date)
+
+  if (!slotsResult.ok) {
+    return failure('DATABASE_ERROR', slotsResult.message)
   }
 
   const privilegedSupabase = createAdminClient()
@@ -1170,13 +1164,55 @@ export async function getAvailabilityForBarberDate(
 
   const blockedSet = new Set([...bookedSlots, ...temporarilyReservedSlots])
 
+  const availableSlots = Array.from(
+    new Set(
+      slotsResult.data
+        .flatMap((slot) => buildTimesFromAvailabilitySlot(slot.startTime, slot.endTime))
+        .filter((slot) => !blockedSet.has(slot))
+        .filter((slot) => new Date(`${date}T${slot}:00.000Z`).getTime() > Date.now())
+    )
+  ).sort()
+
   return success({
     barberId,
     date,
+    availabilitySlots: slotsResult.data,
     bookedSlots,
     temporarilyReservedSlots,
-    availableSlots: BOOKABLE_TIME_SLOTS.filter((slot) => !blockedSet.has(slot)),
+    availableSlots,
   })
+}
+
+function buildTimesFromAvailabilitySlot(startTime: string, endTime: string) {
+  const slots: string[] = []
+  const start = parseTimeToMinutes(startTime)
+  const end = parseTimeToMinutes(endTime)
+
+  if (start === null || end === null || end <= start) {
+    return slots
+  }
+
+  for (let cursor = start; cursor < end; cursor += 60) {
+    slots.push(formatMinutesAsTime(cursor))
+  }
+
+  return slots
+}
+
+function parseTimeToMinutes(value: string) {
+  const [hours, minutes] = value.slice(0, 5).split(':').map((part) => Number.parseInt(part, 10))
+
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return null
+  }
+
+  return hours * 60 + minutes
+}
+
+function formatMinutesAsTime(value: number) {
+  const hours = Math.floor(value / 60)
+  const minutes = value % 60
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
 }
 
 export async function updateBooking(

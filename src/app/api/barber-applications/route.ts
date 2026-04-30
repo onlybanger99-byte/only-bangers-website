@@ -27,9 +27,7 @@ export async function POST(request: NextRequest) {
     facebookUrl: body.facebookUrl,
     portfolioUrl: body.portfolioUrl,
     bio: body.bio,
-    availableDays: Array.isArray(body.availableDays) ? body.availableDays : [],
-    availableStartTime: body.availableStartTime,
-    availableEndTime: body.availableEndTime,
+    availabilitySlots: Array.isArray(body.availabilitySlots) ? body.availabilitySlots : [],
     notes: body.notes,
   })
 
