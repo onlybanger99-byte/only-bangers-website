@@ -1,9 +1,4 @@
-export type BarberAppointmentStatus =
-  | 'scheduled'
-  | 'arrived'
-  | 'in_progress'
-  | 'completed'
-  | 'cancelled'
+import type { BookingStatus, PaymentStatus } from '@/lib/bookings/types'
 
 export type BarberDataSource = 'live' | 'mock'
 
@@ -15,46 +10,50 @@ export interface BarberOperatorProfile {
   focusNote: string
 }
 
-export interface BarberClientQuickView {
-  recentVisitHistory: string[]
-  servicePreference: string
-  styleNotes: string
-  contentConsent: boolean
-}
-
-export interface BarberContentCaptureState {
-  beforePhotoReady: boolean
-  afterPhotoReady: boolean
-  videoReady: boolean
-}
-
-export interface BarberAppointment {
+export interface BarberDashboardBooking {
   id: string
-  timeLabel: string
+  reference: string
+  status: BookingStatus
+  paymentStatus: PaymentStatus
   customerName: string
+  customerPhone: string
   customerEmail: string
-  serviceBooked: string
-  durationLabel: string
-  barberAssigned: string
-  status: BarberAppointmentStatus
-  clientQuickView: BarberClientQuickView
-  contentCapture: BarberContentCaptureState
+  serviceName: string
+  bookingDateLabel: string
+  bookingTimeLabel: string
+  startsAtLabel: string
+  amountDueLabel: string
+  pendingExpiresAtLabel: string
+  notes: string
+  customerAvatarUrl: string
+}
+
+export interface BarberDashboardCustomer {
+  id: string
+  fullName: string
+  phoneNumber: string
+  email: string
+  visitCountLabel: string
+  upcomingBookingLabel: string
+  preferredService: string
+  profileImageUrl: string
 }
 
 export interface BarberPerformanceSummary {
-  cutsCompletedToday: number
-  repeatClientsCount: number
-  averageServiceDuration: string
+  cutsCompletedToday: string
+  todayConfirmedCount: string
+  awaitingPaymentCount: string
+  repeatClientsCount: string
 }
 
 export interface BarberDashboardViewModel {
   dataSource: BarberDataSource
   readinessMessage: string
   operator: BarberOperatorProfile
-  todaySchedule: BarberAppointment[]
+  today: BarberDashboardBooking[]
+  upcoming: BarberDashboardBooking[]
+  awaitingPayment: BarberDashboardBooking[]
+  completed: BarberDashboardBooking[]
+  customers: BarberDashboardCustomer[]
   performance: BarberPerformanceSummary
-  quickNotesSeed: {
-    haircutNotes: string
-    followUpRecommendation: string
-  }
 }

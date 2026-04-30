@@ -7,8 +7,12 @@ function getStatusForCode(code: BookingErrorCode) {
       return 401
     case 'FORBIDDEN':
       return 403
+    case 'INCOMPLETE_PROFILE':
+      return 409
     case 'NOT_FOUND':
       return 404
+    case 'SLOT_UNAVAILABLE':
+      return 409
     case 'VALIDATION_ERROR':
       return 400
     case 'TABLE_MISSING':

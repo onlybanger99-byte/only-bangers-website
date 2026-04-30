@@ -1,17 +1,19 @@
 import { NextRequest } from 'next/server'
 import { bookingApiResponse } from '@/lib/bookings/http'
-import { createBooking, listBookings } from '@/lib/bookings/service'
+import {
+  createBooking,
+  getAvailabilityForBarberDate,
+  listBookings,
+} from '@/lib/bookings/service'
 import type { BookingStatus } from '@/lib/bookings/types'
 
 function getStatusFilter(value: string | null): BookingStatus | undefined {
   switch (value) {
-    case 'pending':
+    case 'pending_payment':
     case 'confirmed':
-    case 'scheduled':
-    case 'arrived':
-    case 'in_progress':
     case 'completed':
     case 'cancelled':
+    case 'expired':
       return value
     default:
       return undefined
@@ -20,6 +22,16 @@ function getStatusFilter(value: string | null): BookingStatus | undefined {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
+  const availability = searchParams.get('availability')
+
+  if (availability === 'true') {
+    return bookingApiResponse(
+      await getAvailabilityForBarberDate(
+        searchParams.get('barberId') ?? '',
+        searchParams.get('date') ?? ''
+      )
+    )
+  }
 
   const result = await listBookings({
     id: searchParams.get('id') ?? undefined,
@@ -40,11 +52,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
 
     const result = await createBooking({
-      userId: body.userId,
       barberId: body.barberId,
+      serviceId: body.serviceId,
       serviceName: body.serviceName,
       startsAt: body.startsAt,
-      status: body.status,
       notes: body.notes,
     })
 

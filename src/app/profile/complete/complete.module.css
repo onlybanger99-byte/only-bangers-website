@@ -1,0 +1,116 @@
+.page {
+  min-height: calc(100vh - 9rem);
+  padding: 2rem 1rem 4rem;
+}
+
+.shell {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 1.25rem;
+}
+
+.heroCard,
+.formCard {
+  border: 1px solid rgba(212, 175, 55, 0.16);
+  border-radius: 1.5rem;
+  background: linear-gradient(180deg, rgba(17, 17, 17, 0.96), rgba(7, 7, 7, 0.93));
+  box-shadow: var(--shadow-premium);
+}
+
+.heroCard {
+  padding: 1.5rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.75rem;
+  color: var(--premium-gold);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.76rem;
+}
+
+.title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1;
+}
+
+.subtitle {
+  margin: 0.9rem 0 0;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+.formCard {
+  padding: 1.5rem;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.field,
+.fieldFull {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.field span,
+.fieldFull span {
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.74rem;
+}
+
+.field input,
+.fieldFull textarea {
+  width: 100%;
+  border: 1px solid rgba(212, 175, 55, 0.18);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  padding: 0.9rem 1rem;
+}
+
+.fieldFull {
+  grid-column: 1 / -1;
+}
+
+.actions {
+  margin-top: 1.25rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.primaryButton {
+  border: none;
+  border-radius: 999px;
+  padding: 0.9rem 1.3rem;
+  background: var(--premium-gold);
+  color: var(--premium-dark);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.primaryButton:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.errorMessage {
+  margin: 1rem 0 0;
+  color: #fecdd3;
+}
+
+@media (max-width: 720px) {
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+}

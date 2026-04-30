@@ -1,625 +1,316 @@
 .page {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(212, 175, 55, 0.12), transparent 28%),
-    radial-gradient(circle at top right, rgba(212, 175, 55, 0.08), transparent 24%),
+    radial-gradient(circle at top left, rgba(212, 175, 55, 0.12), transparent 30%),
+    radial-gradient(circle at top right, rgba(212, 175, 55, 0.08), transparent 22%),
     linear-gradient(180deg, #090909 0%, #050505 100%);
   color: var(--text-primary);
 }
 
 .shell {
-  width: min(1380px, calc(100% - 2rem));
+  width: min(1360px, calc(100% - 1.25rem));
   margin: 0 auto;
-  padding: 2rem 0 3rem;
-}
-
-.hero,
-.metricCard,
-.panel,
-.identityCard,
-.healthCard,
-.quickActionCard,
-.bookingCard,
-.transactionCard,
-.customerCard,
-.contentCard,
-.errorCard,
-.loadingHero,
-.loadingCard {
-  background: linear-gradient(180deg, rgba(17, 17, 17, 0.96), rgba(7, 7, 7, 0.93));
-  border: 1px solid rgba(212, 175, 55, 0.14);
-  box-shadow: var(--shadow-premium);
-}
-
-.hero {
-  border-radius: 1.9rem;
-  padding: 1.6rem;
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
-  gap: 1.25rem;
-}
-
-.heroCopy,
-.heroAside {
+  padding: 1.25rem 0 3rem;
   display: grid;
   gap: 1rem;
 }
 
-.eyebrow {
-  margin: 0 0 0.6rem;
+.heroCard,
+.tabbedShell,
+.panelCard,
+.recordCard,
+.identityCard,
+.metricStrip {
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  background: linear-gradient(180deg, rgba(17, 17, 17, 0.96), rgba(7, 7, 7, 0.93));
+  box-shadow: var(--shadow-premium);
+}
+
+.heroCard {
+  border-radius: 1.8rem;
+  padding: 1.4rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  gap: 1rem;
+}
+
+.heroCopy,
+.heroMeta,
+.tabPanel,
+.panelCard,
+.stackList,
+.actionStack,
+.metricsList {
+  display: grid;
+  gap: 1rem;
+}
+
+.eyebrow,
+.metaLabel {
+  display: block;
+  margin: 0 0 0.55rem;
   color: var(--premium-gold);
   text-transform: uppercase;
   letter-spacing: 0.18em;
   font-size: 0.74rem;
 }
 
-.title {
+.heroTitle,
+.sectionTitle,
+.cardTitle {
   margin: 0;
-  font-size: clamp(2rem, 5vw, 3.8rem);
+  color: var(--text-primary);
+}
+
+.heroTitle {
+  font-size: clamp(2rem, 4vw, 3.4rem);
   line-height: 0.96;
-  color: var(--text-primary);
 }
 
-.subtitle {
-  margin: 0;
-  max-width: 52rem;
+.heroText,
+.cardText,
+.cardMeta,
+.cardSubmeta {
+  margin: 0.7rem 0 0;
   color: var(--text-secondary);
-  line-height: 1.7;
+  line-height: 1.65;
 }
 
-.identityCard {
-  border-radius: 1.4rem;
-  padding: 1.2rem;
-}
-
-.identityLabel {
-  display: block;
+.cardSubmeta {
   color: var(--text-muted);
-  font-size: 0.76rem;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
 }
 
-.identityValue {
-  display: block;
-  margin-top: 0.45rem;
-  color: var(--text-primary);
-  font-size: 1.06rem;
-  word-break: break-word;
+.identityCard,
+.recordCard,
+.panelCard,
+.metricStrip {
+  border-radius: 1.25rem;
+  padding: 1.1rem;
 }
 
-.identityMeta {
+.tabbedShell {
+  border-radius: 1.7rem;
+  padding: 1rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.twoColumnGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.statsGridCompact {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.recordTop,
+.personTop,
+.sectionHeader,
+.paginationRow {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  margin-top: 1rem;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
 }
 
-.roleBadge,
-.readinessBadge,
-.sourcePill,
-.statusBadge,
-.healthLabel {
-  display: inline-flex;
+.personTop {
   align-items: center;
-  justify-content: center;
-  border-radius: 999px;
+}
+
+.referenceText {
+  margin: 0 0 0.35rem;
+  color: var(--premium-gold);
   font-size: 0.76rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
-.roleBadge {
-  padding: 0.45rem 0.75rem;
-  background: rgba(212, 175, 55, 0.12);
-  color: var(--premium-gold-light);
-}
-
-.readinessBadge {
-  padding: 0.45rem 0.75rem;
-  border: 1px solid rgba(212, 175, 55, 0.18);
-}
-
-.readinessBadge[data-mode='live'] {
-  background: rgba(16, 185, 129, 0.12);
-  color: #9bf4cf;
-}
-
-.readinessBadge[data-mode='hybrid'] {
-  background: rgba(212, 175, 55, 0.12);
-  color: var(--premium-gold-light);
-}
-
-.readinessBadge[data-mode='mock'] {
-  background: rgba(255, 255, 255, 0.07);
-  color: var(--text-secondary);
-}
-
-.actionCluster {
+.badgeCluster,
+.inlineActions {
   display: flex;
+  gap: 0.65rem;
   flex-wrap: wrap;
+}
+
+.metaGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.metaValue {
+  display: block;
+  color: var(--text-primary);
+  font-size: 0.98rem;
+  line-height: 1.5;
+}
+
+.filtersGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(150px, 1fr)) auto;
   gap: 0.75rem;
+}
+
+.filtersGridCompact {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+}
+
+.input {
+  width: 100%;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(212, 175, 55, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  padding: 0.82rem 0.95rem;
+}
+
+.input::placeholder {
+  color: var(--text-muted);
 }
 
 .primaryButton,
 .secondaryButton,
-.quickActionLink,
-.inlineButton {
+.dangerButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
   text-decoration: none;
   transition: all 0.24s ease;
+  cursor: pointer;
+  padding: 0.82rem 1.1rem;
 }
 
 .primaryButton {
   border: none;
   background: var(--premium-gold);
   color: var(--premium-dark);
-  padding: 0.9rem 1.2rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  cursor: pointer;
 }
 
 .primaryButton:hover {
   background: var(--premium-gold-hover);
 }
 
-.secondaryButton,
-.inlineButton,
-.quickActionLink {
+.secondaryButton {
   border: 1px solid rgba(212, 175, 55, 0.2);
   color: var(--text-secondary);
   background: rgba(255, 255, 255, 0.02);
 }
 
-.secondaryButton,
-.quickActionLink {
-  padding: 0.82rem 1.1rem;
-}
-
-.secondaryButton:hover,
-.inlineButton:hover,
-.quickActionLink:hover {
+.secondaryButton:hover {
   color: var(--premium-gold);
   border-color: rgba(212, 175, 55, 0.42);
   background: rgba(212, 175, 55, 0.08);
 }
 
-.overviewGrid {
-  margin-top: 1.2rem;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem;
+.dangerButton {
+  border: 1px solid rgba(244, 63, 94, 0.22);
+  color: #fecdd3;
+  background: rgba(244, 63, 94, 0.08);
 }
 
-.metricCard {
-  border-radius: 1.4rem;
-  padding: 1.25rem;
-  position: relative;
-  overflow: hidden;
+.dangerButton:hover {
+  background: rgba(244, 63, 94, 0.14);
 }
 
-.metricCard::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 3px;
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.dangerButton:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 
-.metricCard[data-tone='gold']::before {
-  background: linear-gradient(90deg, #8b6c12, var(--premium-gold));
+.avatarImage {
+  width: 3.2rem;
+  height: 3.2rem;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  background: rgba(255, 255, 255, 0.04);
 }
 
-.metricCard[data-tone='emerald']::before {
-  background: linear-gradient(90deg, #0f5132, #1dd1a1);
+.successText,
+.errorText {
+  margin: 0;
+  font-size: 0.84rem;
 }
 
-.metricCard[data-tone='blue']::before {
-  background: linear-gradient(90deg, #1e3a8a, #60a5fa);
+.successText {
+  color: #9bf4cf;
 }
 
-.metricCard[data-tone='rose']::before {
-  background: linear-gradient(90deg, #7f1d1d, #fb7185);
-}
-
-.metricTop {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: center;
-}
-
-.metricLabel {
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
+.errorText {
+  color: #fecdd3;
 }
 
 .metricValue {
-  display: block;
-  margin-top: 0.9rem;
-  color: var(--text-primary);
-  font-size: clamp(1.7rem, 4vw, 2.8rem);
-  line-height: 1;
-}
-
-.metricDetail {
-  margin: 0.8rem 0 0;
-  color: var(--text-secondary);
-  line-height: 1.6;
-}
-
-.sourcePill {
-  padding: 0.36rem 0.58rem;
-}
-
-.sourcePill[data-source='live'] {
-  background: rgba(16, 185, 129, 0.12);
-  color: #9bf4cf;
-}
-
-.sourcePill[data-source='mock'] {
-  background: rgba(255, 255, 255, 0.07);
-  color: var(--text-secondary);
-}
-
-.grid {
-  margin-top: 1.2rem;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.panel {
-  border-radius: 1.6rem;
-  padding: 1.3rem;
-  min-height: 100%;
-}
-
-.panelHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.panelTitle {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 1.42rem;
-}
-
-.panelText {
-  margin: 0;
-  color: var(--text-secondary);
-  line-height: 1.65;
-}
-
-.list,
-.healthGrid,
-.quickActionsGrid {
-  display: grid;
-  gap: 0.9rem;
-}
-
-.bookingCard,
-.transactionCard,
-.customerCard,
-.contentCard,
-.healthCard,
-.quickActionCard {
-  border-radius: 1.15rem;
-  padding: 1rem;
-}
-
-.bookingMain,
-.bookingAside,
-.contentAside,
-.transactionAside {
-  display: flex;
-  gap: 0.7rem;
-}
-
-.bookingMain {
-  justify-content: space-between;
-  align-items: center;
-}
-
-.bookingAside,
-.contentAside,
-.transactionAside {
-  flex-direction: column;
-  align-items: flex-end;
-}
-
-.bookingTitle {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 1.03rem;
-}
-
-.bookingMeta,
-.bookingSubmeta {
-  margin: 0.42rem 0 0;
-  color: var(--text-secondary);
-  line-height: 1.55;
-}
-
-.bookingSubmeta {
-  color: var(--text-muted);
-}
-
-.bookingDate {
   color: var(--premium-gold);
-  font-weight: 600;
-}
-
-.statusBadge {
-  padding: 0.45rem 0.7rem;
-}
-
-.statusBadge[data-status='confirmed'],
-.statusBadge[data-status='scheduled'],
-.statusBadge[data-approval='approved'] {
-  background: rgba(16, 185, 129, 0.12);
-  color: #9bf4cf;
-}
-
-.statusBadge[data-status='pending'],
-.statusBadge[data-approval='pending'] {
-  background: rgba(212, 175, 55, 0.12);
-  color: var(--premium-gold-light);
-}
-
-.statusBadge[data-status='arrived'],
-.statusBadge[data-status='in_progress'],
-.statusBadge[data-approval='in_review'] {
-  background: rgba(96, 165, 250, 0.14);
-  color: #bfdbfe;
-}
-
-.statusBadge[data-status='completed'] {
-  background: rgba(34, 197, 94, 0.14);
-  color: #bbf7d0;
-}
-
-.statusBadge[data-status='cancelled'],
-.statusBadge[data-approval='changes_requested'] {
-  background: rgba(244, 63, 94, 0.12);
-  color: #fecdd3;
-}
-
-.revenueSummary {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.9rem;
-  margin-bottom: 1rem;
-}
-
-.revenueStat {
-  padding: 1rem;
-  border-radius: 1rem;
-  border: 1px solid rgba(212, 175, 55, 0.14);
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.revenueLabel {
-  display: block;
-  color: var(--text-muted);
-  font-size: 0.76rem;
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-}
-
-.revenueValue,
-.transactionValue,
-.customerTier {
-  display: block;
-  margin-top: 0.55rem;
-  color: var(--premium-gold);
-  font-weight: 700;
-}
-
-.transactionStatus {
-  color: var(--text-secondary);
-  font-size: 0.88rem;
-}
-
-.customerMeta {
-  margin-top: 0.8rem;
-  display: grid;
-  gap: 0.35rem;
-  color: var(--text-secondary);
-}
-
-.inlineActions {
-  display: flex;
-  gap: 0.55rem;
-}
-
-.inlineButton {
-  padding: 0.55rem 0.9rem;
-  cursor: pointer;
-}
-
-.healthGrid,
-.quickActionsGrid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.healthHeader {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: center;
-}
-
-.healthDot {
-  width: 0.8rem;
-  height: 0.8rem;
-  border-radius: 999px;
-  display: inline-block;
-}
-
-.healthDot[data-health='healthy'],
-.healthLabel[data-health='healthy'] {
-  background: rgba(16, 185, 129, 0.14);
-  color: #9bf4cf;
-}
-
-.healthDot[data-health='degraded'],
-.healthLabel[data-health='degraded'] {
-  background: rgba(212, 175, 55, 0.14);
-  color: var(--premium-gold-light);
-}
-
-.healthDot[data-health='offline'],
-.healthLabel[data-health='offline'] {
-  background: rgba(244, 63, 94, 0.14);
-  color: #fecdd3;
-}
-
-.healthLabel {
-  padding: 0.45rem 0.7rem;
-  margin-top: 0.9rem;
-}
-
-.quickActionLink {
-  margin-top: 1rem;
-  width: fit-content;
-}
-
-.emptyState,
-.errorCard {
-  border: 1px dashed rgba(212, 175, 55, 0.2);
-  border-radius: 1.2rem;
-  padding: 1.25rem;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.emptyState p {
-  margin: 0;
-  color: var(--text-secondary);
-  line-height: 1.65;
-}
-
-.errorCard {
-  max-width: 760px;
-  margin: 6rem auto 0;
-  display: grid;
-  gap: 1rem;
-}
-
-.loadingHero {
-  border-radius: 1.9rem;
-  padding: 1.4rem;
-  display: grid;
-  gap: 1rem;
-}
-
-.loadingBlock,
-.loadingChip,
-.loadingCard {
-  position: relative;
-  overflow: hidden;
-}
-
-.loadingBlock::after,
-.loadingChip::after,
-.loadingCard::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.08),
-    transparent
-  );
-  animation: shimmer 1.6s infinite;
-}
-
-.loadingBlock {
-  height: 8rem;
-  border-radius: 1.2rem;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.loadingActions {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.loadingChip {
-  width: 11rem;
-  height: 3rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.loadingGrid {
-  margin-top: 1.2rem;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.loadingCard {
-  min-height: 14rem;
-  border-radius: 1.5rem;
-}
-
-@keyframes shimmer {
-  to {
-    transform: translateX(100%);
-  }
+  font-size: 1.6rem;
 }
 
 @media (max-width: 1180px) {
-  .hero,
-  .overviewGrid,
-  .grid,
-  .healthGrid,
-  .quickActionsGrid,
-  .loadingGrid {
+  .heroCard,
+  .statsGrid,
+  .twoColumnGrid,
+  .cardGrid,
+  .statsGridCompact,
+  .metaGrid {
     grid-template-columns: 1fr;
+  }
+
+  .filtersGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 860px) {
+@media (max-width: 760px) {
   .shell {
-    width: min(100%, calc(100% - 1rem));
-    padding-top: 1rem;
+    width: min(100%, calc(100% - 0.9rem));
+    padding-top: 0.8rem;
   }
 
-  .hero,
-  .panel,
-  .metricCard {
-    padding: 1.1rem;
+  .heroCard,
+  .tabbedShell,
+  .panelCard,
+  .recordCard,
+  .identityCard,
+  .metricStrip {
+    padding: 1rem;
   }
 
-  .panelHeader,
-  .bookingMain {
+  .recordTop,
+  .personTop,
+  .sectionHeader,
+  .paginationRow,
+  .heroMeta {
     flex-direction: column;
     align-items: flex-start;
   }
 
-  .bookingAside,
-  .contentAside,
-  .transactionAside {
-    align-items: flex-start;
-  }
-
-  .revenueSummary {
+  .filtersGrid,
+  .filtersGridCompact {
     grid-template-columns: 1fr;
   }
 }

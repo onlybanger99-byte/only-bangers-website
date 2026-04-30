@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import UniversalHeader from '@/components/UniversalHeader'   // adjust if path differs
+import UniversalHeader from '@/components/AppHeader'
 import UniversalFooter from '@/components/UniversalFooter'
 
 export const metadata: Metadata = {

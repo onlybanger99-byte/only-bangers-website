@@ -1,28 +1,11 @@
-/**
- * GET /api/admin/test
- * Test endpoint to verify role-based access is working.
- * Requires 'admin' role.
- */
+import { NextResponse } from 'next/server'
 
-import { NextResponse, type NextRequest } from 'next/server';
-import { requireRole } from '@/lib/auth/require-role';
-import { getUserRole } from '@/lib/auth/get-user-role';
-
-export async function GET(request: NextRequest) {
-  const roleError = await requireRole(request, ['admin']);
-  if (roleError) return roleError;
-
-  // If we got here, user is authorized
-  const { user, role } = await getUserRole();
-
-  return NextResponse.json({
-    ok: true,
-    message: 'Admin access confirmed',
-    user: {
-      id: user?.id,
-      email: user?.email,
+export async function GET() {
+  return NextResponse.json(
+    {
+      ok: false,
+      error: 'The temporary admin test endpoint has been removed from production routes.',
     },
-    role,
-    timestamp: new Date().toISOString(),
-  });
+    { status: 410 }
+  )
 }

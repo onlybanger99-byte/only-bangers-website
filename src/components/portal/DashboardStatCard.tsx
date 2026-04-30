@@ -1,6 +1,6 @@
 import styles from '@/app/portal/dashboard/dashboard.module.css'
 
-export function PortalStatCard({
+export function DashboardStatCard({
   label,
   value,
   detail,

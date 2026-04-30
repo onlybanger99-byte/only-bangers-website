@@ -1,23 +1,58 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import BookingFlowModal from '@/components/BookingFlowModal'
+import { readBookingDraft } from '@/lib/bookings/draft'
+import { services } from '@/data/services'
 import styles from './services.module.css'
 
-export default function ServicesPage() {
-  const services = [
-    { id: '1', name: 'Classic Precision Cut', price: 180, duration: '45 min', description: 'Expert haircut with precision styling', image: '/images/classic-cut.jpg' },
-    { id: '2', name: 'Premium Beard Trim', price: 120, duration: '30 min', description: 'Professional beard shaping and grooming', image: '/images/beard-trim.jpg' },
-    { id: '3', name: 'Signature Haircut & Beard', price: 250, duration: '60 min', description: 'Complete grooming package', image: '/images/signature-cut.jpg' },
-    { id: '4', name: 'Royal Shave', price: 150, duration: '40 min', description: 'Traditional hot towel shave', image: '/images/royal-shave.jpg' },
-    { id: '5', name: 'Hair Treatment', price: 200, duration: '50 min', description: 'Deep conditioning and repair treatment', image: '/images/hair-treatment.jpg' },
-    { id: '6', name: 'Kids Cut', price: 140, duration: '35 min', description: 'Specialized haircut for children', image: '/images/kids-cut.jpg' },
-  ]
+type ServiceCard = {
+  id: string
+  name: string
+  price: number
+  duration: string
+  description: string
+  image: string
+}
 
-  const [selectedService, setSelectedService] = useState<any>(null)
+const serviceCards: ServiceCard[] = services.map((service) => ({
+  id: service.id,
+  name: service.name,
+  price: Number.parseInt(service.price.replace(/[^\d]/g, ''), 10),
+  duration: service.duration,
+  description: service.description,
+  image: '/images/header-bg.png',
+}))
+
+export default function ServicesPage() {
+  const [selectedService, setSelectedService] = useState<ServiceCard | null>(null)
   const [showBookingModal, setShowBookingModal] = useState(false)
 
-  const handleBookService = (service: any) => {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+
+    if (params.get('resumeBooking') !== '1') {
+      return
+    }
+
+    const draft = readBookingDraft()
+
+    if (!draft) {
+      params.delete('resumeBooking')
+      const nextQuery = params.toString()
+      window.history.replaceState({}, '', nextQuery ? `/services?${nextQuery}` : '/services')
+      return
+    }
+
+    const matchingService = serviceCards.find((service) => service.id === draft.serviceId)
+
+    if (matchingService) {
+      setSelectedService(matchingService)
+      setShowBookingModal(true)
+    }
+  }, [serviceCards])
+
+  const handleBookService = (service: ServiceCard) => {
     setSelectedService(service)
     setShowBookingModal(true)
   }
@@ -31,7 +66,7 @@ export default function ServicesPage() {
         </div>
 
         <div className="services-grid">
-          {services.map((service) => (
+          {serviceCards.map((service) => (
             <div key={service.id} className="service-card">
               <div className="image-container-card">
                 <div className="image-placeholder">

@@ -2,7 +2,10 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { sanitizeNextPath } from "@/lib/auth/next-path";
+import { readBookingDraft } from "@/lib/bookings/draft";
 import { supabase } from "@/lib/supabase/client";
+import type { AppRole } from "@/lib/auth/roles";
 import { getDefaultDashboardForRole, normalizeRole } from "@/lib/auth/roles";
 import styles from "./login.module.css";
 
@@ -28,6 +31,42 @@ function LoginPageContent() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [authMessage, setAuthMessage] = useState("");
+  const nextPath = sanitizeNextPath(searchParams.get("next"));
+
+  const getCallbackUrl = () => {
+    const url = new URL("/auth/callback", window.location.origin);
+
+    if (nextPath) {
+      url.searchParams.set("next", nextPath);
+    }
+
+    return url.toString();
+  };
+
+  const getPostLoginPath = async (role: AppRole) => {
+    const resumePath =
+      nextPath ||
+      (readBookingDraft() ? "/services?resumeBooking=1" : null) ||
+      getDefaultDashboardForRole(role);
+
+    if (role === "customer") {
+      const response = await fetch('/api/profile');
+      const payload = await response.json();
+
+      if (!response.ok) {
+        console.error("[login] Failed to resolve profile completeness:", payload?.error);
+        return resumePath;
+      }
+
+      const isComplete = Boolean(payload?.data?.completionState?.isComplete);
+
+      if (!isComplete) {
+        return `/portal/profile/complete?next=${encodeURIComponent(resumePath)}`;
+      }
+    }
+
+    return resumePath;
+  };
 
   useEffect(() => {
     let isMounted = true
@@ -67,7 +106,8 @@ function LoginPageContent() {
         return
       }
 
-      router.replace(getDefaultDashboardForRole(role))
+      const appRole: AppRole = role
+      router.replace(await getPostLoginPath(appRole))
     }
 
     const errorCode = searchParams.get("error")
@@ -88,7 +128,7 @@ function LoginPageContent() {
     setLoading(true);
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: getCallbackUrl() },
     });
     setLoading(false);
   };
@@ -97,7 +137,7 @@ function LoginPageContent() {
     setLoading(true);
     await supabase.auth.signInWithOAuth({
       provider: "facebook",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: getCallbackUrl() },
     });
     setLoading(false);
   };
@@ -107,7 +147,7 @@ function LoginPageContent() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: getCallbackUrl() },
     });
 
     if (error) {

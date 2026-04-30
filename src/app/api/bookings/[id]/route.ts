@@ -22,6 +22,7 @@ export async function PATCH(
     return bookingApiResponse(
       await updateBooking(id, {
         barberId: body.barberId,
+        serviceId: body.serviceId,
         serviceName: body.serviceName,
         startsAt: body.startsAt,
         status: body.status,

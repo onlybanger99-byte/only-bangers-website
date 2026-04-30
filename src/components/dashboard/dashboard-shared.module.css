@@ -1,0 +1,149 @@
+.tabsBar {
+  display: flex;
+  gap: 0.7rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+}
+
+.tabsBar::-webkit-scrollbar {
+  height: 0.42rem;
+}
+
+.tabsBar::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.22);
+  border-radius: 999px;
+}
+
+.tabButton {
+  border: 1px solid rgba(212, 175, 55, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  padding: 0.8rem 1.1rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.22s ease;
+}
+
+.tabButton[data-active='true'],
+.tabButton:hover {
+  color: var(--premium-dark);
+  background: linear-gradient(135deg, #b88916 0%, #d4af37 55%, #f1d77a 100%);
+  border-color: transparent;
+}
+
+.statCard {
+  border-radius: 1.35rem;
+  padding: 1.15rem;
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  background: linear-gradient(180deg, rgba(17, 17, 17, 0.96), rgba(7, 7, 7, 0.93));
+  box-shadow: var(--shadow-premium);
+  position: relative;
+  overflow: hidden;
+}
+
+.statCard::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+}
+
+.statCard[data-tone='gold']::before {
+  background: linear-gradient(90deg, #8b6c12, var(--premium-gold));
+}
+
+.statCard[data-tone='emerald']::before {
+  background: linear-gradient(90deg, #0f5132, #1dd1a1);
+}
+
+.statCard[data-tone='blue']::before {
+  background: linear-gradient(90deg, #1e3a8a, #60a5fa);
+}
+
+.statCard[data-tone='rose']::before {
+  background: linear-gradient(90deg, #7f1d1d, #fb7185);
+}
+
+.statLabel {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.statValue {
+  display: block;
+  margin-top: 0.65rem;
+  color: var(--premium-gold);
+  font-weight: 700;
+  font-size: clamp(1.4rem, 3vw, 2.3rem);
+}
+
+.statDetail {
+  margin: 0.65rem 0 0;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.42rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.statusBadge[data-status='pending'],
+.statusBadge[data-status='pending_payment'],
+.statusBadge[data-status='pending_verification'],
+.statusBadge[data-status='not_enabled'] {
+  background: rgba(212, 175, 55, 0.14);
+  color: var(--premium-gold-light);
+}
+
+.statusBadge[data-status='confirmed'],
+.statusBadge[data-status='paid'],
+.statusBadge[data-status='active'],
+.statusBadge[data-status='enabled'] {
+  background: rgba(16, 185, 129, 0.14);
+  color: #9bf4cf;
+}
+
+.statusBadge[data-status='completed'] {
+  background: rgba(96, 165, 250, 0.16);
+  color: #bfdbfe;
+}
+
+.statusBadge[data-status='cancelled'],
+.statusBadge[data-status='expired'],
+.statusBadge[data-status='failed'],
+.statusBadge[data-status='inactive'],
+.statusBadge[data-status='suspended'],
+.statusBadge[data-status='error'] {
+  background: rgba(244, 63, 94, 0.14);
+  color: #fecdd3;
+}
+
+.emptyState {
+  border: 1px dashed rgba(212, 175, 55, 0.2);
+  border-radius: 1.2rem;
+  padding: 1.3rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.emptyTitle {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.emptyText {
+  margin: 0.6rem 0 0;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}

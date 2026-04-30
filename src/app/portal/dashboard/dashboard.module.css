@@ -1,20 +1,21 @@
 .pageShell {
-  width: min(1280px, 100%);
+  width: min(1320px, calc(100% - 1.25rem));
   margin: 0 auto;
   display: grid;
-  gap: 1.2rem;
+  gap: 1rem;
 }
 
 .heroCard,
 .panel,
 .statCard,
-.appointmentCard,
-.profileSummaryCard,
-.loyaltyCard,
-.mediaCard,
+.featureCard,
+.bookingCard,
+.paymentCard,
+.taskCard,
+.profileCard,
 .historyCard,
-.ctaCard,
-.dataModeCard {
+.errorCard,
+.tabbedShell {
   border: 1px solid rgba(212, 175, 55, 0.14);
   background: linear-gradient(180deg, rgba(17, 17, 17, 0.96), rgba(7, 7, 7, 0.93));
   box-shadow: var(--shadow-premium);
@@ -22,7 +23,7 @@
 
 .heroCard {
   border-radius: 1.8rem;
-  padding: 1.5rem;
+  padding: 1.4rem;
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
   gap: 1rem;
@@ -35,23 +36,26 @@
 }
 
 .avatar {
-  width: 4.25rem;
-  height: 4.25rem;
+  width: 4.2rem;
+  height: 4.2rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  border: 1px solid rgba(212, 175, 55, 0.4);
+  border: 1px solid rgba(212, 175, 55, 0.34);
   background:
     radial-gradient(circle at top, rgba(212, 175, 55, 0.28), transparent 60%),
     rgba(212, 175, 55, 0.08);
   color: var(--premium-gold-light);
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   font-weight: 700;
   letter-spacing: 0.12em;
 }
 
-.eyebrow {
+.eyebrow,
+.statLabel,
+.infoLabel {
+  display: block;
   margin: 0 0 0.55rem;
   color: var(--premium-gold);
   text-transform: uppercase;
@@ -59,16 +63,22 @@
   font-size: 0.74rem;
 }
 
-.heroTitle {
+.heroTitle,
+.sectionTitle,
+.cardTitle {
   margin: 0;
   color: var(--text-primary);
-  font-size: clamp(2rem, 4vw, 3.2rem);
-  line-height: 0.97;
+}
+
+.heroTitle {
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 0.98;
 }
 
 .heroText,
 .cardText,
-.cardMeta {
+.cardMeta,
+.statDetail {
   margin: 0.7rem 0 0;
   color: var(--text-secondary);
   line-height: 1.65;
@@ -78,11 +88,11 @@
   display: grid;
   gap: 0.85rem;
   align-content: start;
+  justify-items: start;
 }
 
 .membershipBadge {
   display: inline-flex;
-  width: fit-content;
   align-items: center;
   justify-content: center;
   padding: 0.5rem 0.85rem;
@@ -95,335 +105,145 @@
   font-size: 0.76rem;
 }
 
-.dataModeCard {
-  border-radius: 1.1rem;
-  padding: 1rem 1.1rem;
-  color: var(--text-secondary);
-  line-height: 1.6;
-}
-
-.dataModeCard[data-source='live'] {
-  border-color: rgba(212, 175, 55, 0.24);
-}
-
 .statsGrid,
-.contentGrid,
-.listGrid,
-.historyGrid,
-.mediaGrid,
-.ctaGrid {
+.overviewGrid,
+.cardGrid,
+.actionGrid,
+.profileGrid,
+.bookingMetaGrid,
+.tabSection {
   display: grid;
   gap: 1rem;
 }
 
 .statsGrid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.statCard {
-  border-radius: 1.3rem;
-  padding: 1.2rem;
+.statCard,
+.featureCard,
+.bookingCard,
+.paymentCard,
+.taskCard,
+.profileCard,
+.historyCard,
+.panel {
+  border-radius: 1.35rem;
+  padding: 1.15rem;
 }
 
-.statLabel,
-.infoLabel,
-.mediaFormat {
+.statValue {
   display: block;
-  color: var(--text-muted);
-  font-size: 0.76rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.statValue,
-.infoValue,
-.loyaltyValue {
-  display: block;
-  margin-top: 0.65rem;
+  margin-top: 0.45rem;
   color: var(--premium-gold);
+  font-size: clamp(1.4rem, 3vw, 2.25rem);
   font-weight: 700;
-  font-size: clamp(1.6rem, 3vw, 2.4rem);
 }
 
 .statDetail {
-  margin: 0.65rem 0 0;
-  color: var(--text-secondary);
-  line-height: 1.55;
+  margin-top: 0.6rem;
 }
 
-.contentGrid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.tabbedShell {
+  border-radius: 1.7rem;
+  padding: 1rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.tabsBar {
+  display: flex;
+  gap: 0.7rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+}
+
+.tabsBar::-webkit-scrollbar {
+  height: 0.45rem;
+}
+
+.tabsBar::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.22);
+  border-radius: 999px;
+}
+
+.tabButton {
+  border: 1px solid rgba(212, 175, 55, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  padding: 0.8rem 1.1rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.22s ease;
+}
+
+.tabButton[data-active='true'],
+.tabButton:hover {
+  color: var(--premium-dark);
+  background: linear-gradient(135deg, #b88916 0%, #d4af37 55%, #f1d77a 100%);
+  border-color: transparent;
+}
+
+.tabPanel {
+  display: grid;
+  gap: 1rem;
+}
+
+.overviewGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.featureCard {
+  min-height: 100%;
 }
 
 .panel {
-  border-radius: 1.5rem;
-  padding: 1.3rem;
+  padding: 1.2rem;
 }
 
 .sectionHeader,
-.appointmentTop,
-.infoRow,
-.loyaltyHeader,
-.historyMeta {
+.bookingTop,
+.paymentTop,
+.historyMeta,
+.profileTop {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
   align-items: flex-start;
 }
 
-.sectionTitle,
-.cardTitle {
-  margin: 0;
-  color: var(--text-primary);
+.actionGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .inlineLink,
 .primaryLink,
-.inlineActionButton {
+.disabledAction {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: fit-content;
   border-radius: 999px;
   text-decoration: none;
   transition: all 0.24s ease;
 }
 
-.inlineLink,
-.inlineActionButton {
-  padding: 0.72rem 1rem;
+.inlineLink {
+  padding: 0.78rem 1rem;
   border: 1px solid rgba(212, 175, 55, 0.2);
   color: var(--text-secondary);
   background: rgba(255, 255, 255, 0.02);
 }
 
-.inlineLink:hover,
-.inlineActionButton:hover {
+.inlineLink:hover {
   color: var(--premium-gold);
   border-color: rgba(212, 175, 55, 0.4);
   background: rgba(212, 175, 55, 0.08);
 }
 
-.appointmentCard,
-.historyCard,
-.mediaCard,
-.ctaCard {
-  border-radius: 1.15rem;
-  padding: 1rem;
-}
-
-.statusBadge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.42rem 0.7rem;
-  border-radius: 999px;
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.statusBadge[data-status='confirmed'],
-.statusBadge[data-status='scheduled'] {
-  background: rgba(212, 175, 55, 0.12);
-  color: var(--premium-gold-light);
-}
-
-.statusBadge[data-status='pending'],
-.statusBadge[data-status='arrived'] {
-  background: rgba(96, 165, 250, 0.16);
-  color: #bfdbfe;
-}
-
-.statusBadge[data-status='in_progress'] {
-  background: rgba(59, 130, 246, 0.2);
-  color: #dbeafe;
-}
-
-.statusBadge[data-status='completed'] {
-  background: rgba(16, 185, 129, 0.14);
-  color: #9bf4cf;
-}
-
-.statusBadge[data-status='cancelled'] {
-  background: rgba(244, 63, 94, 0.14);
-  color: #fecdd3;
-}
-
-.appointmentDate {
-  margin: 0.8rem 0 0;
-  color: var(--premium-gold);
-  font-weight: 600;
-}
-
-.inlineActions {
-  margin-top: 1rem;
-  display: flex;
-  gap: 0.7rem;
-  flex-wrap: wrap;
-}
-
-.inlineActionButton {
-  cursor: pointer;
-}
-
-.profileSummaryCard,
-.loyaltyCard {
-  border-radius: 1.2rem;
-  padding: 1.1rem;
-}
-
-.infoValue {
-  margin-top: 0;
-  font-size: 1rem;
-  color: var(--text-primary);
-}
-
-.profileNotes {
-  margin-top: 1rem;
-}
-
-.loyaltyPill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.42rem 0.72rem;
-  border-radius: 999px;
-  background: rgba(212, 175, 55, 0.12);
-  color: var(--premium-gold-light);
-  font-size: 0.76rem;
-  font-weight: 700;
-}
-
-.progressTrack {
-  width: 100%;
-  height: 0.6rem;
-  margin: 1rem 0 0;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  overflow: hidden;
-}
-
-.progressFill {
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #9c7a18, var(--premium-gold));
-}
-
-.loyaltyReferral {
-  margin-top: 1rem;
-}
-
-.historyGrid {
-  align-content: start;
-}
-
-.historyMeta {
-  color: var(--text-secondary);
-}
-
-.historyMeta strong {
-  color: var(--premium-gold);
-}
-
-.mediaGrid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.mediaImageWrap {
-  border-radius: 1rem;
-  overflow: hidden;
-  aspect-ratio: 4 / 3;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.mediaImage {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.mediaCopy {
-  margin-top: 0.85rem;
-}
-
-.ctaGrid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.ctaCard {
-  color: inherit;
-  text-decoration: none;
-}
-
-.ctaCard:hover {
-  border-color: rgba(212, 175, 55, 0.34);
-  transform: translateY(-1px);
-}
-
-.emptyState {
-  border: 1px dashed rgba(212, 175, 55, 0.2);
-  border-radius: 1.2rem;
-  padding: 1.3rem;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.loadingHero,
-.loadingCard,
-.errorCard {
-  border: 1px solid rgba(212, 175, 55, 0.14);
-  background: linear-gradient(180deg, rgba(17, 17, 17, 0.96), rgba(7, 7, 7, 0.93));
-  box-shadow: var(--shadow-premium);
-}
-
-.loadingHero,
-.loadingCard {
-  position: relative;
-  overflow: hidden;
-}
-
-.loadingHero::after,
-.loadingCard::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
-  animation: shimmer 1.6s infinite;
-}
-
-.loadingHero {
-  min-height: 12rem;
-  border-radius: 1.8rem;
-}
-
-.loadingGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.loadingCard {
-  min-height: 14rem;
-  border-radius: 1.4rem;
-}
-
-.errorCard {
-  border-radius: 1.6rem;
-  padding: 1.4rem;
-}
-
-@keyframes shimmer {
-  to {
-    transform: translateX(100%);
-  }
-}
-
 .primaryLink {
-  margin-top: 1rem;
-  width: fit-content;
-  padding: 0.82rem 1.1rem;
+  padding: 0.86rem 1.15rem;
   border: none;
   background: var(--premium-gold);
   color: var(--premium-dark);
@@ -436,41 +256,205 @@
   background: var(--premium-gold-hover);
 }
 
-@media (max-width: 1080px) {
+.disabledAction {
+  padding: 0.78rem 1rem;
+  border: 1px dashed rgba(212, 175, 55, 0.22);
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.02);
+  cursor: not-allowed;
+}
+
+.bookingReference {
+  margin: 0 0 0.35rem;
+  color: var(--premium-gold);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.badgeCluster {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.42rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.statusBadge[data-status='pending_payment'],
+.statusBadge[data-status='pending_verification'] {
+  background: rgba(212, 175, 55, 0.16);
+  color: #f4d87b;
+}
+
+.statusBadge[data-status='confirmed'],
+.statusBadge[data-status='paid'] {
+  background: rgba(16, 185, 129, 0.14);
+  color: #9bf4cf;
+}
+
+.statusBadge[data-status='completed'] {
+  background: rgba(96, 165, 250, 0.16);
+  color: #bfdbfe;
+}
+
+.statusBadge[data-status='cancelled'],
+.statusBadge[data-status='expired'],
+.statusBadge[data-status='failed'] {
+  background: rgba(244, 63, 94, 0.14);
+  color: #fecdd3;
+}
+
+.bookingMetaGrid,
+.profileGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.infoValue {
+  display: block;
+  color: var(--text-primary);
+  font-size: 0.98rem;
+  line-height: 1.5;
+}
+
+.pendingCallout {
+  margin-top: 0.9rem;
+  border: 1px dashed rgba(212, 175, 55, 0.24);
+  border-radius: 1rem;
+  padding: 0.9rem 1rem;
+  background: rgba(212, 175, 55, 0.05);
+}
+
+.pendingText,
+.pendingExpiry {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.pendingExpiry {
+  margin-top: 0.45rem;
+  color: var(--premium-gold-light);
+}
+
+.inlineActions {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.taskCard[data-tone='gold'] {
+  border-color: rgba(212, 175, 55, 0.24);
+}
+
+.taskCard[data-tone='emerald'] {
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.taskCard[data-tone='rose'] {
+  border-color: rgba(244, 63, 94, 0.2);
+}
+
+.taskCard[data-tone='neutral'] {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.profileTop {
+  margin-bottom: 1rem;
+}
+
+.profileAvatar {
+  width: 4.6rem;
+  height: 4.6rem;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid rgba(212, 175, 55, 0.24);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.historyMeta {
+  color: var(--text-secondary);
+}
+
+.historyMeta strong {
+  color: var(--premium-gold);
+}
+
+.emptyState,
+.errorCard {
+  border: 1px dashed rgba(212, 175, 55, 0.2);
+  border-radius: 1.2rem;
+  padding: 1.3rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.emptyState p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+.emptyState .primaryLink {
+  margin-top: 1rem;
+}
+
+.errorCard {
+  display: grid;
+  gap: 0.8rem;
+}
+
+@media (max-width: 1100px) {
   .heroCard,
   .statsGrid,
-  .contentGrid,
-  .ctaGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .mediaGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .loadingGrid {
+  .overviewGrid,
+  .actionGrid,
+  .bookingMetaGrid,
+  .profileGrid {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 760px) {
   .pageShell {
-    gap: 1rem;
+    width: min(100%, calc(100% - 0.9rem));
   }
 
   .heroCard,
+  .tabbedShell,
   .panel,
-  .statCard {
-    padding: 1.1rem;
+  .statCard,
+  .featureCard,
+  .bookingCard,
+  .paymentCard,
+  .taskCard,
+  .profileCard,
+  .historyCard {
+    padding: 1rem;
   }
 
   .heroCopy,
+  .heroMeta,
   .sectionHeader,
-  .appointmentTop,
-  .infoRow,
-  .loyaltyHeader,
-  .historyMeta {
+  .bookingTop,
+  .paymentTop,
+  .historyMeta,
+  .profileTop {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .badgeCluster {
+    justify-content: flex-start;
   }
 }

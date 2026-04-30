@@ -1,6 +1,7 @@
 import { barbers } from '@/data/barbers'
 import type {
-  BarberAppointment,
+  BarberDashboardBooking,
+  BarberDashboardCustomer,
   BarberDashboardViewModel,
   BarberOperatorProfile,
 } from './types'
@@ -27,130 +28,114 @@ function buildOperatorProfile(email?: string): BarberOperatorProfile {
   }
 }
 
-function buildAppointments(operatorName: string): BarberAppointment[] {
+function buildAppointments(operatorName: string): BarberDashboardBooking[] {
   return [
     {
       id: 'apt-801',
-      timeLabel: '09:30',
+      reference: 'OB-APT801',
+      status: 'confirmed',
+      paymentStatus: 'paid',
       customerName: 'Siyabonga Mokoena',
+      customerPhone: '+27 69 100 1001',
       customerEmail: 'siya@example.com',
-      serviceBooked: 'Premium Fade + Beard Sculpt',
-      durationLabel: '60 min',
-      barberAssigned: operatorName,
-      status: 'scheduled',
-      clientQuickView: {
-        recentVisitHistory: [
-          'Skin fade + beard line-up - 2 weeks ago',
-          'Premium fade refresh - 5 weeks ago',
-          'Full grooming package - 8 weeks ago',
-        ],
-        servicePreference: 'Clean low fade with defined beard edge',
-        styleNotes:
-          'Prefers a crisp temple blend, light texture on top, and no product shine in the final finish.',
-        contentConsent: true,
-      },
-      contentCapture: {
-        beforePhotoReady: false,
-        afterPhotoReady: false,
-        videoReady: false,
-      },
+      serviceName: 'Premium Fade + Beard Sculpt',
+      bookingDateLabel: '28 Apr 2026',
+      bookingTimeLabel: '09:30',
+      startsAtLabel: '28 Apr 2026, 09:30',
+      amountDueLabel: 'R450',
+      pendingExpiresAtLabel: 'Not set',
+      notes: 'Prefers a crisp temple blend with light texture on top.',
+      customerAvatarUrl: '/images/feature-fade.jpg',
     },
     {
       id: 'apt-802',
-      timeLabel: '11:00',
+      reference: 'OB-APT802',
+      status: 'pending_payment',
+      paymentStatus: 'pending_verification',
       customerName: 'Karabo Dlamini',
+      customerPhone: '+27 69 100 1002',
       customerEmail: 'karabo@example.com',
-      serviceBooked: 'Signature Cut',
-      durationLabel: '45 min',
-      barberAssigned: operatorName,
-      status: 'arrived',
-      clientQuickView: {
-        recentVisitHistory: [
-          'Signature cut - 3 weeks ago',
-          'Hairline clean-up - 6 weeks ago',
-        ],
-        servicePreference: 'Structured crop with soft taper',
-        styleNotes:
-          'Keep the crown natural and maintain extra weight through the front fringe.',
-        contentConsent: false,
-      },
-      contentCapture: {
-        beforePhotoReady: true,
-        afterPhotoReady: false,
-        videoReady: false,
-      },
+      serviceName: 'Signature Cut',
+      bookingDateLabel: '28 Apr 2026',
+      bookingTimeLabel: '11:00',
+      startsAtLabel: '28 Apr 2026, 11:00',
+      amountDueLabel: 'R320',
+      pendingExpiresAtLabel: '28 Apr 2026, 11:15',
+      notes: 'Keep the crown natural and maintain extra weight through the fringe.',
+      customerAvatarUrl: '/images/feature-glowup.jpg',
     },
     {
       id: 'apt-803',
-      timeLabel: '13:15',
+      reference: 'OB-APT803',
+      status: 'confirmed',
+      paymentStatus: 'paid',
       customerName: 'Lethabo Nkosi',
+      customerPhone: '+27 69 100 1003',
       customerEmail: 'lethabo@example.com',
-      serviceBooked: 'Father + Son Session',
-      durationLabel: '75 min',
-      barberAssigned: operatorName,
-      status: 'in_progress',
-      clientQuickView: {
-        recentVisitHistory: [
-          'Family cut session - 1 month ago',
-          'Kids taper + father beard trim - 2 months ago',
-        ],
-        servicePreference: 'Polished family cuts with premium finishing',
-        styleNotes:
-          'Strong repeat client. Appreciates efficiency, photo-ready finishing, and child-friendly pacing.',
-        contentConsent: true,
-      },
-      contentCapture: {
-        beforePhotoReady: true,
-        afterPhotoReady: false,
-        videoReady: false,
-      },
+      serviceName: 'Father + Son Session',
+      bookingDateLabel: '29 Apr 2026',
+      bookingTimeLabel: '13:15',
+      startsAtLabel: '29 Apr 2026, 13:15',
+      amountDueLabel: 'R600',
+      pendingExpiresAtLabel: 'Not set',
+      notes: 'Strong repeat client. Appreciates efficient family pacing.',
+      customerAvatarUrl: '/images/book-cut.jpg',
     },
     {
       id: 'apt-804',
-      timeLabel: '16:00',
-      customerName: 'Aphiwe Ndlovu',
-      customerEmail: 'aphiwe@example.com',
-      serviceBooked: 'Texture Refresh + Beard Detail',
-      durationLabel: '50 min',
-      barberAssigned: operatorName,
+      reference: 'OB-APT804',
       status: 'completed',
-      clientQuickView: {
-        recentVisitHistory: [
-          'Texture refresh - 10 days ago',
-          'Premium shape-up - 4 weeks ago',
-        ],
-        servicePreference: 'Natural texture with clean outline',
-        styleNotes:
-          'Likes subtle movement on top and a natural matte finish in after shots.',
-        contentConsent: true,
-      },
-      contentCapture: {
-        beforePhotoReady: true,
-        afterPhotoReady: true,
-        videoReady: true,
-      },
+      paymentStatus: 'paid',
+      customerName: 'Aphiwe Ndlovu',
+      customerPhone: '+27 69 100 1004',
+      customerEmail: 'aphiwe@example.com',
+      serviceName: 'Texture Refresh + Beard Detail',
+      bookingDateLabel: '27 Apr 2026',
+      bookingTimeLabel: '16:00',
+      startsAtLabel: '27 Apr 2026, 16:00',
+      amountDueLabel: 'R380',
+      pendingExpiresAtLabel: 'Not set',
+      notes: 'Likes subtle movement on top and a matte finish in after shots.',
+      customerAvatarUrl: '/images/feature-beard.jpg',
     },
   ]
 }
 
+function buildCustomers(bookings: BarberDashboardBooking[]): BarberDashboardCustomer[] {
+  return bookings.slice(0, 3).map((booking, index) => ({
+    id: booking.id,
+    fullName: booking.customerName,
+    phoneNumber: booking.customerPhone,
+    email: booking.customerEmail,
+    visitCountLabel: `${index + 2} visits`,
+    upcomingBookingLabel: booking.startsAtLabel,
+    preferredService: booking.serviceName,
+    profileImageUrl: booking.customerAvatarUrl,
+  }))
+}
+
 export function createMockBarberDashboardData(email?: string): BarberDashboardViewModel {
   const operator = buildOperatorProfile(email)
-  const todaySchedule = buildAppointments(operator.displayName)
+  const bookings = buildAppointments(operator.displayName)
+  const confirmedBookings = bookings.filter((item) => item.status === 'confirmed')
+  const pendingBookings = bookings.filter((item) => item.status === 'pending_payment')
+  const completedBookings = bookings.filter((item) => item.status === 'completed')
 
   return {
     dataSource: 'mock',
     readinessMessage:
       'Barber operations are running on seeded shift data until live booking and upload tables are connected.',
     operator,
-    todaySchedule,
+    today: confirmedBookings.slice(0, 1),
+    upcoming: confirmedBookings,
+    awaitingPayment: pendingBookings,
+    completed: completedBookings,
+    customers: buildCustomers(bookings),
     performance: {
-      cutsCompletedToday: todaySchedule.filter((item) => item.status === 'completed').length,
-      repeatClientsCount: 3,
-      averageServiceDuration: '52 min',
-    },
-    quickNotesSeed: {
-      haircutNotes: 'Document blend detail, line-up finish, and product used for the final style.',
-      followUpRecommendation: 'Recommend a 2-week maintenance booking and matte styling powder for home finish.',
+      cutsCompletedToday: String(completedBookings.length),
+      todayConfirmedCount: String(confirmedBookings.slice(0, 1).length),
+      awaitingPaymentCount: String(pendingBookings.length),
+      repeatClientsCount: '3',
     },
   }
 }

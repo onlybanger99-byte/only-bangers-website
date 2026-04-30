@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { getDefaultDashboardForRole, normalizeRole, type UserRole } from '@/lib/auth/roles'
 import { supabase } from '@/lib/supabase/client'
 import styles from './UniversalHeader.module.css'
@@ -15,14 +15,81 @@ type SearchResult = {
   keywords: string[]
 }
 
-const searchableContent: SearchResult[] = [
-  { title: 'Services', description: 'View our barber services', url: '/services', category: 'Services', keywords: ['service', 'haircut', 'fade', 'beard', 'shave', 'trim', 'grooming'] },
-  { title: 'Products', description: 'Premium grooming products', url: '/products', category: 'Products', keywords: ['product', 'pomade', 'oil', 'cream', 'treatment', 'shampoo', 'conditioner'] },
-  { title: 'Blogs', description: 'Barbering tips and techniques', url: '/blogs', category: 'Blog', keywords: ['blog', 'article', 'tips', 'guide', 'tutorial', 'technique'] },
-  { title: 'Book Appointment', description: 'Schedule with Only Bangers', url: '/services', category: 'Booking', keywords: ['booking', 'appointment', 'book', 'schedule'] },
-  { title: 'About Us', description: 'Learn our story', url: '/about', category: 'About', keywords: ['about', 'story', 'mission', 'team'] },
-  { title: 'Contact', description: 'Get in touch', url: '/contact', category: 'Contact', keywords: ['contact', 'email', 'message', 'reach'] },
-  { title: 'Shopping Cart', description: 'View your cart', url: '/cart', category: 'Cart', keywords: ['cart', 'checkout', 'order', 'buy'] },
+type NavLink = {
+  label: string
+  href: string
+}
+
+const BOOK_NOW_HREF = '/services'
+// TODO: replace this with a real public barber page route once `/barber` exists.
+const BARBER_PUBLIC_HREF = '/services'
+
+const navLinks: NavLink[] = [
+  { label: 'Home', href: '/' },
+  { label: 'Services', href: '/services' },
+  { label: 'Barber', href: BARBER_PUBLIC_HREF },
+  { label: 'Blogs', href: '/blogs' },
+  { label: 'About', href: '/about' },
+  { label: 'Contact', href: '/contact' },
+]
+
+const baseSearchableContent: SearchResult[] = [
+  {
+    title: 'Services',
+    description: 'View our barber services',
+    url: '/services',
+    category: 'Services',
+    keywords: ['service', 'haircut', 'fade', 'beard', 'shave', 'trim', 'grooming'],
+  },
+  {
+    title: 'Barber',
+    description: 'Meet the Only Bangers barber experience',
+    url: BARBER_PUBLIC_HREF,
+    category: 'Barber',
+    keywords: ['barber', 'team', 'artist', 'cut', 'fade', 'groomer'],
+  },
+  {
+    title: 'Blogs',
+    description: 'Barbering tips and techniques',
+    url: '/blogs',
+    category: 'Blog',
+    keywords: ['blog', 'article', 'tips', 'guide', 'tutorial', 'technique'],
+  },
+  {
+    title: 'Book Appointment',
+    description: 'Start your booking and WhatsApp checkout',
+    url: BOOK_NOW_HREF,
+    category: 'Booking',
+    keywords: ['booking', 'appointment', 'book', 'schedule', 'checkout'],
+  },
+  {
+    title: 'About Us',
+    description: 'Learn our story',
+    url: '/about',
+    category: 'About',
+    keywords: ['about', 'story', 'mission', 'team'],
+  },
+  {
+    title: 'Contact',
+    description: 'Get in touch',
+    url: '/contact',
+    category: 'Contact',
+    keywords: ['contact', 'email', 'message', 'reach'],
+  },
+  {
+    title: 'Shopping Cart',
+    description: 'View your cart',
+    url: '/cart',
+    category: 'Cart',
+    keywords: ['cart', 'checkout', 'order', 'buy'],
+  },
+  {
+    title: 'WhatsApp Payment',
+    description: 'Send payment proof and complete your booking verification',
+    url: BOOK_NOW_HREF,
+    category: 'Payments',
+    keywords: ['whatsapp', 'payment', 'proof', 'verify', 'booking'],
+  },
 ]
 
 function getRoleLabel(role: UserRole) {
@@ -41,56 +108,58 @@ function getRoleLabel(role: UserRole) {
   return 'Account'
 }
 
+function isActiveLink(pathname: string | null, href: string) {
+  if (!pathname) {
+    return false
+  }
+
+  if (href === '/') {
+    return pathname === '/'
+  }
+
+  return pathname === href || pathname.startsWith(`${href}/`)
+}
+
 export default function UniversalHeader() {
+  const router = useRouter()
+  const pathname = usePathname()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isAdminPage, setIsAdminPage] = useState(false)
   const [cartItemsCount, setCartItemsCount] = useState(0)
   const [searchQuery, setSearchQuery] = useState('')
-  const [isScrolled, setIsScrolled] = useState(false)
-  const [isSearchBarVisible, setIsSearchBarVisible] = useState(false)
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [userRole, setUserRole] = useState<UserRole>(null)
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
-  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
   const [selectedResultIndex, setSelectedResultIndex] = useState(-1)
-  const headerRef = useRef<HTMLDivElement>(null)
+  const searchPanelRef = useRef<HTMLDivElement>(null)
+  const menuPanelRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const lastScrollYRef = useRef(0)
-  const pathname = usePathname()
+
+  const showHero = useMemo(() => {
+    if (!pathname) {
+      return true
+    }
+
+    return !(
+      pathname.startsWith('/admin') ||
+      pathname.startsWith('/portal') ||
+      pathname.startsWith('/barber/dashboard')
+    )
+  }, [pathname])
 
   useEffect(() => {
     setIsAdminPage(pathname?.includes('/admin') || false)
     updateCartCount()
+  }, [pathname])
 
-    const handleScroll = () => {
-      if (!headerRef.current) return
-
-      const headerHeight = headerRef.current.offsetHeight
-      const currentScrollY = window.scrollY
-      const scrolled = currentScrollY > headerHeight - 70
-      const hasMeaningfulMovement =
-        Math.abs(currentScrollY - lastScrollYRef.current) > 8
-
-      setIsScrolled(scrolled)
-
-      if (!scrolled) {
-        setIsSearchBarVisible(true)
-      } else if (hasMeaningfulMovement) {
-        setIsSearchBarVisible(currentScrollY < lastScrollYRef.current)
-      }
-
-      lastScrollYRef.current = currentScrollY
-    }
-
-    window.addEventListener('scroll', handleScroll)
+  useEffect(() => {
     window.addEventListener('cartUpdated', updateCartCount)
-    handleScroll()
 
     return () => {
-      window.removeEventListener('scroll', handleScroll)
       window.removeEventListener('cartUpdated', updateCartCount)
     }
-  }, [pathname])
+  }, [isAdminPage])
 
   useEffect(() => {
     let isMounted = true
@@ -144,15 +213,79 @@ export default function UniversalHeader() {
     }
   }, [])
 
-  const updateCartCount = () => {
-    if (typeof window === 'undefined') return
+  useEffect(() => {
+    if (!isSearchOpen) {
+      return
+    }
+
+    searchInputRef.current?.focus()
+  }, [isSearchOpen])
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node
+
+      if (isSearchOpen && searchPanelRef.current && !searchPanelRef.current.contains(target)) {
+        setIsSearchOpen(false)
+      }
+
+      if (isMenuOpen && menuPanelRef.current && !menuPanelRef.current.contains(target)) {
+        setIsMenuOpen(false)
+      }
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return
+      }
+
+      setIsSearchOpen(false)
+      setIsMenuOpen(false)
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleEscape)
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [isMenuOpen, isSearchOpen])
+
+  useEffect(() => {
+    setIsMenuOpen(false)
+    setIsSearchOpen(false)
+  }, [pathname])
+
+  const dashboardHref = getDefaultDashboardForRole(userRole)
+  const profileHref = isLoggedIn && userRole ? dashboardHref : '/login'
+
+  const searchableContent = useMemo(() => {
+    const dynamicItems: SearchResult[] = [
+      {
+        title: 'My Dashboard',
+        description: isLoggedIn && userRole ? `Open your ${getRoleLabel(userRole)}` : 'Sign in to access your dashboard',
+        url: isLoggedIn && userRole ? dashboardHref : '/login',
+        category: 'Account',
+        keywords: ['dashboard', 'account', 'portal', 'admin', 'barber', 'customer', 'profile'],
+      },
+    ]
+
+    return [...baseSearchableContent, ...dynamicItems]
+  }, [dashboardHref, isLoggedIn, userRole])
+
+  function updateCartCount() {
+    if (typeof window === 'undefined') {
+      return
+    }
 
     if (!isAdminPage) {
-      const savedCart = localStorage.getItem('onlyBangersCart')
+      const savedCart = window.localStorage.getItem('onlyBangersCart')
+
       if (savedCart) {
         try {
           const cart = JSON.parse(savedCart)
-          const count = cart.reduce((sum: number, item: any) => sum + item.quantity, 0)
+          const count = cart.reduce((sum: number, item: { quantity?: number }) => sum + (item.quantity ?? 0), 0)
           setCartItemsCount(count)
         } catch {
           setCartItemsCount(0)
@@ -165,14 +298,25 @@ export default function UniversalHeader() {
     }
   }
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const query = e.target.value
+  const closeSearch = () => {
+    setIsSearchOpen(false)
+    setSearchQuery('')
+    setSearchResults([])
+    setSelectedResultIndex(-1)
+  }
+
+  const openSearch = () => {
+    setIsSearchOpen(true)
+    setSelectedResultIndex(-1)
+  }
+
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const query = event.target.value
     setSearchQuery(query)
     setSelectedResultIndex(-1)
 
     if (query.trim().length === 0) {
       setSearchResults([])
-      setShowSearchDropdown(false)
       return
     }
 
@@ -180,225 +324,288 @@ export default function UniversalHeader() {
     const results = searchableContent.filter((item) => {
       const titleMatch = item.title.toLowerCase().includes(lowerQuery)
       const descriptionMatch = item.description.toLowerCase().includes(lowerQuery)
-      const keywordMatch = item.keywords.some((kw) => kw.includes(lowerQuery))
+      const keywordMatch = item.keywords.some((keyword) => keyword.includes(lowerQuery))
       return titleMatch || descriptionMatch || keywordMatch
     })
 
     setSearchResults(results)
-    setShowSearchDropdown(results.length > 0)
   }
 
   const navigateToResult = (result: SearchResult) => {
-    setSearchQuery('')
-    setShowSearchDropdown(false)
-    setSearchResults([])
+    closeSearch()
 
     if (result.url.startsWith('http')) {
-      window.open(result.url, '_blank')
-    } else {
-      window.location.href = result.url
+      window.open(result.url, '_blank', 'noopener,noreferrer')
+      return
     }
+
+    router.push(result.url)
   }
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSearchSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
 
     if (selectedResultIndex >= 0 && searchResults[selectedResultIndex]) {
       navigateToResult(searchResults[selectedResultIndex])
       return
     }
 
-    if (searchResults.length > 0) {
+    if (searchResults[0]) {
       navigateToResult(searchResults[0])
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!showSearchDropdown) return
-
-    switch (e.key) {
+  const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    switch (event.key) {
       case 'ArrowDown':
-        e.preventDefault()
-        setSelectedResultIndex((prev) =>
-          prev < searchResults.length - 1 ? prev + 1 : prev
+        event.preventDefault()
+        setSelectedResultIndex((current) =>
+          current < searchResults.length - 1 ? current + 1 : current
         )
         break
       case 'ArrowUp':
-        e.preventDefault()
-        setSelectedResultIndex((prev) => (prev > 0 ? prev - 1 : -1))
+        event.preventDefault()
+        setSelectedResultIndex((current) => (current > 0 ? current - 1 : -1))
         break
       case 'Enter':
-        e.preventDefault()
-        if (selectedResultIndex >= 0) {
-          navigateToResult(searchResults[selectedResultIndex])
-        } else if (searchResults.length > 0) {
-          navigateToResult(searchResults[0])
+        if (searchResults.length > 0) {
+          event.preventDefault()
+          if (selectedResultIndex >= 0) {
+            navigateToResult(searchResults[selectedResultIndex])
+          } else {
+            navigateToResult(searchResults[0])
+          }
         }
         break
       case 'Escape':
-        setShowSearchDropdown(false)
+        event.preventDefault()
+        closeSearch()
         break
       default:
         break
     }
   }
 
-  const dashboardHref = getDefaultDashboardForRole(userRole)
-
   return (
     <>
-      <div className={styles.headerMainContainer} ref={headerRef}>
-        <div className={styles.headerImageSection}>
-          <img
-            src="/images/header-bg.png"
-            alt="Only Bangers Background"
-            className={styles.headerBackgroundImage}
-            onError={(e) => {
-              const target = e.target as HTMLImageElement
-              target.style.display = 'none'
-              const fallback = document.createElement('div')
-              fallback.className = styles.imageFallback
-              target.parentNode?.insertBefore(fallback, target.nextSibling)
-            }}
-          />
-          <div className={styles.imageOverlay}></div>
+      <header className={styles.headerShell}>
+        <div className={styles.navSpacer} />
 
-          <div className={styles.headerLogo}>
-            <h1 className={styles.logoMain}>ONLY BANGERS</h1>
-            <p className={styles.logoSub}>LIVE THE VIBE</p>
-          </div>
-        </div>
-
-        <div
-          className={`${styles.searchBarContainer} ${
-            isScrolled ? styles.searchBarContainerFixed : ''
-          } ${isScrolled && !isSearchBarVisible ? styles.searchBarContainerHidden : ''}`}
-        >
-          <div className={styles.searchBarWrapper}>
-            <button
-              onClick={() => setIsMenuOpen(true)}
-              className={styles.navMenuButton}
-              aria-label="Open menu"
-            >
-              <svg className={styles.navMenuIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-
-            <div className={styles.searchBar}>
-              <form onSubmit={handleSearch} className={styles.searchForm}>
-                <svg className={styles.searchBarIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        <div className={styles.topNavWrap}>
+          <div className={styles.topNav}>
+            <div className={styles.mobileCluster}>
+              <button
+                type="button"
+                onClick={() => setIsMenuOpen(true)}
+                className={styles.iconButton}
+                aria-label="Open navigation menu"
+                aria-expanded={isMenuOpen}
+              >
+                <svg className={styles.icon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="Search services or products..."
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                  onKeyDown={handleKeyDown}
-                  onFocus={() => searchQuery.trim().length > 0 && setShowSearchDropdown(true)}
-                  onBlur={() => setTimeout(() => setShowSearchDropdown(false), 200)}
-                  className={styles.searchBarInput}
-                />
+              </button>
 
-                {showSearchDropdown && searchResults.length > 0 && (
-                  <div className={styles.searchDropdown}>
-                    {searchResults.map((result, index) => (
-                      <div
-                        key={`${result.url}-${index}`}
-                        className={`${styles.searchResultItem} ${selectedResultIndex === index ? styles.searchResultItemActive : ''}`}
-                        onClick={() => navigateToResult(result)}
-                        onMouseEnter={() => setSelectedResultIndex(index)}
-                      >
-                        <div className={styles.searchResultContent}>
-                          <div className={styles.searchResultTitle}>{result.title}</div>
-                          <div className={styles.searchResultDescription}>{result.description}</div>
-                        </div>
-                        <div className={styles.searchResultCategory}>{result.category}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </form>
+              <Link href="/" className={styles.mobileBrand} aria-label="Only Bangers home">
+                ONLY BANGERS
+              </Link>
             </div>
 
-            {!isAdminPage && isLoggedIn && userRole && (
-              <Link href={dashboardHref} className={styles.navProfileButton} aria-label={getRoleLabel(userRole)}>
-                <svg className={styles.navProfileIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
+            <div className={styles.desktopBrandRow}>
+              <Link href="/" className={styles.brand} aria-label="Only Bangers home">
+                ONLY BANGERS
               </Link>
-            )}
 
-            {!isAdminPage && (
-              <Link href="/cart" className={styles.navCartButton} aria-label="Shopping cart">
-                <svg className={styles.navCartIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                {cartItemsCount > 0 && <span className={styles.navCartBadge}>{cartItemsCount}</span>}
+              <nav className={styles.desktopNav} aria-label="Primary navigation">
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.label}
+                    href={link.href}
+                    className={styles.navLink}
+                    data-active={isActiveLink(pathname, link.href)}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </nav>
+            </div>
+
+            <div className={styles.actions}>
+              <div className={styles.searchShell} ref={searchPanelRef}>
+                <button
+                  type="button"
+                  onClick={() => (isSearchOpen ? closeSearch() : openSearch())}
+                  className={styles.iconButton}
+                  aria-label="Open search"
+                  aria-expanded={isSearchOpen}
+                >
+                  <svg className={styles.icon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </button>
+
+                {isSearchOpen ? (
+                  <div className={styles.searchPanel}>
+                    <form onSubmit={handleSearchSubmit} className={styles.searchForm}>
+                      <label htmlFor="header-search" className={styles.searchLabel}>
+                        Search Only Bangers
+                      </label>
+                      <div className={styles.searchInputWrap}>
+                        <svg className={styles.searchInputIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <input
+                          id="header-search"
+                          ref={searchInputRef}
+                          type="text"
+                          value={searchQuery}
+                          onChange={handleSearchChange}
+                          onKeyDown={handleSearchKeyDown}
+                          placeholder="Search services, booking, dashboard, barber..."
+                          className={styles.searchInput}
+                        />
+                      </div>
+                    </form>
+
+                    <div className={styles.searchResults}>
+                      {searchQuery.trim().length === 0 ? (
+                        <p className={styles.searchEmpty}>Search for services, booking help, barber info, or your dashboard.</p>
+                      ) : searchResults.length === 0 ? (
+                        <p className={styles.searchEmpty}>No matching results found.</p>
+                      ) : (
+                        searchResults.map((result, index) => (
+                          <button
+                            key={`${result.title}-${result.url}-${index}`}
+                            type="button"
+                            className={styles.searchResult}
+                            data-active={selectedResultIndex === index}
+                            onMouseEnter={() => setSelectedResultIndex(index)}
+                            onClick={() => navigateToResult(result)}
+                          >
+                            <div className={styles.searchCopy}>
+                              <span className={styles.searchTitle}>{result.title}</span>
+                              <span className={styles.searchDescription}>{result.description}</span>
+                            </div>
+                            <span className={styles.searchCategory}>{result.category}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              {!isAdminPage ? (
+                <Link
+                  href={profileHref}
+                  className={`${styles.iconButton} ${styles.desktopOnly}`}
+                  aria-label={isLoggedIn && userRole ? getRoleLabel(userRole) : 'Login or sign up'}
+                >
+                  <svg className={styles.icon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </Link>
+              ) : null}
+
+              {!isAdminPage ? (
+                <Link href="/cart" className={styles.iconButton} aria-label="Shopping cart">
+                  <svg className={styles.icon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  {cartItemsCount > 0 ? <span className={styles.cartBadge}>{cartItemsCount}</span> : null}
+                </Link>
+              ) : null}
+
+              <Link href={BOOK_NOW_HREF} className={styles.bookNowButton}>
+                Book Now
               </Link>
-            )}
+            </div>
           </div>
         </div>
-      </div>
+
+        {showHero ? (
+          <section className={styles.heroSection}>
+            <img
+              src="/images/header-bg.png"
+              alt="Only Bangers premium barbering hero background"
+              className={styles.heroImage}
+            />
+            <div className={styles.heroOverlay} />
+            <div className={styles.heroContent}>
+              <p className={styles.kicker}>Only Bangers</p>
+              <h1 className={styles.heroTitle}>ONLY BANGERS</h1>
+              <p className={styles.heroSubtitle}>LIVE THE VIBE</p>
+              <Link href={BOOK_NOW_HREF} className={styles.heroButton}>
+                Book Your Cut
+              </Link>
+            </div>
+          </section>
+        ) : null}
+      </header>
 
       <div
-        className={`${styles.menuOverlayBackdrop} ${isMenuOpen ? styles.menuOverlayBackdropActive : ''}`}
-        onClick={() => setIsMenuOpen(false)}
+        className={`${styles.menuOverlay} ${isMenuOpen ? styles.menuOverlayVisible : ''}`}
+        aria-hidden={!isMenuOpen}
       />
 
-      <div className={`${styles.sidebarNavMenu} ${isMenuOpen ? styles.sidebarNavMenuOpen : ''}`}>
-        <div className={styles.menuNavHeader}>
-          <button onClick={() => setIsMenuOpen(false)} className={styles.menuCloseButton} aria-label="Close menu">
-            <svg className={styles.menuCloseIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <aside
+        ref={menuPanelRef}
+        className={`${styles.sidebar} ${isMenuOpen ? styles.sidebarOpen : ''}`}
+        aria-label="Sidebar navigation"
+      >
+        <div className={styles.sidebarHeader}>
+          <div>
+            <p className={styles.sidebarEyebrow}>Menu</p>
+            <h2 className={styles.sidebarTitle}>Only Bangers</h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsMenuOpen(false)}
+            className={styles.iconButton}
+            aria-label="Close navigation menu"
+            aria-expanded={isMenuOpen}
+          >
+            <svg className={styles.icon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-          <h2 className={styles.menuNavTitle}>Menu</h2>
         </div>
 
-        <div className={styles.menuNavContent}>
-          <div className={styles.menuNavSection}>
-            <h3 className={styles.menuSectionHeading}>NAVIGATION</h3>
-
-            <Link href="/" className={styles.menuNavItem} onClick={() => setIsMenuOpen(false)}>
-              Home
-            </Link>
-
-            <Link href="/services" className={styles.menuNavItem} onClick={() => setIsMenuOpen(false)}>
-              Services
-            </Link>
-
-            <Link href="/products" className={styles.menuNavItem} onClick={() => setIsMenuOpen(false)}>
-              Products
-            </Link>
-
-            {!isAdminPage && (
-              <Link href="/cart" className={styles.menuNavItem} onClick={() => setIsMenuOpen(false)}>
-                Cart
-                {cartItemsCount > 0 && (
-                  <span className={styles.menuCartBadge}>{cartItemsCount}</span>
-                )}
+        <div className={styles.sidebarContent}>
+          <nav className={styles.sidebarNav} aria-label="Mobile navigation">
+            {navLinks.map((link) => (
+              <Link
+                key={link.label}
+                href={link.href}
+                className={styles.sidebarLink}
+                data-active={isActiveLink(pathname, link.href)}
+                onClick={() => setIsMenuOpen(false)}
+              >
+                {link.label}
               </Link>
-            )}
-          </div>
+            ))}
 
-          <div className={styles.menuNavSection}>
-            <h3 className={styles.menuSectionHeading}>ACCOUNT</h3>
+            <Link href={BOOK_NOW_HREF} className={styles.sidebarBookNow} onClick={() => setIsMenuOpen(false)}>
+              Book Now
+            </Link>
+          </nav>
+
+          <div className={styles.sidebarSection}>
+            <p className={styles.sidebarEyebrow}>Account</p>
+
             {!isLoggedIn ? (
-              <>
-                <Link href="/login" className={styles.menuNavItem} onClick={() => setIsMenuOpen(false)}>
-                  Sign In
+              <div className={styles.sidebarActions}>
+                <Link href="/login" className={styles.sidebarActionLink} onClick={() => setIsMenuOpen(false)}>
+                  Login
                 </Link>
-                <Link href="/login" className={styles.menuNavItem} onClick={() => setIsMenuOpen(false)}>
+                <Link href="/login" className={styles.sidebarActionLink} onClick={() => setIsMenuOpen(false)}>
                   Sign Up
                 </Link>
-              </>
+              </div>
             ) : (
-              <>
+              <div className={styles.sidebarActions}>
                 {userRole ? (
-                  <Link href={dashboardHref} className={styles.menuNavItem} onClick={() => setIsMenuOpen(false)}>
+                  <Link href={dashboardHref} className={styles.sidebarActionLink} onClick={() => setIsMenuOpen(false)}>
                     {getRoleLabel(userRole)}
                   </Link>
                 ) : null}
@@ -406,17 +613,17 @@ export default function UniversalHeader() {
                   method="post"
                   action="/auth/signout"
                   onSubmit={() => setIsMenuOpen(false)}
-                  className={styles.menuNavForm}
+                  className={styles.sidebarLogoutForm}
                 >
-                  <button type="submit" className={styles.menuNavButton}>
-                    Log Out
+                  <button type="submit" className={styles.sidebarLogoutButton}>
+                    Logout
                   </button>
                 </form>
-              </>
+              </div>
             )}
           </div>
         </div>
-      </div>
+      </aside>
     </>
   )
 }

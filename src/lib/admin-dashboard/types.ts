@@ -1,98 +1,135 @@
-import type { BookingStatus } from '@/lib/bookings/types'
-export type { BookingStatus } from '@/lib/bookings/types'
+import type { BookingStatus, PaymentStatus } from '@/lib/bookings/types'
 
-export type SectionSource = 'live' | 'mock'
-
-export type DashboardReadiness = 'live' | 'hybrid' | 'mock'
-
-export type ApprovalStatus = 'pending' | 'in_review' | 'approved' | 'changes_requested'
-
-export type HealthStatus = 'healthy' | 'degraded' | 'offline'
-
-export interface DashboardOverviewCard {
+export interface AdminMetric {
+  id: string
   label: string
   value: string
   detail: string
   tone: 'gold' | 'emerald' | 'blue' | 'rose'
-  source: SectionSource
 }
 
-export interface DashboardBooking {
+export interface AdminBookingsFilters {
+  query: string
+  status: string
+  sort: 'starts_at' | 'created_at' | 'status'
+  direction: 'asc' | 'desc'
+  page: number
+  pageSize: number
+}
+
+export interface AdminBookingRow {
   id: string
   customerName: string
   customerEmail: string
-  serviceType: string
-  barberAssigned: string
-  startsAt: string
+  customerPhone: string
+  serviceName: string
+  barberName: string
   startsAtLabel: string
+  createdAtLabel: string
   status: BookingStatus
+  paymentStatus: PaymentStatus
+  amountDueLabel: string
+  paymentReference: string
+  pendingExpiresAtLabel: string
 }
 
-export interface DashboardTransaction {
+export interface AdminBookingsSection {
+  filters: AdminBookingsFilters
+  items: AdminBookingRow[]
+  totalCount: number
+  totalPages: number
+  hasResults: boolean
+  errorMessage?: string
+}
+
+export interface AdminUsersFilters {
+  query: string
+  page: number
+  pageSize: number
+}
+
+export interface AdminUserRow {
   id: string
-  customerName: string
-  amountLabel: string
-  statusLabel: string
-  processedAtLabel: string
-}
-
-export interface DashboardRevenuePanel {
-  source: SectionSource
-  weeklyRevenue: string
-  averageOrderValue: string
-  trendSummary: string
-  recentTransactions: DashboardTransaction[]
-}
-
-export interface DashboardCustomerInsight {
-  id: string
-  customerName: string
+  fullName: string
   email: string
-  joinedLabel: string
-  lastVisitLabel: string
-  repeatVisitLabel: string
-  loyaltyTier: string
+  phoneNumber: string
+  profileImageUrl: string
+  role: string
+  accountStatus: 'active' | 'suspended' | 'pending'
+  createdAtLabel: string
+  profileComplete: boolean
 }
 
-export interface DashboardContentItem {
+export interface AdminUsersSection {
+  filters: AdminUsersFilters
+  items: AdminUserRow[]
+  totalCount: number
+  totalPages: number
+  enabled: boolean
+  errorMessage?: string
+}
+
+export interface AdminBarbersFilters {
+  query: string
+  page: number
+  pageSize: number
+}
+
+export interface AdminBarberRow {
   id: string
-  title: string
-  creatorName: string
-  submittedLabel: string
-  approvalState: ApprovalStatus
-  contentType: string
+  displayName: string
+  specialty: string
+  profileImageUrl: string
+  activeStatus: 'active' | 'inactive'
+  profileComplete: boolean
+  totalBookings: number
+  upcomingBookings: number
+  completedBookings: number
 }
 
-export interface DashboardHealthItem {
+export interface AdminBarbersSection {
+  filters: AdminBarbersFilters
+  items: AdminBarberRow[]
+  totalCount: number
+  totalPages: number
+  enabled: boolean
+  errorMessage?: string
+}
+
+export interface AdminRevenuePanel {
+  enabled: boolean
+  weeklyRevenue: string
+  totalRevenue: string
+  averageOrderValue: string
+  transactionCount: number
+  errorMessage?: string
+}
+
+export interface AdminFeatureStatus {
   id: string
   label: string
+  status: 'enabled' | 'not_enabled' | 'error'
   detail: string
-  status: HealthStatus
 }
 
-export interface DashboardQuickAction {
-  id: string
-  title: string
-  description: string
-  href: string
-  cta: string
-}
-
-export interface DashboardPanel<T> {
-  source: SectionSource
-  items: T[]
-  emptyMessage: string
+export interface AdminOverviewSummary {
+  totalBookings: string
+  pendingPayments: string
+  confirmedBookings: string
+  completedBookings: string
 }
 
 export interface AdminDashboardViewModel {
-  readiness: DashboardReadiness
-  readinessLabel: string
   headerMessage: string
-  overviewCards: DashboardOverviewCard[]
-  bookings: DashboardPanel<DashboardBooking>
-  revenue: DashboardRevenuePanel
-  customers: DashboardPanel<DashboardCustomerInsight>
-  content: DashboardPanel<DashboardContentItem>
-  health: DashboardHealthItem[]
-  quickActions: DashboardQuickAction[]
+  metrics: AdminMetric[]
+  overview: AdminOverviewSummary
+  pendingPayments: {
+    items: AdminBookingRow[]
+    countLabel: string
+  }
+  bookings: AdminBookingsSection
+  users: AdminUsersSection
+  barbers: AdminBarbersSection
+  revenue: AdminRevenuePanel
+  featureStatuses: AdminFeatureStatus[]
 }

@@ -1,21 +1,30 @@
 import type { AppRole } from '@/lib/auth/roles'
 
 export const BOOKING_STATUSES = [
-  'pending',
+  'pending_payment',
   'confirmed',
-  'scheduled',
-  'arrived',
-  'in_progress',
   'completed',
   'cancelled',
+  'expired',
 ] as const
 
 export type BookingStatus = (typeof BOOKING_STATUSES)[number]
 
+export const PAYMENT_STATUSES = [
+  'unpaid',
+  'pending_verification',
+  'paid',
+  'failed',
+] as const
+
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number]
+
 export type BookingErrorCode =
   | 'UNAUTHORIZED'
   | 'FORBIDDEN'
+  | 'INCOMPLETE_PROFILE'
   | 'NOT_FOUND'
+  | 'SLOT_UNAVAILABLE'
   | 'VALIDATION_ERROR'
   | 'TABLE_MISSING'
   | 'DATABASE_ERROR'
@@ -24,10 +33,19 @@ export interface BookingRecord {
   id: string
   user_id: string
   barber_id: string | null
+  barber_name: string | null
   service_name: string
+  service_id: string | null
   starts_at: string
   status: BookingStatus
+  payment_status: PaymentStatus
   notes: string | null
+  whatsapp_redirect_url: string | null
+  amount_due: number | null
+  payment_reference: string | null
+  pending_expires_at: string | null
+  confirmed_at: string | null
+  confirmed_by: string | null
   created_at: string
 }
 
@@ -49,20 +67,39 @@ export interface BookingListFilters {
 }
 
 export interface CreateBookingInput {
-  userId?: string
   barberId?: string | null
-  serviceName: string
+  serviceId?: string
+  serviceName?: string
   startsAt: string
-  status?: BookingStatus
   notes?: string | null
 }
 
 export interface UpdateBookingInput {
   barberId?: string | null
+  serviceId?: string
   serviceName?: string
   startsAt?: string
   status?: BookingStatus
+  paymentStatus?: PaymentStatus
   notes?: string | null
+  pendingExpiresAt?: string | null
+  confirmedAt?: string | null
+  confirmedBy?: string | null
+  whatsappRedirectUrl?: string | null
+  amountDue?: number | null
+  paymentReference?: string | null
+}
+
+export interface BookingAvailability {
+  barberId: string
+  date: string
+  availableSlots: string[]
+  bookedSlots: string[]
+  temporarilyReservedSlots: string[]
+}
+
+export interface ConfirmPaymentInput {
+  paymentStatus?: Extract<PaymentStatus, 'paid'>
 }
 
 export type BookingResult<T> =
