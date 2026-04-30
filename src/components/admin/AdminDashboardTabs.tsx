@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import type {
+  AdminBarberApplicationRow,
   AdminBarberRow,
   AdminBookingRow,
   AdminDashboardViewModel,
@@ -13,6 +14,7 @@ import { DashboardTabs } from '@/components/dashboard/DashboardTabs'
 import { EmptyState } from '@/components/dashboard/EmptyState'
 import { StatusBadge } from '@/components/dashboard/StatusBadge'
 import styles from '@/app/admin/dashboard/dashboard.module.css'
+import { AdminBarberApplicationActions } from './AdminBarberApplicationActions'
 import { AdminBookingActions } from './AdminBookingActions'
 
 const TABS = [
@@ -20,6 +22,7 @@ const TABS = [
   { id: 'payments', label: 'Payments' },
   { id: 'users', label: 'Users' },
   { id: 'barbers', label: 'Barbers' },
+  { id: 'barber-applications', label: 'Barber Applications' },
 ] as const
 
 const USER_GROUPS = [
@@ -38,6 +41,32 @@ type AdminCurrentQuery = {
   booking_direction: string
   booking_page: string
   tab: string
+}
+
+function toExternalHref(platform: 'instagram' | 'tiktok' | 'facebook' | 'portfolio', value: string) {
+  const normalized = value.trim()
+
+  if (!normalized) {
+    return null
+  }
+
+  if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+    return normalized
+  }
+
+  const handle = normalized.replace(/^@/, '')
+
+  switch (platform) {
+    case 'instagram':
+      return `https://instagram.com/${handle}`
+    case 'tiktok':
+      return `https://tiktok.com/@${handle}`
+    case 'facebook':
+      return `https://facebook.com/${handle}`
+    case 'portfolio':
+    default:
+      return normalized.startsWith('www.') ? `https://${normalized}` : normalized
+  }
 }
 
 function BookingCard({
@@ -164,6 +193,81 @@ function BarberCard({ barber }: { barber: AdminBarberRow }) {
   )
 }
 
+function BarberApplicationCard({
+  application,
+}: {
+  application: AdminBarberApplicationRow
+}) {
+  return (
+    <article className={styles.recordCard}>
+      <div className={styles.recordTop}>
+        <div>
+          <p className={styles.referenceText}>{application.submittedAtLabel}</p>
+          <h3 className={styles.cardTitle}>{application.applicantName}</h3>
+          <p className={styles.cardMeta}>{application.applicantEmail}</p>
+          <p className={styles.cardSubmeta}>{application.applicantPhone}</p>
+        </div>
+
+        <div className={styles.badgeCluster}>
+          <StatusBadge value={application.status} />
+        </div>
+      </div>
+
+      <div className={styles.metaGrid}>
+        <div>
+          <span className={styles.metaLabel}>Location</span>
+          <strong className={styles.metaValue}>{application.cuttingLocation}</strong>
+        </div>
+        <div>
+          <span className={styles.metaLabel}>Availability</span>
+          <strong className={styles.metaValue}>
+            {application.availableDays.length > 0 ? application.availableDays.join(', ') : 'Days pending'}
+          </strong>
+        </div>
+        <div>
+          <span className={styles.metaLabel}>Hours</span>
+          <strong className={styles.metaValue}>
+            {application.availableStartTime && application.availableEndTime
+              ? `${application.availableStartTime} - ${application.availableEndTime}`
+              : 'Hours pending'}
+          </strong>
+        </div>
+      </div>
+
+      <p className={styles.cardText}>{application.bio}</p>
+
+      <div className={styles.inlineActions}>
+        {application.instagramUrl ? (
+          <Link href={toExternalHref('instagram', application.instagramUrl) ?? '#'} className={styles.secondaryButton}>
+            Instagram
+          </Link>
+        ) : null}
+        {application.tiktokUrl ? (
+          <Link href={toExternalHref('tiktok', application.tiktokUrl) ?? '#'} className={styles.secondaryButton}>
+            TikTok
+          </Link>
+        ) : null}
+        {application.facebookUrl ? (
+          <Link href={toExternalHref('facebook', application.facebookUrl) ?? '#'} className={styles.secondaryButton}>
+            Facebook
+          </Link>
+        ) : null}
+        {application.portfolioUrl ? (
+          <Link href={toExternalHref('portfolio', application.portfolioUrl) ?? '#'} className={styles.secondaryButton}>
+            Portfolio
+          </Link>
+        ) : null}
+      </div>
+
+      {application.status === 'pending' ? (
+        <AdminBarberApplicationActions applicationId={application.id} />
+      ) : application.rejectionReason ? (
+        <p className={styles.cardSubmeta}>Rejection reason: {application.rejectionReason}</p>
+      ) : null}
+    </article>
+  )
+}
+
 function buildQuery(current: AdminCurrentQuery, updates: Partial<AdminCurrentQuery>) {
   const params = new URLSearchParams()
 
@@ -240,6 +344,12 @@ export function AdminDashboardTabs({
                 <span className={styles.cardSubmeta}>
                   {dashboard.attention.barberProfileGaps} barber profile
                   {dashboard.attention.barberProfileGaps === 1 ? '' : 's'} need details.
+                </span>
+              ) : null}
+              {dashboard.attention.pendingBarberApplications > 0 ? (
+                <span className={styles.cardSubmeta}>
+                  {dashboard.attention.pendingBarberApplications} barber application
+                  {dashboard.attention.pendingBarberApplications === 1 ? '' : 's'} waiting for review.
                 </span>
               ) : null}
             </div>
@@ -390,6 +500,28 @@ export function AdminDashboardTabs({
               </div>
             ) : (
               <EmptyState title="No barbers found" description="No barber records are available." />
+            )}
+          </section>
+        ) : null}
+
+        {activeTab === 'barber-applications' ? (
+          <section className={styles.tabPanel}>
+            {dashboard.barberApplications.errorMessage ? (
+              <EmptyState
+                title="Applications unavailable"
+                description={dashboard.barberApplications.errorMessage}
+              />
+            ) : dashboard.barberApplications.items.length > 0 ? (
+              <div className={styles.cardGrid}>
+                {dashboard.barberApplications.items.map((application) => (
+                  <BarberApplicationCard key={application.id} application={application} />
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                title="No barber applications"
+                description="New customer applications to become barbers will appear here."
+              />
             )}
           </section>
         ) : null}

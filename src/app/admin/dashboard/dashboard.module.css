@@ -45,6 +45,11 @@
   gap: 1rem;
 }
 
+.field {
+  display: grid;
+  gap: 0.55rem;
+}
+
 .eyebrow,
 .metaLabel {
   display: block;

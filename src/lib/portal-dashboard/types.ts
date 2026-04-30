@@ -1,5 +1,6 @@
 export type PortalDataSource = 'live' | 'error'
 
+import type { BarberApplicationStatus } from '@/lib/barber-applications/types'
 import type { BookingStatus, PaymentStatus } from '@/lib/bookings/types'
 
 export interface PortalBookingCard {
@@ -42,6 +43,16 @@ export interface PortalProfileSummary {
   editProfileHref: string | null
 }
 
+export interface PortalBarberApplicationSummary {
+  status: BarberApplicationStatus | 'none'
+  canApply: boolean
+  ctaHref: string
+  ctaLabel: string
+  title: string
+  description: string
+  rejectionReason: string | null
+}
+
 export interface PortalDashboardViewModel {
   source: PortalDataSource
   sourceMessage: string
@@ -57,4 +68,5 @@ export interface PortalDashboardViewModel {
     history: PortalBookingCard[]
   }
   profile: PortalProfileSummary
+  barberApplication: PortalBarberApplicationSummary
 }

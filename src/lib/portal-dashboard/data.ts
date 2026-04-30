@@ -1,4 +1,5 @@
 import type { UserRole } from '@/lib/auth/get-user-role'
+import { getLatestBarberApplicationForUser } from '@/lib/barber-applications/service'
 import { formatBookingBarberName } from '@/lib/bookings/display'
 import { listBookings } from '@/lib/bookings/service'
 import { getCustomerProfileCompletionState } from '@/lib/customer-profiles/service'
@@ -242,6 +243,7 @@ export async function getPortalDashboardViewModel(input: {
     limit: 100,
   })
   const profileState = await getCustomerProfileCompletionState(input.userId)
+  const latestApplication = await getLatestBarberApplicationForUser(input.userId)
   const profile = profileState.profile
   const firstName = profile?.firstName || getFirstName(input.email)
   const fullName = profile?.fullName || getFullName(input.email)
@@ -283,6 +285,7 @@ export async function getPortalDashboardViewModel(input: {
         isComplete: profileState.isComplete,
         editProfileHref: '/portal/profile/complete?next=%2Fportal%2Fdashboard',
       },
+      barberApplication: buildBarberApplicationSummary(profileState.isComplete, latestApplication),
     }
   }
 
@@ -339,5 +342,69 @@ export async function getPortalDashboardViewModel(input: {
       isComplete: profileState.isComplete,
       editProfileHref: '/portal/profile/complete?next=%2Fportal%2Fdashboard',
     },
+    barberApplication: buildBarberApplicationSummary(profileState.isComplete, latestApplication),
+  }
+}
+
+function buildBarberApplicationSummary(
+  isProfileComplete: boolean,
+  latestApplication: Awaited<ReturnType<typeof getLatestBarberApplicationForUser>>
+) {
+  if (!isProfileComplete) {
+    return {
+      status: 'none' as const,
+      canApply: false,
+      ctaHref: '/portal/profile/complete?next=%2Fportal%2Fbarber-application',
+      ctaLabel: 'Complete Profile',
+      title: 'Become a Barber',
+      description: 'Complete your profile before applying to become a barber.',
+      rejectionReason: null,
+    }
+  }
+
+  if (!latestApplication) {
+    return {
+      status: 'none' as const,
+      canApply: true,
+      ctaHref: '/portal/barber-application',
+      ctaLabel: 'Apply to Become a Barber',
+      title: 'Become a Barber',
+      description: 'Share your cutting location, socials, and availability for admin review.',
+      rejectionReason: null,
+    }
+  }
+
+  if (latestApplication.status === 'pending') {
+    return {
+      status: 'pending' as const,
+      canApply: false,
+      ctaHref: '/portal/dashboard',
+      ctaLabel: 'Pending Review',
+      title: 'Barber application pending review',
+      description: 'Your application is in the admin review queue and will stay here until it is approved or rejected.',
+      rejectionReason: null,
+    }
+  }
+
+  if (latestApplication.status === 'approved') {
+    return {
+      status: 'approved' as const,
+      canApply: false,
+      ctaHref: '/barber/dashboard',
+      ctaLabel: 'Go to Barber Dashboard',
+      title: 'You are approved as a barber',
+      description: 'Your barber role is active and your profile is now available in the barber workspace.',
+      rejectionReason: null,
+    }
+  }
+
+  return {
+    status: 'rejected' as const,
+    canApply: true,
+    ctaHref: '/portal/barber-application',
+    ctaLabel: 'Apply Again',
+    title: 'Application needs updates',
+    description: 'Your last application was reviewed and you can submit a stronger version after updating the details below.',
+    rejectionReason: latestApplication.rejectionReason,
   }
 }

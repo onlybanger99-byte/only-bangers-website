@@ -11,6 +11,8 @@ type BadgeValue =
   | 'enabled'
   | 'not_enabled'
   | 'error'
+  | 'approved'
+  | 'rejected'
 
 export function StatusBadge({
   value,

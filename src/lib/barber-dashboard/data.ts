@@ -1,4 +1,5 @@
 import { barbers } from '@/data/barbers'
+import { getLatestBarberApplicationForUser } from '@/lib/barber-applications/service'
 import { getBarberProfileByUserId } from '@/lib/barbers/service'
 import { listBookings } from '@/lib/bookings/service'
 import { getCustomerProfilesByUserIds } from '@/lib/customer-profiles/service'
@@ -94,10 +95,20 @@ async function buildOperatorProfile(identity: BarberDashboardIdentity): Promise<
       specialty: liveProfile.specialty,
       image: liveProfile.profileImageUrl,
       bio: liveProfile.bio,
+      cuttingLocation: liveProfile.cuttingLocation,
+      instagramUrl: liveProfile.instagramUrl,
+      tiktokUrl: liveProfile.tiktokUrl,
+      facebookUrl: liveProfile.facebookUrl,
+      portfolioUrl: liveProfile.portfolioUrl,
+      availableDays: liveProfile.availableDays,
+      availableStartTime: liveProfile.availableStartTime,
+      availableEndTime: liveProfile.availableEndTime,
       activeStatus: liveProfile.isActive ? 'active' : 'inactive',
-      editProfileHref: null,
+      editProfileHref: '/barber/dashboard',
     }
   }
+
+  const latestApplication = await getLatestBarberApplicationForUser(identity.userId)
 
   const emailValue = identity.email?.toLowerCase() ?? ''
   const matched =
@@ -108,9 +119,19 @@ async function buildOperatorProfile(identity: BarberDashboardIdentity): Promise<
     displayName: matched.name,
     specialty: matched.specialty,
     image: matched.image,
-    bio: 'Your public barber profile can be completed once profile management is connected.',
+    bio:
+      latestApplication?.bio ||
+      'Your public barber profile can be completed once profile management is connected.',
+    cuttingLocation: latestApplication?.cuttingLocation ?? null,
+    instagramUrl: latestApplication?.instagramUrl ?? null,
+    tiktokUrl: latestApplication?.tiktokUrl ?? null,
+    facebookUrl: latestApplication?.facebookUrl ?? null,
+    portfolioUrl: latestApplication?.portfolioUrl ?? null,
+    availableDays: latestApplication?.availableDays ?? [],
+    availableStartTime: latestApplication?.availableStartTime ?? null,
+    availableEndTime: latestApplication?.availableEndTime ?? null,
     activeStatus: 'inactive',
-    editProfileHref: null,
+    editProfileHref: '/barber/dashboard',
   }
 }
 

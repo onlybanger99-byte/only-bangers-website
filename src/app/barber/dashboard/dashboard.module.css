@@ -83,6 +83,12 @@
   line-height: 1.65;
 }
 
+.field,
+.formStack {
+  display: grid;
+  gap: 0.75rem;
+}
+
 .cardSubmeta {
   color: var(--text-muted);
 }
@@ -96,7 +102,9 @@
 
 .statsGrid,
 .cardGrid,
-.metaGrid {
+.metaGrid,
+.formGrid,
+.dayGrid {
   display: grid;
   gap: 1rem;
 }
@@ -107,6 +115,14 @@
 
 .cardGrid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.formGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dayGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .recordCard[data-emphasis='confirmed'] {
@@ -152,6 +168,53 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.input,
+.textarea {
+  width: 100%;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(212, 175, 55, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  padding: 0.82rem 0.95rem;
+}
+
+.dayOption {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  border-radius: 0.95rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.primaryButton,
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: all 0.24s ease;
+  cursor: pointer;
+  padding: 0.82rem 1.1rem;
+}
+
+.primaryButton {
+  border: none;
+  background: var(--premium-gold);
+  color: var(--premium-dark);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.secondaryButton {
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.02);
+}
+
 .metaValue {
   display: block;
   color: var(--text-primary);
@@ -163,7 +226,9 @@
   .heroCard,
   .statsGrid,
   .cardGrid,
-  .metaGrid {
+  .metaGrid,
+  .formGrid,
+  .dayGrid {
     grid-template-columns: 1fr;
   }
 }

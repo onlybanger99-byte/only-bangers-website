@@ -7,6 +7,7 @@ import type { BarberDashboardBooking, BarberDashboardViewModel } from '@/lib/bar
 import { DashboardTabs } from '@/components/dashboard/DashboardTabs'
 import { EmptyState } from '@/components/dashboard/EmptyState'
 import { StatusBadge } from '@/components/dashboard/StatusBadge'
+import { BarberProfileEditor } from './BarberProfileEditor'
 import styles from '@/app/barber/dashboard/dashboard.module.css'
 
 const TABS = [
@@ -16,6 +17,32 @@ const TABS = [
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
+
+function toExternalHref(platform: 'instagram' | 'tiktok' | 'facebook' | 'portfolio', value: string) {
+  const normalized = value.trim()
+
+  if (!normalized) {
+    return null
+  }
+
+  if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+    return normalized
+  }
+
+  const handle = normalized.replace(/^@/, '')
+
+  switch (platform) {
+    case 'instagram':
+      return `https://instagram.com/${handle}`
+    case 'tiktok':
+      return `https://tiktok.com/@${handle}`
+    case 'facebook':
+      return `https://facebook.com/${handle}`
+    case 'portfolio':
+    default:
+      return normalized.startsWith('www.') ? `https://${normalized}` : normalized
+  }
+}
 
 function BookingTimeline({
   bookings,
@@ -181,13 +208,67 @@ export function BarberDashboardTabs({
 
               <p className={styles.cardText}>{dashboard.operator.bio}</p>
 
-              {dashboard.operator.editProfileHref ? (
-                <div className={styles.inlineActions}>
-                  <Link href={dashboard.operator.editProfileHref} className={styles.primaryButton}>
-                    Edit Profile
-                  </Link>
+              <div className={styles.metaGrid}>
+                <div>
+                  <span className={styles.metaLabel}>Location</span>
+                  <strong className={styles.metaValue}>
+                    {dashboard.operator.cuttingLocation ?? 'Location not set'}
+                  </strong>
                 </div>
-              ) : null}
+                <div>
+                  <span className={styles.metaLabel}>Availability</span>
+                  <strong className={styles.metaValue}>
+                    {dashboard.operator.availableDays.length > 0
+                      ? dashboard.operator.availableDays.join(', ')
+                      : 'Days not set'}
+                  </strong>
+                </div>
+                <div>
+                  <span className={styles.metaLabel}>Hours</span>
+                  <strong className={styles.metaValue}>
+                    {dashboard.operator.availableStartTime && dashboard.operator.availableEndTime
+                      ? `${dashboard.operator.availableStartTime} - ${dashboard.operator.availableEndTime}`
+                      : 'Hours not set'}
+                  </strong>
+                </div>
+              </div>
+
+              <div className={styles.inlineActions}>
+                {dashboard.operator.instagramUrl ? (
+                  <Link
+                    href={toExternalHref('instagram', dashboard.operator.instagramUrl) ?? '#'}
+                    className={styles.secondaryButton}
+                  >
+                    Instagram
+                  </Link>
+                ) : null}
+                {dashboard.operator.tiktokUrl ? (
+                  <Link
+                    href={toExternalHref('tiktok', dashboard.operator.tiktokUrl) ?? '#'}
+                    className={styles.secondaryButton}
+                  >
+                    TikTok
+                  </Link>
+                ) : null}
+                {dashboard.operator.facebookUrl ? (
+                  <Link
+                    href={toExternalHref('facebook', dashboard.operator.facebookUrl) ?? '#'}
+                    className={styles.secondaryButton}
+                  >
+                    Facebook
+                  </Link>
+                ) : null}
+                {dashboard.operator.portfolioUrl ? (
+                  <Link
+                    href={toExternalHref('portfolio', dashboard.operator.portfolioUrl) ?? '#'}
+                    className={styles.secondaryButton}
+                  >
+                    Portfolio
+                  </Link>
+                ) : null}
+              </div>
+
+              <BarberProfileEditor profile={dashboard.operator} />
             </article>
           </section>
         ) : null}

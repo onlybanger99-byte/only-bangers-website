@@ -7,6 +7,14 @@ export interface BarberProfileSummary {
   specialty: string
   profileImageUrl: string
   bio: string
+  cuttingLocation: string | null
+  instagramUrl: string | null
+  tiktokUrl: string | null
+  facebookUrl: string | null
+  portfolioUrl: string | null
+  availableDays: string[]
+  availableStartTime: string | null
+  availableEndTime: string | null
   isActive: boolean
 }
 
@@ -16,6 +24,14 @@ export interface PublicBarberSummary {
   profile_image_url: string
   specialty: string
   bio: string
+  cutting_location: string | null
+  instagram_url: string | null
+  tiktok_url: string | null
+  facebook_url: string | null
+  portfolio_url: string | null
+  available_days: string[]
+  available_start_time: string | null
+  available_end_time: string | null
   is_active: boolean
 }
 
@@ -64,6 +80,37 @@ function resolveBarberBio(profile: Record<string, unknown> | null | undefined) {
     normalizeText(profile?.bio) ||
     'Premium barber available through the Only Bangers booking flow.'
   )
+}
+
+function resolveBarberLocation(profile: Record<string, unknown> | null | undefined) {
+  const value = normalizeText(profile?.cutting_location)
+  return value || null
+}
+
+function resolveOptionalLink(
+  profile: Record<string, unknown> | null | undefined,
+  key: 'instagram_url' | 'tiktok_url' | 'facebook_url' | 'portfolio_url'
+) {
+  const value = normalizeText(profile?.[key])
+  return value || null
+}
+
+function resolveBarberDays(profile: Record<string, unknown> | null | undefined) {
+  if (!Array.isArray(profile?.available_days)) {
+    return []
+  }
+
+  return profile.available_days
+    .map((day) => normalizeText(day))
+    .filter(Boolean)
+}
+
+function resolveOptionalTime(
+  profile: Record<string, unknown> | null | undefined,
+  key: 'available_start_time' | 'available_end_time'
+) {
+  const value = normalizeText(profile?.[key])
+  return value || null
 }
 
 function resolveBarberActive(profile: Record<string, unknown> | null | undefined) {
@@ -165,6 +212,14 @@ export async function listPublicBarbers(): Promise<PublicBarberSummary[]> {
         profile_image_url: resolveBarberImage(profile),
         specialty: resolveBarberSpecialty(profile),
         bio: resolveBarberBio(profile),
+        cutting_location: resolveBarberLocation(profile),
+        instagram_url: resolveOptionalLink(profile, 'instagram_url'),
+        tiktok_url: resolveOptionalLink(profile, 'tiktok_url'),
+        facebook_url: resolveOptionalLink(profile, 'facebook_url'),
+        portfolio_url: resolveOptionalLink(profile, 'portfolio_url'),
+        available_days: resolveBarberDays(profile),
+        available_start_time: resolveOptionalTime(profile, 'available_start_time'),
+        available_end_time: resolveOptionalTime(profile, 'available_end_time'),
         is_active: isActive,
       } satisfies PublicBarberSummary
     })
@@ -181,6 +236,14 @@ export async function listBookableBarbers(): Promise<BarberProfileSummary[]> {
     specialty: row.specialty,
     profileImageUrl: row.profile_image_url,
     bio: row.bio,
+    cuttingLocation: row.cutting_location,
+    instagramUrl: row.instagram_url,
+    tiktokUrl: row.tiktok_url,
+    facebookUrl: row.facebook_url,
+    portfolioUrl: row.portfolio_url,
+    availableDays: row.available_days,
+    availableStartTime: row.available_start_time,
+    availableEndTime: row.available_end_time,
     isActive: row.is_active,
   }))
 }
@@ -222,6 +285,14 @@ export async function getBarberProfileByUserId(userId: string) {
       specialty: 'Only Bangers Team',
       profileImageUrl: '/images/header-bg.png',
       bio: 'Premium barber available through the Only Bangers booking flow.',
+      cuttingLocation: null,
+      instagramUrl: null,
+      tiktokUrl: null,
+      facebookUrl: null,
+      portfolioUrl: null,
+      availableDays: [],
+      availableStartTime: null,
+      availableEndTime: null,
       isActive: true,
     } satisfies BarberProfileSummary
   }
@@ -232,6 +303,14 @@ export async function getBarberProfileByUserId(userId: string) {
     specialty: resolveBarberSpecialty(data as Record<string, unknown>),
     profileImageUrl: resolveBarberImage(data as Record<string, unknown>),
     bio: resolveBarberBio(data as Record<string, unknown>),
+    cuttingLocation: resolveBarberLocation(data as Record<string, unknown>),
+    instagramUrl: resolveOptionalLink(data as Record<string, unknown>, 'instagram_url'),
+    tiktokUrl: resolveOptionalLink(data as Record<string, unknown>, 'tiktok_url'),
+    facebookUrl: resolveOptionalLink(data as Record<string, unknown>, 'facebook_url'),
+    portfolioUrl: resolveOptionalLink(data as Record<string, unknown>, 'portfolio_url'),
+    availableDays: resolveBarberDays(data as Record<string, unknown>),
+    availableStartTime: resolveOptionalTime(data as Record<string, unknown>, 'available_start_time'),
+    availableEndTime: resolveOptionalTime(data as Record<string, unknown>, 'available_end_time'),
     isActive: resolveBarberActive(data as Record<string, unknown>),
   } satisfies BarberProfileSummary
 }
@@ -269,6 +348,14 @@ export async function getBarberProfilesByUserIds(
       specialty: resolveBarberSpecialty(row),
       profileImageUrl: resolveBarberImage(row),
       bio: resolveBarberBio(row),
+      cuttingLocation: resolveBarberLocation(row),
+      instagramUrl: resolveOptionalLink(row, 'instagram_url'),
+      tiktokUrl: resolveOptionalLink(row, 'tiktok_url'),
+      facebookUrl: resolveOptionalLink(row, 'facebook_url'),
+      portfolioUrl: resolveOptionalLink(row, 'portfolio_url'),
+      availableDays: resolveBarberDays(row),
+      availableStartTime: resolveOptionalTime(row, 'available_start_time'),
+      availableEndTime: resolveOptionalTime(row, 'available_end_time'),
       isActive: resolveBarberActive(row),
     })
   }

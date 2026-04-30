@@ -5,6 +5,7 @@ import Link from 'next/link'
 import type { PortalBookingCard, PortalDashboardViewModel } from '@/lib/portal-dashboard/types'
 import styles from '@/app/portal/dashboard/dashboard.module.css'
 import { BookingCard } from './BookingCard'
+import { BecomeBarberCard } from './BecomeBarberCard'
 import { ProfileSummaryCard } from './ProfileSummaryCard'
 
 const TABS = [
@@ -268,6 +269,8 @@ export function CustomerDashboardTabs({
               </div>
               <ProfileSummaryCard profile={dashboard.profile} />
             </article>
+
+            <BecomeBarberCard application={dashboard.barberApplication} />
           </section>
         ) : null}
       </div>

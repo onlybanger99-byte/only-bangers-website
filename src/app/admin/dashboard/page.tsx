@@ -13,12 +13,14 @@ type AdminTabId =
   | 'payments'
   | 'users'
   | 'barbers'
+  | 'barber-applications'
 
 const VALID_TABS = new Set<AdminTabId>([
   'bookings',
   'payments',
   'users',
   'barbers',
+  'barber-applications',
 ] as const)
 
 export default async function AdminDashboardPage({

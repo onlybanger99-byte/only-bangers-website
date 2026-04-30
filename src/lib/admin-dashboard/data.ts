@@ -1,10 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { listBarberApplicationsForAdmin } from '@/lib/barber-applications/service'
+import type { BarberApplicationSummary } from '@/lib/barber-applications/types'
 import { getCustomerProfilesByUserIds } from '@/lib/customer-profiles/service'
 import { normalizeRole } from '@/lib/auth/roles'
 import type { BookingStatus, PaymentStatus } from '@/lib/bookings/types'
 import type {
   AdminBarberRow,
+  AdminBarberApplicationRow,
   AdminBarbersSection,
   AdminBookingRow,
   AdminBookingsSection,
@@ -540,9 +543,36 @@ async function getBarbersSection(): Promise<AdminBarbersSection> {
   }
 }
 
+async function mapBarberApplicationRows(
+  rows: BarberApplicationSummary[]
+): Promise<AdminBarberApplicationRow[]> {
+  const authUsers = await loadAuthUsersByIds(rows.map((row) => row.userId))
+
+  return rows.map((row) => ({
+    id: row.id,
+    userId: row.userId,
+    applicantName: row.displayName || 'Applicant name missing',
+    applicantEmail: authUsers.get(row.userId)?.email ?? 'Email unavailable',
+    applicantPhone: row.phone || 'Phone unavailable',
+    cuttingLocation: row.cuttingLocation,
+    instagramUrl: row.instagramUrl,
+    tiktokUrl: row.tiktokUrl,
+    facebookUrl: row.facebookUrl,
+    portfolioUrl: row.portfolioUrl,
+    bio: row.bio || 'No barber bio supplied.',
+    availableDays: row.availableDays,
+    availableStartTime: row.availableStartTime,
+    availableEndTime: row.availableEndTime,
+    submittedAtLabel: formatDateTime(row.createdAt),
+    status: row.status,
+    rejectionReason: row.rejectionReason,
+  }))
+}
+
 export async function getAdminDashboardViewModel(
   params: AdminDashboardParams = {}
 ): Promise<AdminDashboardViewModel> {
+  const barberApplicationsResult = await listBarberApplicationsForAdmin()
   const barbers = await getBarbersSection()
   const [bookings, users, customerProfilesCount, metricsBase] = await Promise.all([
     getBookingsSection(params),
@@ -566,6 +596,12 @@ export async function getAdminDashboardViewModel(
     0,
     users.customers.filter((user) => !user.profileComplete).length
   )
+  const barberApplications = barberApplicationsResult.ok
+    ? await mapBarberApplicationRows(barberApplicationsResult.data)
+    : []
+  const pendingBarberApplications = barberApplications.filter(
+    (application) => application.status === 'pending'
+  ).length
 
   return {
     headerMessage:
@@ -577,9 +613,14 @@ export async function getAdminDashboardViewModel(
       customerProfileGaps:
         customerProfilesCount.error ? customerProfileGaps : customerProfileGaps,
       barberProfileGaps: metricsBase,
+      pendingBarberApplications,
     },
     bookings,
     users,
     barbers,
+    barberApplications: {
+      items: barberApplications,
+      errorMessage: barberApplicationsResult.ok ? undefined : barberApplicationsResult.message,
+    },
   }
 }

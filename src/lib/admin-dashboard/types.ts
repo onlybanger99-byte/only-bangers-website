@@ -1,4 +1,5 @@
 import type { BookingStatus, PaymentStatus } from '@/lib/bookings/types'
+import type { BarberApplicationStatus } from '@/lib/barber-applications/types'
 
 export interface AdminMetric {
   id: string
@@ -62,6 +63,26 @@ export interface AdminBarberRow {
   completedBookings: number
 }
 
+export interface AdminBarberApplicationRow {
+  id: string
+  userId: string
+  applicantName: string
+  applicantEmail: string
+  applicantPhone: string
+  cuttingLocation: string
+  instagramUrl: string | null
+  tiktokUrl: string | null
+  facebookUrl: string | null
+  portfolioUrl: string | null
+  bio: string
+  availableDays: string[]
+  availableStartTime: string | null
+  availableEndTime: string | null
+  submittedAtLabel: string
+  status: BarberApplicationStatus
+  rejectionReason: string | null
+}
+
 export interface AdminBarbersSection {
   items: AdminBarberRow[]
   totalCount: number
@@ -74,6 +95,7 @@ export interface AdminAttentionSummary {
   problemBookings: AdminBookingRow[]
   customerProfileGaps: number
   barberProfileGaps: number
+  pendingBarberApplications: number
 }
 
 export interface AdminDashboardViewModel {
@@ -83,4 +105,8 @@ export interface AdminDashboardViewModel {
   bookings: AdminBookingsSection
   users: AdminUsersSection
   barbers: AdminBarbersSection
+  barberApplications: {
+    items: AdminBarberApplicationRow[]
+    errorMessage?: string
+  }
 }

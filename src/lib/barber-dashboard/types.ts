@@ -7,6 +7,14 @@ export interface BarberOperatorProfile {
   specialty: string
   image: string
   bio: string
+  cuttingLocation: string | null
+  instagramUrl: string | null
+  tiktokUrl: string | null
+  facebookUrl: string | null
+  portfolioUrl: string | null
+  availableDays: string[]
+  availableStartTime: string | null
+  availableEndTime: string | null
   activeStatus: 'active' | 'inactive'
   editProfileHref: string | null
 }

@@ -300,7 +300,8 @@
 }
 
 .statusBadge[data-status='confirmed'],
-.statusBadge[data-status='paid'] {
+.statusBadge[data-status='paid'],
+.statusBadge[data-status='approved'] {
   background: rgba(16, 185, 129, 0.14);
   color: #9bf4cf;
 }
@@ -313,7 +314,8 @@
 .statusBadge[data-status='cancelled'],
 .statusBadge[data-status='refunded'],
 .statusBadge[data-status='expired'],
-.statusBadge[data-status='failed'] {
+.statusBadge[data-status='failed'],
+.statusBadge[data-status='rejected'] {
   background: rgba(244, 63, 94, 0.14);
   color: #fecdd3;
 }

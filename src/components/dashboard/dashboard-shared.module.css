@@ -111,7 +111,8 @@
 .statusBadge[data-status='confirmed'],
 .statusBadge[data-status='paid'],
 .statusBadge[data-status='active'],
-.statusBadge[data-status='enabled'] {
+.statusBadge[data-status='enabled'],
+.statusBadge[data-status='approved'] {
   background: rgba(16, 185, 129, 0.14);
   color: #9bf4cf;
 }
@@ -127,7 +128,8 @@
 .statusBadge[data-status='failed'],
 .statusBadge[data-status='inactive'],
 .statusBadge[data-status='suspended'],
-.statusBadge[data-status='error'] {
+.statusBadge[data-status='error'],
+.statusBadge[data-status='rejected'] {
   background: rgba(244, 63, 94, 0.14);
   color: #fecdd3;
 }

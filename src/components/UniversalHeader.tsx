@@ -21,8 +21,7 @@ type NavLink = {
 }
 
 const BOOK_NOW_HREF = '/services'
-// TODO: replace this with a real public barber page route once `/barber` exists.
-const BARBER_PUBLIC_HREF = '/services'
+const BARBER_PUBLIC_HREF = '/barber'
 
 const navLinks: NavLink[] = [
   { label: 'Home', href: '/' },

@@ -68,7 +68,7 @@ export async function proxy(request: NextRequest) {
   const isProtected =
     pathname.startsWith('/portal') ||
     pathname.startsWith('/admin') ||
-    pathname.startsWith('/barber')
+    pathname.startsWith('/barber/dashboard')
 
   if (!isProtected) {
     return NextResponse.next()
@@ -101,7 +101,7 @@ export async function proxy(request: NextRequest) {
     return response
   }
 
-  if (pathname.startsWith('/barber')) {
+  if (pathname.startsWith('/barber/dashboard')) {
     if (!hasRequiredRole(role, ROLE_ROUTE_ACCESS.barber)) {
       return NextResponse.redirect(new URL(getDefaultDashboardForRole(role), request.url))
     }
@@ -117,5 +117,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/portal/:path*', '/admin/:path*', '/barber/:path*'],
+  matcher: ['/portal/:path*', '/admin/:path*', '/barber/dashboard/:path*'],
 }
