@@ -38,6 +38,22 @@ const BOOKING_PAGE_SIZE = 12
 const USER_PAGE_SIZE = 10
 const BARBER_PAGE_SIZE = 10
 
+function normalizeText(value: unknown) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function resolveFirstText(row: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = normalizeText(row[key])
+
+    if (value) {
+      return value
+    }
+  }
+
+  return ''
+}
+
 function getPrivilegedSupabase() {
   return createAdminClient()
 }
@@ -268,6 +284,7 @@ async function getUserIdsForRole(role: 'customer' | 'barber') {
 }
 
 async function getMetrics(): Promise<AdminMetric[]> {
+  const supabase = await createClient()
   const [
     totalCustomers,
     totalBarbers,
@@ -276,8 +293,8 @@ async function getMetrics(): Promise<AdminMetric[]> {
     upcomingBookings,
     completedBookings,
     cancelledBookings,
-    incompleteCustomerProfiles,
-    incompleteBarberProfiles,
+    customerProfilesResponse,
+    barberProfilesResponse,
   ] = await Promise.all([
     countTable('user_roles', (query) => query.eq('role', 'customer')),
     countTable('barber_profiles'),
@@ -290,15 +307,30 @@ async function getMetrics(): Promise<AdminMetric[]> {
     ),
     countTable('bookings', (query) => query.eq('status', 'completed')),
     countTable('bookings', (query) => query.eq('status', 'cancelled')),
-    countTable('customer_profiles', (query) =>
-      query.or(
-        'first_name.is.null,last_name.is.null,phone_number.is.null,profile_image_url.is.null'
-      )
-    ),
-    countTable('barber_profiles', (query) =>
-      query.or('display_name.is.null,specialty.is.null,profile_photo_url.is.null')
-    ),
+    supabase.from('customer_profiles').select('*'),
+    supabase.from('barber_profiles').select('*'),
   ])
+
+  const incompleteCustomerProfiles = ((customerProfilesResponse.data ?? []) as Array<Record<string, unknown>>)
+    .filter((row) => {
+      const profileImage = resolveFirstText(
+        row,
+        'profile_image_url',
+        'profile_photo_url',
+        'avatar_url'
+      )
+
+      return !normalizeText(row.first_name) || !normalizeText(row.last_name) || !normalizeText(row.phone_number) || !profileImage
+    }).length
+
+  const incompleteBarberProfiles = ((barberProfilesResponse.data ?? []) as Array<Record<string, unknown>>)
+    .filter((row) => {
+      return (
+        !resolveFirstText(row, 'display_name', 'name', 'full_name') ||
+        !resolveFirstText(row, 'specialty') ||
+        !resolveFirstText(row, 'profile_image_url', 'profile_photo_url', 'avatar_url')
+      )
+    }).length
 
   return [
     {
@@ -346,16 +378,16 @@ async function getMetrics(): Promise<AdminMetric[]> {
     {
       id: 'customer-profile-gaps',
       label: 'Customer Profile Gaps',
-      value: String(incompleteCustomerProfiles.count ?? 0),
+      value: String(incompleteCustomerProfiles),
       detail: 'Customer profiles still missing required booking details.',
-      tone: (incompleteCustomerProfiles.count ?? 0) > 0 ? 'rose' : 'emerald',
+      tone: incompleteCustomerProfiles > 0 ? 'rose' : 'emerald',
     },
     {
       id: 'barber-profile-gaps',
       label: 'Barber Profile Gaps',
-      value: String(incompleteBarberProfiles.count ?? 0),
+      value: String(incompleteBarberProfiles),
       detail: 'Barber records missing profile details needed for operations.',
-      tone: (incompleteBarberProfiles.count ?? 0) > 0 ? 'rose' : 'emerald',
+      tone: incompleteBarberProfiles > 0 ? 'rose' : 'emerald',
     },
   ]
 }
@@ -386,9 +418,7 @@ async function getBookingsSection(params: AdminDashboardParams): Promise<AdminBo
   let countQuery = supabase.from('bookings').select('id', { count: 'exact', head: true })
   let rowsQuery = supabase
     .from('bookings')
-    .select(
-      'id, user_id, barber_name, service_name, starts_at, status, payment_status, amount_due, payment_reference, pending_expires_at, created_at'
-    )
+    .select('*')
     .order(sort, { ascending: direction === 'asc' })
 
   const parsedStatus = parseBookingStatus(status)
@@ -438,47 +468,50 @@ async function getBookingsSection(params: AdminDashboardParams): Promise<AdminBo
     }
   }
 
-  const rows = (data ?? []) as Array<{
-    id: string
-    user_id: string
-    barber_name: string | null
-    service_name: string | null
-    starts_at: string | null
-    status: BookingStatus | null
-    payment_status: PaymentStatus | null
-    amount_due: number | null
-    payment_reference: string | null
-    pending_expires_at: string | null
-    created_at: string | null
-  }>
+  const rows = (data ?? []) as Array<Record<string, unknown>>
 
-  const profiles = await getCustomerProfilesByUserIds(rows.map((row) => row.user_id))
-  const emails = await loadUserEmails(rows.map((row) => row.user_id))
+  const profiles = await getCustomerProfilesByUserIds(
+    rows.map((row) => (typeof row.user_id === 'string' ? row.user_id : ''))
+  )
+  const emails = await loadUserEmails(
+    rows.map((row) => (typeof row.user_id === 'string' ? row.user_id : ''))
+  )
 
   const items: AdminBookingRow[] = rows
     .map((row) => {
-      const profile = profiles.get(row.user_id)
+      const userId = typeof row.user_id === 'string' ? row.user_id : ''
+      const bookingId =
+        typeof row.id === 'string' || typeof row.id === 'number' ? String(row.id) : ''
+      const profile = profiles.get(userId)
       const normalizedStatus = normalizeAdminBookingStatus(
-        parseBookingStatus(row.status ?? undefined),
-        row.pending_expires_at
+        parseBookingStatus(typeof row.status === 'string' ? row.status : undefined),
+        typeof row.pending_expires_at === 'string' ? row.pending_expires_at : null
       )
 
       return {
-        id: row.id,
+        id: bookingId,
         customerName: profile?.isComplete ? profile.fullName : 'Profile incomplete',
-        customerEmail: emails.get(row.user_id) || 'Email unavailable',
+        customerEmail: emails.get(userId) || 'Email unavailable',
         customerPhone: profile?.isComplete ? profile.phoneNumber : 'Phone unavailable',
-        serviceName: row.service_name || 'Service unavailable',
-        barberName: row.barber_name || 'Barber unavailable',
-        startsAtLabel: formatDateTime(row.starts_at),
-        createdAtLabel: formatDateTime(row.created_at),
+        serviceName:
+          resolveFirstText(row, 'service_name', 'service', 'service_title') || 'Service unavailable',
+        barberName:
+          resolveFirstText(row, 'barber_name', 'barber_display_name') || 'Barber unavailable',
+        startsAtLabel: formatDateTime(typeof row.starts_at === 'string' ? row.starts_at : null),
+        createdAtLabel: formatDateTime(typeof row.created_at === 'string' ? row.created_at : null),
         status: normalizedStatus,
-        paymentStatus: parsePaymentStatus(row.payment_status ?? undefined),
-        amountDueLabel: toCurrency(row.amount_due ?? 0),
-        paymentReference: row.payment_reference || 'Not assigned',
-        pendingExpiresAtLabel: formatOptionalDateTime(row.pending_expires_at),
+        paymentStatus: parsePaymentStatus(
+          typeof row.payment_status === 'string' ? row.payment_status : undefined
+        ),
+        amountDueLabel: toCurrency(typeof row.amount_due === 'number' ? row.amount_due : 0),
+        paymentReference:
+          (typeof row.payment_reference === 'string' && row.payment_reference) || 'Not assigned',
+        pendingExpiresAtLabel: formatOptionalDateTime(
+          typeof row.pending_expires_at === 'string' ? row.pending_expires_at : null
+        ),
       }
     })
+    .filter((row) => row.id.length > 0)
     .filter((row) => {
       if (!queryText) {
         return true
@@ -603,7 +636,7 @@ async function getBarbersSection(params: AdminDashboardParams): Promise<AdminBar
   const [profileResponse, authUsers] = await Promise.all([
     supabase
       .from('barber_profiles')
-      .select('user_id, display_name, specialty, profile_photo_url, is_active')
+      .select('*')
       .in('user_id', barberIds),
     loadAuthUsersByIds(barberIds),
   ])
@@ -614,13 +647,9 @@ async function getBarbersSection(params: AdminDashboardParams): Promise<AdminBar
   }
 
   const profileMap = new Map(
-    ((profileResponse.data ?? []) as Array<{
-      user_id: string
-      display_name: string | null
-      specialty: string | null
-      profile_photo_url: string | null
-      is_active: boolean | null
-    }>).map((row) => [row.user_id, row])
+    ((profileResponse.data ?? []) as Array<Record<string, unknown>>)
+      .filter((row) => typeof row.user_id === 'string' && row.user_id.length > 0)
+      .map((row) => [row.user_id as string, row])
   )
 
   const { data: bookingRows, error: bookingError } = await supabase
@@ -668,17 +697,27 @@ async function getBarbersSection(params: AdminDashboardParams): Promise<AdminBar
       const fallbackName =
         authUser?.email?.split('@')[0]?.replace(/[._-]+/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase()) ||
         'Unnamed barber'
+      const displayName = resolveFirstText(profile ?? {}, 'display_name', 'name', 'full_name') || fallbackName
+      const profileImageUrl =
+        resolveFirstText(profile ?? {}, 'profile_image_url', 'profile_photo_url', 'avatar_url') ||
+        '/images/header-bg.png'
+      const specialty = resolveFirstText(profile ?? {}, 'specialty') || 'Specialty not set'
 
       return {
         id: userId,
-        displayName: profile?.display_name?.trim() || fallbackName,
-        specialty: profile?.specialty?.trim() || 'Specialty not set',
-        profileImageUrl: profile?.profile_photo_url?.trim() || '/images/header-bg.png',
-        activeStatus: profile ? (profile.is_active === false ? 'inactive' : 'active') : 'inactive',
+        displayName,
+        specialty,
+        profileImageUrl,
+        activeStatus:
+          profile && typeof profile.is_active === 'boolean'
+            ? (profile.is_active === false ? 'inactive' : 'active')
+            : 'inactive',
         profileComplete: Boolean(
-          profile?.display_name?.trim() &&
-            profile?.specialty?.trim() &&
-            profile?.profile_photo_url?.trim()
+          displayName &&
+            specialty &&
+            profileImageUrl &&
+            displayName !== fallbackName &&
+            profileImageUrl !== '/images/header-bg.png'
         ),
         totalBookings: stats.total,
         upcomingBookings: stats.upcoming,

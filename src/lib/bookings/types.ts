@@ -3,8 +3,8 @@ import type { AppRole } from '@/lib/auth/roles'
 export const BOOKING_STATUSES = [
   'pending_payment',
   'confirmed',
-  'completed',
   'cancelled',
+  'completed',
   'expired',
 ] as const
 
@@ -12,8 +12,10 @@ export type BookingStatus = (typeof BOOKING_STATUSES)[number]
 
 export const PAYMENT_STATUSES = [
   'unpaid',
-  'pending_verification',
   'paid',
+  'cancelled',
+  'refunded',
+  'pending_verification',
   'failed',
 ] as const
 

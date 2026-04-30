@@ -7,9 +7,7 @@ import type { BookingStatus } from '@/lib/bookings/types'
 const STATUS_OPTIONS: BookingStatus[] = [
   'pending_payment',
   'confirmed',
-  'completed',
   'cancelled',
-  'expired',
 ]
 
 export function AdminBookingStatusForm({
@@ -33,10 +31,7 @@ export function AdminBookingStatusForm({
       return
     }
 
-    if (
-      (nextStatus === 'cancelled' || nextStatus === 'completed' || nextStatus === 'expired') &&
-      !window.confirm(`Change this booking status to ${nextStatus.replace('_', ' ')}?`)
-    ) {
+    if (nextStatus === 'cancelled' && !window.confirm('Change this booking status to cancelled?')) {
       return
     }
 

@@ -25,6 +25,49 @@ function getPrivilegedSupabase() {
   return createAdminClient()
 }
 
+function normalizeText(value: unknown) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function resolveBarberDisplayName(
+  userId: string,
+  profile: Record<string, unknown> | null | undefined,
+  authUser?: AuthUserSummary
+) {
+  const candidates = [
+    normalizeText(profile?.display_name),
+    normalizeText(profile?.name),
+    normalizeText(profile?.full_name),
+  ]
+
+  return candidates.find(Boolean) || fallbackDisplayName(userId, authUser)
+}
+
+function resolveBarberImage(profile: Record<string, unknown> | null | undefined) {
+  const candidates = [
+    normalizeText(profile?.profile_image_url),
+    normalizeText(profile?.profile_photo_url),
+    normalizeText(profile?.avatar_url),
+  ]
+
+  return candidates.find(Boolean) || '/images/header-bg.png'
+}
+
+function resolveBarberSpecialty(profile: Record<string, unknown> | null | undefined) {
+  return normalizeText(profile?.specialty) || 'Only Bangers Team'
+}
+
+function resolveBarberBio(profile: Record<string, unknown> | null | undefined) {
+  return (
+    normalizeText(profile?.bio) ||
+    'Premium barber available through the Only Bangers booking flow.'
+  )
+}
+
+function resolveBarberActive(profile: Record<string, unknown> | null | undefined) {
+  return typeof profile?.is_active === 'boolean' ? profile.is_active : true
+}
+
 function fallbackDisplayName(userId: string, authUser?: AuthUserSummary) {
   const email = authUser?.email?.trim()
 
@@ -94,7 +137,7 @@ export async function listPublicBarbers(): Promise<PublicBarberSummary[]> {
 
   const { data: profileRows, error: profileError } = await supabase
     .from('barber_profiles')
-    .select('user_id, display_name, specialty, profile_photo_url, bio, is_active')
+    .select('*')
     .in('user_id', barberIds)
 
   if (profileError && profileError.code !== '42P01' && profileError.code !== 'PGRST116') {
@@ -102,14 +145,9 @@ export async function listPublicBarbers(): Promise<PublicBarberSummary[]> {
   }
 
   const profileMap = new Map(
-    ((profileRows ?? []) as Array<{
-      user_id: string
-      display_name: string | null
-      specialty: string | null
-      profile_photo_url: string | null
-      bio: string | null
-      is_active: boolean | null
-    }>).map((row) => [row.user_id, row])
+    ((profileRows ?? []) as Array<Record<string, unknown>>)
+      .filter((row) => typeof row.user_id === 'string' && row.user_id.length > 0)
+      .map((row) => [row.user_id as string, row])
   )
   const authUsers = await loadAuthUsersByIds(barberIds)
 
@@ -117,18 +155,14 @@ export async function listPublicBarbers(): Promise<PublicBarberSummary[]> {
     .map((userId) => {
       const profile = profileMap.get(userId)
       const authUser = authUsers.get(userId)
-      const isActive = profile ? profile.is_active !== false : true
+      const isActive = resolveBarberActive(profile)
 
       return {
         id: userId,
-        display_name:
-          profile?.display_name?.trim() || fallbackDisplayName(userId, authUser),
-        profile_image_url:
-          profile?.profile_photo_url?.trim() || '/images/header-bg.png',
-        specialty: profile?.specialty?.trim() || 'Only Bangers Team',
-        bio:
-          profile?.bio?.trim() ||
-          'Premium barber available through the Only Bangers booking flow.',
+        display_name: resolveBarberDisplayName(userId, profile, authUser),
+        profile_image_url: resolveBarberImage(profile),
+        specialty: resolveBarberSpecialty(profile),
+        bio: resolveBarberBio(profile),
         is_active: isActive,
       } satisfies PublicBarberSummary
     })
@@ -152,7 +186,7 @@ export async function getBarberProfileByUserId(userId: string) {
   const supabase = privilegedSupabase ?? (await createClient())
   const { data, error } = await supabase
     .from('barber_profiles')
-    .select('user_id, display_name, specialty, profile_photo_url')
+    .select('*')
     .eq('user_id', userId)
     .eq('is_active', true)
     .maybeSingle()
@@ -187,10 +221,10 @@ export async function getBarberProfileByUserId(userId: string) {
   }
 
   return {
-    userId: data.user_id,
-    displayName: data.display_name?.trim() || 'Only Bangers Barber',
-    specialty: data.specialty?.trim() || 'Only Bangers Team',
-    profileImageUrl: data.profile_photo_url?.trim() || '/images/header-bg.png',
+    userId: typeof data.user_id === 'string' ? data.user_id : userId,
+    displayName: resolveBarberDisplayName(userId, data as Record<string, unknown>),
+    specialty: resolveBarberSpecialty(data as Record<string, unknown>),
+    profileImageUrl: resolveBarberImage(data as Record<string, unknown>),
   } satisfies BarberProfileSummary
 }
 
@@ -206,7 +240,7 @@ export async function getBarberProfilesByUserIds(
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('barber_profiles')
-    .select('user_id, display_name, specialty, profile_photo_url')
+    .select('*')
     .in('user_id', uniqueUserIds)
 
   if (error) {
@@ -216,17 +250,16 @@ export async function getBarberProfilesByUserIds(
 
   const byId = new Map<string, BarberProfileSummary>()
 
-  for (const row of (data ?? []) as Array<{
-    user_id: string
-    display_name: string | null
-    specialty: string | null
-    profile_photo_url: string | null
-  }>) {
+  for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+    if (typeof row.user_id !== 'string') {
+      continue
+    }
+
     byId.set(row.user_id, {
       userId: row.user_id,
-      displayName: row.display_name?.trim() || 'Only Bangers Barber',
-      specialty: row.specialty?.trim() || 'Only Bangers Team',
-      profileImageUrl: row.profile_photo_url?.trim() || '/images/header-bg.png',
+      displayName: resolveBarberDisplayName(row.user_id, row),
+      specialty: resolveBarberSpecialty(row),
+      profileImageUrl: resolveBarberImage(row),
     })
   }
 

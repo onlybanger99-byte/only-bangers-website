@@ -389,7 +389,7 @@ export default function UniversalHeader() {
   return (
     <>
       <header className={styles.headerShell}>
-        <div className={styles.navSpacer} />
+        <div className={showHero ? styles.heroNavSpacer : styles.navSpacer} />
 
         <div className={styles.topNavWrap}>
           <div className={styles.topNav}>

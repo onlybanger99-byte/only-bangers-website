@@ -43,7 +43,7 @@ async function resolveSessionAndRole(request: NextRequest, response: NextRespons
     .maybeSingle()
 
   if (error) {
-    console.error('[middleware] Failed to resolve role:', error)
+    console.error('[proxy] Failed to resolve role:', error)
     return { user, role: null as UserRole }
   }
 
@@ -63,7 +63,7 @@ function createLoginRedirect(request: NextRequest, reason?: string) {
   return NextResponse.redirect(url)
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const isProtected =
     pathname.startsWith('/portal') ||

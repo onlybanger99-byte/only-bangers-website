@@ -11,9 +11,7 @@ function getStatusFilter(value: string | null): BookingStatus | undefined {
   switch (value) {
     case 'pending_payment':
     case 'confirmed':
-    case 'completed':
     case 'cancelled':
-    case 'expired':
       return value
     default:
       return undefined

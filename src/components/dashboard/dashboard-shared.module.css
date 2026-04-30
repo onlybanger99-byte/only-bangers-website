@@ -101,6 +101,7 @@
 
 .statusBadge[data-status='pending'],
 .statusBadge[data-status='pending_payment'],
+.statusBadge[data-status='unpaid'],
 .statusBadge[data-status='pending_verification'],
 .statusBadge[data-status='not_enabled'] {
   background: rgba(212, 175, 55, 0.14);
@@ -121,6 +122,7 @@
 }
 
 .statusBadge[data-status='cancelled'],
+.statusBadge[data-status='refunded'],
 .statusBadge[data-status='expired'],
 .statusBadge[data-status='failed'],
 .statusBadge[data-status='inactive'],

@@ -14,6 +14,12 @@ function normalizeRequired(value: string | null | undefined) {
   return value.trim()
 }
 
+function getProfileImageValue(profile: Partial<CustomerProfileRecord> | null | undefined) {
+  return normalizeRequired(
+    profile?.profile_image_url ?? profile?.profile_photo_url ?? profile?.avatar_url
+  )
+}
+
 function toSummary(
   userId: string,
   profile: Partial<CustomerProfileRecord> | null | undefined
@@ -21,7 +27,7 @@ function toSummary(
   const firstName = normalizeRequired(profile?.first_name)
   const lastName = normalizeRequired(profile?.last_name)
   const phoneNumber = normalizeRequired(profile?.phone_number)
-  const profileImageUrl = normalizeRequired(profile?.profile_image_url)
+  const profileImageUrl = getProfileImageValue(profile)
 
   return {
     userId,
@@ -74,7 +80,7 @@ export async function getCustomerProfile(userId: string): Promise<CustomerProfil
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('customer_profiles')
-    .select('id, user_id, first_name, last_name, phone_number, profile_image_url, created_at')
+    .select('*')
     .eq('user_id', userId)
     .maybeSingle()
 
@@ -101,7 +107,7 @@ export async function getCustomerProfilesByUserIds(
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('customer_profiles')
-    .select('id, user_id, first_name, last_name, phone_number, profile_image_url, created_at')
+    .select('*')
     .in('user_id', uniqueUserIds)
 
   if (error) {
@@ -163,7 +169,7 @@ export async function upsertCustomerProfile(
   const { data, error } = await supabase
     .from('customer_profiles')
     .upsert(payload, { onConflict: 'user_id' })
-    .select('id, user_id, first_name, last_name, phone_number, profile_image_url, created_at')
+    .select('*')
     .single()
 
   if (error) {

@@ -35,20 +35,63 @@ create table if not exists public.customer_profiles (
   last_name text,
   phone_number text,
   profile_photo_url text,
+  profile_image_url text,
+  avatar_url text,
   address text,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
 
 create table if not exists public.barber_profiles (
+  id uuid unique default gen_random_uuid(),
   user_id uuid primary key references auth.users (id) on delete cascade,
   display_name text not null,
   specialty text,
+  bio text,
+  avatar_url text,
+  profile_image_url text,
   profile_photo_url text,
   is_active boolean not null default true,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+comment on table public.customer_profiles is
+  'Customer profile records with compatibility image columns for legacy and current app code.';
+
+comment on table public.barber_profiles is
+  'Barber profile records used by public booking, barber dashboard, and admin operations.';
+
+alter table public.customer_profiles
+  add column if not exists profile_image_url text,
+  add column if not exists avatar_url text;
+
+alter table public.barber_profiles
+  add column if not exists id uuid default gen_random_uuid(),
+  add column if not exists bio text,
+  add column if not exists avatar_url text,
+  add column if not exists profile_image_url text,
+  add column if not exists profile_photo_url text;
+
+update public.customer_profiles
+set profile_image_url = coalesce(profile_image_url, profile_photo_url, avatar_url)
+where profile_image_url is null;
+
+update public.customer_profiles
+set avatar_url = coalesce(avatar_url, profile_image_url, profile_photo_url)
+where avatar_url is null;
+
+update public.barber_profiles
+set profile_image_url = coalesce(profile_image_url, profile_photo_url, avatar_url)
+where profile_image_url is null;
+
+update public.barber_profiles
+set profile_photo_url = coalesce(profile_photo_url, profile_image_url, avatar_url)
+where profile_photo_url is null;
+
+update public.barber_profiles
+set avatar_url = coalesce(avatar_url, profile_image_url, profile_photo_url)
+where avatar_url is null;
 
 create index if not exists idx_barber_profiles_active on public.barber_profiles (is_active);
 
@@ -119,7 +162,8 @@ with check (public.has_role(array['admin']::public.user_role[]));
 
 alter table public.bookings
   add column if not exists barber_name text,
-  add column if not exists service_id text;
+  add column if not exists service_id text,
+  add column if not exists updated_at timestamptz not null default timezone('utc', now());
 
 create unique index if not exists bookings_barber_slot_unique
 on public.bookings (barber_id, starts_at)

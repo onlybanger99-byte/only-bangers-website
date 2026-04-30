@@ -72,7 +72,7 @@ export function AdminBookingActions({
   }
 
   const showConfirm = status === 'pending_payment'
-  const showCancel = status !== 'cancelled' && status !== 'completed' && status !== 'expired'
+  const showCancel = status !== 'cancelled'
 
   return (
     <div className={styles.actionStack}>

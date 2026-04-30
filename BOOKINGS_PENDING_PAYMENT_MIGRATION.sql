@@ -12,13 +12,23 @@
 begin;
 
 alter table public.bookings
+  add column if not exists barber_name text,
+  add column if not exists service_id text,
+  add column if not exists service_name text,
   add column if not exists payment_status text,
   add column if not exists whatsapp_redirect_url text,
   add column if not exists amount_due numeric,
   add column if not exists payment_reference text,
   add column if not exists pending_expires_at timestamptz,
   add column if not exists confirmed_at timestamptz,
-  add column if not exists confirmed_by uuid references auth.users (id);
+  add column if not exists confirmed_by uuid references auth.users (id),
+  add column if not exists updated_at timestamptz not null default timezone('utc', now());
+
+comment on column public.bookings.service_name is
+  'Human-readable service label used by bookings, dashboards, and WhatsApp payment redirects.';
+
+comment on column public.bookings.barber_name is
+  'Snapshot of the selected barber name for dashboard reads and outbound payment copy.';
 
 update public.bookings
 set status = case
@@ -32,7 +42,7 @@ update public.bookings
 set payment_status = case
   when status = 'pending_payment' then 'pending_verification'
   when status in ('confirmed', 'completed') then 'paid'
-  when status in ('cancelled', 'expired') then 'failed'
+  when status in ('cancelled', 'expired') then 'cancelled'
   else 'unpaid'
 end
 where payment_status is null;
@@ -48,6 +58,10 @@ where status = 'pending_payment';
 update public.bookings
 set confirmed_at = coalesce(confirmed_at, created_at)
 where status in ('confirmed', 'completed');
+
+update public.bookings
+set service_name = coalesce(service_name, service_id, 'Appointment')
+where service_name is null;
 
 alter table public.bookings
   drop constraint if exists bookings_status_check;
@@ -72,6 +86,8 @@ alter table public.bookings
   check (
     payment_status in (
       'unpaid',
+      'cancelled',
+      'refunded',
       'pending_verification',
       'paid',
       'failed'
@@ -114,7 +130,7 @@ begin
   end if;
 
   if new.status in ('cancelled', 'expired') and new.payment_status is null then
-    new.payment_status := 'failed';
+    new.payment_status := 'cancelled';
   end if;
 
   return new;

@@ -35,8 +35,7 @@ type SupabaseLikeError = {
   name?: string
 }
 
-const BOOKING_SELECT =
-  'id, user_id, barber_id, barber_name, service_id, service_name, starts_at, status, payment_status, notes, whatsapp_redirect_url, amount_due, payment_reference, pending_expires_at, confirmed_at, confirmed_by, created_at'
+const BOOKING_SELECT = '*'
 
 const BOOKABLE_TIME_SLOTS = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00']
 const PENDING_BOOKING_WINDOW_MINUTES = 15
@@ -46,8 +45,11 @@ type RawBookingRecord = {
   user_id?: string | null
   barber_id?: string | null
   barber_name?: string | null
+  barber_display_name?: string | null
   service_id?: string | null
   service_name?: string | null
+  service?: string | null
+  service_title?: string | null
   starts_at?: string | null
   status?: string | null
   payment_status?: string | null
@@ -355,6 +357,20 @@ function normalizeOptionalNumber(value: number | string | null | undefined) {
   return null
 }
 
+function readFirstText(
+  row: Record<string, unknown>,
+  ...keys: string[]
+) {
+  for (const key of keys) {
+    const value = row[key]
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim()
+    }
+  }
+
+  return null
+}
+
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat('en-ZA', {
     style: 'currency',
@@ -421,15 +437,19 @@ function getServiceAmount(service: { price: string }) {
 }
 
 function normalizeBookingRecord(row: RawBookingRecord): BookingRecord {
+  const rawRecord = row as Record<string, unknown>
   const pendingExpiresAt = row.pending_expires_at ?? null
+  const serviceName =
+    readFirstText(rawRecord, 'service_name', 'service', 'service_title') ?? 'Appointment'
+  const barberName = readFirstText(rawRecord, 'barber_name', 'barber_display_name')
 
   return {
     id: String(row.id),
     user_id: row.user_id ?? '',
     barber_id: row.barber_id ?? null,
-    barber_name: row.barber_name ?? null,
+    barber_name: barberName,
     service_id: row.service_id ?? null,
-    service_name: row.service_name ?? 'Appointment',
+    service_name: serviceName,
     starts_at: row.starts_at ?? '',
     status: normalizeBookingStatus(row.status, pendingExpiresAt),
     payment_status: isPaymentStatus(row.payment_status)
@@ -1005,7 +1025,7 @@ export async function createBooking(
       service_name: payload.serviceName,
       starts_at: payload.startsAt,
       status: 'pending_payment',
-      payment_status: 'pending_verification',
+      payment_status: 'unpaid',
       notes: payload.notes,
       amount_due: amountDue,
       payment_reference: paymentReference,
