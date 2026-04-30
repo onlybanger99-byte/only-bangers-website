@@ -40,18 +40,20 @@ export default async function BarberDashboardPage() {
               <p className={styles.eyebrow}>Barber Portal</p>
               <h1 className={styles.heroTitle}>{dashboard.operator.displayName}</h1>
               <p className={styles.cardMeta}>{dashboard.operator.specialty}</p>
-              <p className={styles.heroText}>{dashboard.operator.focusNote}</p>
+              <p className={styles.heroText}>
+                See today&apos;s confirmed work first, keep an eye on payment holds, and stay ready for the next client.
+              </p>
             </div>
           </div>
 
           <div className={styles.heroMeta}>
             <div className={styles.panelCard}>
-              <span className={styles.metaLabel}>Shift</span>
-              <strong className={styles.metaValue}>{dashboard.operator.shiftLabel}</strong>
+              <span className={styles.metaLabel}>Schedule state</span>
+              <strong className={styles.metaValue}>
+                {dashboard.dataSource === 'live' ? 'Live bookings connected' : 'No active bookings yet'}
+              </strong>
               <p className={styles.cardSubmeta}>
-                {dashboard.dataSource === 'live'
-                  ? 'Live schedule connected.'
-                  : 'Development fallback data in use.'}
+                Confirmed bookings appear once admin has completed payment confirmation.
               </p>
             </div>
           </div>

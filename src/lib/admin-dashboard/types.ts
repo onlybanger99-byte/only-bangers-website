@@ -8,15 +8,6 @@ export interface AdminMetric {
   tone: 'gold' | 'emerald' | 'blue' | 'rose'
 }
 
-export interface AdminBookingsFilters {
-  query: string
-  status: string
-  sort: 'starts_at' | 'created_at' | 'status'
-  direction: 'asc' | 'desc'
-  page: number
-  pageSize: number
-}
-
 export interface AdminBookingRow {
   id: string
   customerName: string
@@ -34,18 +25,9 @@ export interface AdminBookingRow {
 }
 
 export interface AdminBookingsSection {
-  filters: AdminBookingsFilters
   items: AdminBookingRow[]
   totalCount: number
-  totalPages: number
-  hasResults: boolean
   errorMessage?: string
-}
-
-export interface AdminUsersFilters {
-  query: string
-  page: number
-  pageSize: number
 }
 
 export interface AdminUserRow {
@@ -54,25 +36,18 @@ export interface AdminUserRow {
   email: string
   phoneNumber: string
   profileImageUrl: string
-  role: string
+  role: 'customer' | 'barber' | 'admin'
   accountStatus: 'active' | 'suspended' | 'pending'
   createdAtLabel: string
   profileComplete: boolean
 }
 
 export interface AdminUsersSection {
-  filters: AdminUsersFilters
-  items: AdminUserRow[]
-  totalCount: number
-  totalPages: number
+  customers: AdminUserRow[]
+  barbers: AdminUserRow[]
+  admins: AdminUserRow[]
   enabled: boolean
   errorMessage?: string
-}
-
-export interface AdminBarbersFilters {
-  query: string
-  page: number
-  pageSize: number
 }
 
 export interface AdminBarberRow {
@@ -88,48 +63,24 @@ export interface AdminBarberRow {
 }
 
 export interface AdminBarbersSection {
-  filters: AdminBarbersFilters
   items: AdminBarberRow[]
   totalCount: number
-  totalPages: number
   enabled: boolean
   errorMessage?: string
 }
 
-export interface AdminRevenuePanel {
-  enabled: boolean
-  weeklyRevenue: string
-  totalRevenue: string
-  averageOrderValue: string
-  transactionCount: number
-  errorMessage?: string
-}
-
-export interface AdminFeatureStatus {
-  id: string
-  label: string
-  status: 'enabled' | 'not_enabled' | 'error'
-  detail: string
-}
-
-export interface AdminOverviewSummary {
-  totalBookings: string
-  pendingPayments: string
-  confirmedBookings: string
-  completedBookings: string
+export interface AdminAttentionSummary {
+  pendingPayments: AdminBookingRow[]
+  problemBookings: AdminBookingRow[]
+  customerProfileGaps: number
+  barberProfileGaps: number
 }
 
 export interface AdminDashboardViewModel {
   headerMessage: string
   metrics: AdminMetric[]
-  overview: AdminOverviewSummary
-  pendingPayments: {
-    items: AdminBookingRow[]
-    countLabel: string
-  }
+  attention: AdminAttentionSummary
   bookings: AdminBookingsSection
   users: AdminUsersSection
   barbers: AdminBarbersSection
-  revenue: AdminRevenuePanel
-  featureStatuses: AdminFeatureStatus[]
 }

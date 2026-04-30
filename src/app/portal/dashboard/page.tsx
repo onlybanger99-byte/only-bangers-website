@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { CustomerDashboardTabs } from '@/components/portal/CustomerDashboardTabs'
-import { DashboardStatCard } from '@/components/portal/DashboardStatCard'
 import { getUserRole } from '@/lib/auth/get-user-role'
 import { getDefaultDashboardForRole } from '@/lib/auth/roles'
 import { getPortalDashboardViewModel } from '@/lib/portal-dashboard/data'
@@ -35,15 +34,15 @@ export default async function DashboardPage() {
             <div>
               <p className={styles.eyebrow}>Customer Portal</p>
               <h1 className={styles.heroTitle}>Welcome back, {dashboard.account.firstName}</h1>
-              <p className={styles.heroText}>{dashboard.headerDescription}</p>
+              <p className={styles.heroText}>
+                Manage your next booking, finish payment if needed, and keep your profile ready for checkout.
+              </p>
             </div>
           </div>
 
           <div className={styles.heroMeta}>
-            <span className={styles.membershipBadge}>{dashboard.account.membershipLabel}</span>
-            <p className={styles.cardText}>{dashboard.nextAppointmentSummary}</p>
             <Link href="/services" className={styles.primaryLink}>
-              Book New Cut
+              Book Appointment
             </Link>
           </div>
         </header>
@@ -55,29 +54,6 @@ export default async function DashboardPage() {
             <p className={styles.cardText}>{dashboard.sourceMessage}</p>
           </section>
         ) : null}
-
-        <section className={styles.statsGrid} aria-label="Customer portal quick stats">
-          <DashboardStatCard
-            label="Next Booking"
-            value={dashboard.quickStats.nextBookingLabel}
-            detail="Your next confirmed appointment at a glance."
-          />
-          <DashboardStatCard
-            label="Pending Payment"
-            value={dashboard.quickStats.pendingPaymentCountLabel}
-            detail="Bookings waiting for payment proof verification."
-          />
-          <DashboardStatCard
-            label="Completed Cuts"
-            value={dashboard.quickStats.completedCutsLabel}
-            detail="Premium cuts already completed on your account."
-          />
-          <DashboardStatCard
-            label="Loyalty Progress"
-            value={dashboard.quickStats.loyaltyProgressLabel}
-            detail="How close you are to the next loyalty milestone."
-          />
-        </section>
 
         <CustomerDashboardTabs dashboard={dashboard} />
       </div>

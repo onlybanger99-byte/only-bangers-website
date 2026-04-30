@@ -7,11 +7,7 @@ import {
   buildBookingWhatsAppMessage,
   buildBookingWhatsAppUrl,
 } from '@/lib/whatsapp/booking-message'
-import type {
-  PortalBookingCard,
-  PortalDashboardViewModel,
-  PortalTaskItem,
-} from './types'
+import type { PortalBookingCard, PortalDashboardViewModel } from './types'
 
 function getFirstName(email: string) {
   const localPart = email.split('@')[0] || 'customer'
@@ -37,10 +33,6 @@ function getFullName(email: string) {
   }
 
   return segments.join(' ')
-}
-
-function getInitials(firstName: string) {
-  return firstName.slice(0, 2).toUpperCase()
 }
 
 function formatDateLabel(value?: string | null) {
@@ -133,42 +125,26 @@ function formatOptionalDateTime(value?: string | null) {
 
 function getAppointmentStatusMessage(status: BookingStatus) {
   if (status === 'pending_payment') {
-    return 'Your booking is reserved while payment is being verified.'
+    return 'Payment is still required before this booking is fully confirmed.'
   }
 
   if (status === 'confirmed') {
-    return 'Your booking has been confirmed and the team has been notified.'
-  }
-
-  if (status === 'expired') {
-    return 'The payment hold expired before confirmation. Reserve a new slot to continue.'
+    return 'Your booking is confirmed and ready for the chair.'
   }
 
   if (status === 'cancelled') {
     return 'This booking has been cancelled.'
   }
 
+  if (status === 'expired') {
+    return 'This payment window expired before confirmation.'
+  }
+
   if (status === 'completed') {
-    return 'This appointment has been completed.'
+    return 'This appointment has already been completed.'
   }
 
   return 'Your booking is being prepared.'
-}
-
-function getMembershipLabel(role: UserRole, completedVisits: number) {
-  if (role === 'admin' || role === 'barber') {
-    return 'Premium Member'
-  }
-
-  if (completedVisits >= 10) {
-    return 'Gold Member'
-  }
-
-  if (completedVisits >= 5) {
-    return 'Committed Member'
-  }
-
-  return 'Customer Member'
 }
 
 function getRoleLabel(role: UserRole) {
@@ -203,8 +179,7 @@ function buildPaymentUrl(input: {
         customerName: input.customerName,
         phoneNumber: input.phoneNumber,
         barberName:
-          input.booking.barber_name ??
-          formatBookingBarberName(input.booking.barber_id),
+          input.booking.barber_name ?? formatBookingBarberName(input.booking.barber_id),
         serviceName: input.booking.service_name,
         dateLabel: formatDateLabel(input.booking.starts_at),
         timeLabel: formatTimeLabel(input.booking.starts_at),
@@ -227,8 +202,9 @@ function toPortalBookingCard(input: {
   return {
     id: booking.id,
     reference: booking.payment_reference || `OB-${booking.id.slice(0, 8).toUpperCase()}`,
-    service: booking.service_name,
-    barberName: booking.barber_name ?? formatBookingBarberName(booking.barber_id),
+    service: booking.service_name || 'Service not specified',
+    barberName:
+      booking.barber_name ?? formatBookingBarberName(booking.barber_id) ?? 'Barber not assigned',
     startsAt: booking.starts_at,
     dateLabel: formatDateLabel(booking.starts_at),
     timeLabel: formatTimeLabel(booking.starts_at),
@@ -285,88 +261,28 @@ export async function getPortalDashboardViewModel(input: {
     return {
       source: 'error',
       sourceMessage:
-        'We need a few more moments to load your booking activity. Your profile is still available, and you can continue booking from services.',
+        'We could not load your booking activity right now, but you can still book or update your profile.',
       account: {
         firstName,
-        initials: getInitials(firstName),
-        membershipLabel: getMembershipLabel(input.role, 0),
-      },
-      headerDescription:
-        'Track your bookings, payments, tasks, and profile details in one premium customer portal.',
-      nextAppointmentSummary:
-        'Your dashboard is ready, but we could not load live booking activity right now.',
-      quickStats: {
-        nextBookingLabel: 'None yet',
-        pendingPaymentCountLabel: '0',
-        completedCutsLabel: '0',
-        loyaltyProgressLabel: '0 / 10',
-      },
-      overview: {
-        nextConfirmedBooking: null,
-        pendingPaymentBooking: null,
+        initials: firstName.slice(0, 2).toUpperCase(),
       },
       bookings: {
-        all: [],
-        pendingPayment: [],
-        confirmedUpcoming: [],
-        completed: [],
-        cancelledOrExpired: [],
-      },
-      payments: {
-        pending: [],
-        paid: [],
-        failed: [],
-      },
-      tasks: profileState.isComplete
-        ? [
-            {
-              id: 'book-next-cut',
-              title: 'Book your next cut',
-              description: 'Your profile is ready. Lock in your next premium appointment when you are ready.',
-              tone: 'gold',
-              actionHref: '/services',
-              actionLabel: 'Book New Cut',
-            },
-          ]
-        : [
-            {
-              id: 'complete-profile',
-              title: 'Complete your profile',
-              description: 'Add your customer details before your next booking checkout.',
-              tone: 'rose',
-              actionHref: '/portal/profile/complete?next=%2Fportal%2Fdashboard',
-              actionLabel: 'Complete Profile',
-            },
-          ],
-      history: [],
-      visitSummary: {
-        totalVisitsLabel: '0 bookings',
-        spendToDateLabel: formatCurrency(0),
+        nextConfirmedBooking: null,
+        pendingPaymentBooking: null,
+        attentionPending: [],
+        active: [],
+        history: [],
       },
       profile: {
         fullName,
         email: input.email,
         phoneNumber,
         profileImageUrl,
-        preferredBarber: 'No preferred barber yet',
-        groomingNotes:
-          'Complete your next booking to build out your appointment history and service preferences.',
         accountRoleLabel: getRoleLabel(input.role),
-        accountStatusLabel: 'Active account',
         profileCompletionLabel: profileState.isComplete ? 'Complete' : 'Needs attention',
         isComplete: profileState.isComplete,
         editProfileHref: '/portal/profile/complete?next=%2Fportal%2Fdashboard',
       },
-      loyalty: {
-        visitsCompleted: 0,
-        progressValue: 0,
-        progressTarget: 10,
-        progressLabel: 'Your loyalty progress begins with your first completed premium session.',
-        referralHeadline: 'Invite a friend into the Only Bangers experience.',
-        perkCopy:
-          'Referral rewards and member perks will appear here once you have completed visits on your account.',
-      },
-      media: [],
     }
   }
 
@@ -385,145 +301,43 @@ export async function getPortalDashboardViewModel(input: {
     .filter((booking) => booking.status === 'pending_payment')
     .sort(sortByStartsAtAscending)
   const confirmedUpcoming = bookings
-    .filter((booking) => booking.status === 'confirmed' && new Date(booking.startsAt).getTime() >= now)
-    .sort(sortByStartsAtAscending)
-  const completed = bookings
-    .filter((booking) => booking.status === 'completed')
-    .sort(sortByStartsAtDescending)
-  const cancelledOrExpired = bookings
-    .filter((booking) => booking.status === 'cancelled' || booking.status === 'expired')
-    .sort(sortByStartsAtDescending)
-  const paidBookings = bookings
-    .filter((booking) => booking.paymentStatus === 'paid' || booking.status === 'confirmed' || booking.status === 'completed')
-    .sort(sortByStartsAtDescending)
-  const failedPayments = bookings
     .filter(
-      (booking) =>
-        booking.paymentStatus === 'failed' ||
-        booking.status === 'cancelled' ||
-        booking.status === 'expired'
+      (booking) => booking.status === 'confirmed' && new Date(booking.startsAt).getTime() >= now
     )
+    .sort(sortByStartsAtAscending)
+  const history = bookings
+    .filter((booking) => {
+      if (booking.status === 'cancelled' || booking.status === 'expired' || booking.status === 'completed') {
+        return true
+      }
+
+      return booking.status === 'confirmed' && new Date(booking.startsAt).getTime() < now
+    })
     .sort(sortByStartsAtDescending)
-
-  const nextConfirmedBooking = confirmedUpcoming[0] ?? null
-  const pendingPaymentBooking = pendingPayment[0] ?? null
-  const preferredBarber =
-    bookings.find((booking) => booking.barberName)?.barberName || 'No preferred barber yet'
-  const completedVisits = completed.length
-  const totalSpend = completed.reduce((sum, booking) => sum + (booking.amountDueValue ?? 0), 0)
-  const quickTasks: PortalTaskItem[] = []
-
-  if (!profileState.isComplete) {
-    quickTasks.push({
-      id: 'complete-profile',
-      title: 'Complete your profile',
-      description: 'Add your required details before your next checkout so bookings can move smoothly.',
-      tone: 'rose',
-      actionHref: '/portal/profile/complete?next=%2Fportal%2Fdashboard',
-      actionLabel: 'Complete Profile',
-    })
-  }
-
-  if (pendingPaymentBooking) {
-    quickTasks.push({
-      id: 'send-proof',
-      title: 'Send proof of payment',
-      description: 'Your booking is being held while payment is verified on WhatsApp.',
-      tone: 'gold',
-      actionHref: pendingPaymentBooking.whatsappPaymentUrl ?? '/services',
-      actionLabel: pendingPaymentBooking.whatsappPaymentUrl ? 'Open WhatsApp Payment' : 'View Booking',
-    })
-  }
-
-  if (!nextConfirmedBooking) {
-    quickTasks.push({
-      id: 'book-next-cut',
-      title: 'Book your next cut',
-      description: 'You have no confirmed upcoming bookings right now.',
-      tone: 'emerald',
-      actionHref: '/services',
-      actionLabel: 'Book New Cut',
-    })
-  }
-
-  quickTasks.push({
-    id: 'review-last-cut',
-    title: 'Review your last cut',
-    description: 'A customer review system has not been wired in yet, but this will live here soon.',
-    tone: 'neutral',
-    disabled: true,
-  })
 
   return {
     source: 'live',
-    sourceMessage:
-      'Your account is connected to live booking activity. Upcoming appointments, payment holds, and profile details are up to date.',
+    sourceMessage: 'Your dashboard is synced with your latest bookings and payment state.',
     account: {
       firstName,
-      initials: getInitials(firstName),
-      membershipLabel: getMembershipLabel(input.role, completedVisits),
-    },
-    headerDescription:
-      'Manage your cuts, payment holds, past visits, and account details in one premium portal.',
-    nextAppointmentSummary: nextConfirmedBooking
-      ? `Your next confirmed cut is ${nextConfirmedBooking.startsAtLabel} with ${nextConfirmedBooking.barberName}.`
-      : pendingPaymentBooking
-        ? 'You have a booking waiting for payment verification.'
-        : 'You do not have a confirmed upcoming booking yet.',
-    quickStats: {
-      nextBookingLabel: nextConfirmedBooking?.dateLabel ?? 'None booked',
-      pendingPaymentCountLabel: String(pendingPayment.length),
-      completedCutsLabel: String(completedVisits),
-      loyaltyProgressLabel: `${completedVisits % 10} / 10`,
-    },
-    overview: {
-      nextConfirmedBooking,
-      pendingPaymentBooking,
+      initials: firstName.slice(0, 2).toUpperCase(),
     },
     bookings: {
-      all: bookings,
-      pendingPayment,
-      confirmedUpcoming,
-      completed,
-      cancelledOrExpired,
-    },
-    payments: {
-      pending: pendingPayment,
-      paid: paidBookings,
-      failed: failedPayments,
-    },
-    tasks: quickTasks,
-    history: completed,
-    visitSummary: {
-      totalVisitsLabel: `${bookings.length} total bookings`,
-      spendToDateLabel: formatCurrency(totalSpend),
+      nextConfirmedBooking: confirmedUpcoming[0] ?? null,
+      pendingPaymentBooking: pendingPayment[0] ?? null,
+      attentionPending: pendingPayment.slice(1),
+      active: [...pendingPayment, ...confirmedUpcoming].sort(sortByStartsAtAscending),
+      history,
     },
     profile: {
       fullName,
       email: input.email,
       phoneNumber,
       profileImageUrl,
-      preferredBarber,
-      groomingNotes:
-        'Your saved profile details help your barber prepare for each appointment and payment verification.',
       accountRoleLabel: getRoleLabel(input.role),
-      accountStatusLabel: 'Active account',
       profileCompletionLabel: profileState.isComplete ? 'Complete' : 'Needs attention',
       isComplete: profileState.isComplete,
       editProfileHref: '/portal/profile/complete?next=%2Fportal%2Fdashboard',
     },
-    loyalty: {
-      visitsCompleted: completedVisits,
-      progressValue: completedVisits % 10,
-      progressTarget: 10,
-      progressLabel:
-        completedVisits > 0
-          ? `${Math.max(0, 10 - (completedVisits % 10 || 10))} visits until your next milestone reward.`
-          : 'Your loyalty progress begins with your first completed premium session.',
-      referralHeadline: 'Invite a friend into the Only Bangers experience.',
-      perkCopy:
-        'Referral rewards, loyalty perks, and premium member offers can plug into this panel without changing the customer experience.',
-    },
-    media: [],
   }
 }

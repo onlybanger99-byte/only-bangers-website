@@ -1,13 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Image from 'next/image'
-import type {
-  BarberDashboardBooking,
-  BarberDashboardCustomer,
-  BarberDashboardViewModel,
-} from '@/lib/barber-dashboard/types'
-import { DashboardStatCard } from '@/components/dashboard/DashboardStatCard'
+import Link from 'next/link'
+import type { BarberDashboardBooking, BarberDashboardViewModel } from '@/lib/barber-dashboard/types'
 import { DashboardTabs } from '@/components/dashboard/DashboardTabs'
 import { EmptyState } from '@/components/dashboard/EmptyState'
 import { StatusBadge } from '@/components/dashboard/StatusBadge'
@@ -16,103 +12,70 @@ import styles from '@/app/barber/dashboard/dashboard.module.css'
 const TABS = [
   { id: 'today', label: 'Today' },
   { id: 'upcoming', label: 'Upcoming' },
-  { id: 'awaiting-payment', label: 'Awaiting Payment' },
-  { id: 'completed', label: 'Completed' },
-  { id: 'customers', label: 'Customers' },
-  { id: 'performance', label: 'Performance' },
+  { id: 'profile', label: 'Profile' },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
 
-function BookingCard({
-  booking,
-  emphasis,
+function BookingTimeline({
+  bookings,
+  emptyTitle,
+  emptyDescription,
 }: {
-  booking: BarberDashboardBooking
-  emphasis: 'confirmed' | 'pending' | 'completed'
+  bookings: BarberDashboardBooking[]
+  emptyTitle: string
+  emptyDescription: string
 }) {
+  if (bookings.length === 0) {
+    return <EmptyState title={emptyTitle} description={emptyDescription} />
+  }
+
   return (
-    <article className={styles.recordCard} data-emphasis={emphasis}>
-      <div className={styles.recordTop}>
-        <div>
-          <p className={styles.referenceText}>{booking.reference}</p>
-          <h3 className={styles.cardTitle}>{booking.customerName}</h3>
-          <p className={styles.cardMeta}>{booking.serviceName}</p>
-        </div>
+    <div className={styles.cardGrid}>
+      {bookings.map((booking) => (
+        <article key={booking.id} className={styles.recordCard}>
+          <div className={styles.recordTop}>
+            <div>
+              <p className={styles.referenceText}>{booking.bookingTimeLabel}</p>
+              <h3 className={styles.cardTitle}>{booking.customerName}</h3>
+              <p className={styles.cardMeta}>{booking.serviceName}</p>
+            </div>
 
-        <div className={styles.badgeCluster}>
-          <StatusBadge value={booking.status} />
-          <StatusBadge value={booking.paymentStatus} />
-        </div>
-      </div>
+            <div className={styles.badgeCluster}>
+              <StatusBadge value={booking.status} />
+              <StatusBadge value={booking.paymentStatus} />
+            </div>
+          </div>
 
-      <div className={styles.metaGrid}>
-        <div>
-          <span className={styles.metaLabel}>Date</span>
-          <strong className={styles.metaValue}>{booking.bookingDateLabel}</strong>
-        </div>
-        <div>
-          <span className={styles.metaLabel}>Time</span>
-          <strong className={styles.metaValue}>{booking.bookingTimeLabel}</strong>
-        </div>
-        <div>
-          <span className={styles.metaLabel}>Amount</span>
-          <strong className={styles.metaValue}>{booking.amountDueLabel}</strong>
-        </div>
-        <div>
-          <span className={styles.metaLabel}>Customer Phone</span>
-          <strong className={styles.metaValue}>{booking.customerPhone}</strong>
-        </div>
-        <div>
-          <span className={styles.metaLabel}>Booking Window</span>
-          <strong className={styles.metaValue}>
-            {booking.status === 'pending_payment'
-              ? booking.pendingExpiresAtLabel
-              : booking.startsAtLabel}
-          </strong>
-        </div>
-        <div>
-          <span className={styles.metaLabel}>Notes</span>
-          <strong className={styles.metaValue}>{booking.notes}</strong>
-        </div>
-      </div>
-    </article>
-  )
-}
+          <div className={styles.metaGrid}>
+            <div>
+              <span className={styles.metaLabel}>Appointment</span>
+              <strong className={styles.metaValue}>{booking.startsAtLabel}</strong>
+            </div>
+            <div>
+              <span className={styles.metaLabel}>Customer Phone</span>
+              <strong className={styles.metaValue}>{booking.customerPhone}</strong>
+            </div>
+            <div>
+              <span className={styles.metaLabel}>Amount</span>
+              <strong className={styles.metaValue}>{booking.amountDueLabel}</strong>
+            </div>
+            <div>
+              <span className={styles.metaLabel}>Notes</span>
+              <strong className={styles.metaValue}>{booking.notes}</strong>
+            </div>
+          </div>
 
-function CustomerCard({ customer }: { customer: BarberDashboardCustomer }) {
-  return (
-    <article className={styles.recordCard}>
-      <div className={styles.personTop}>
-        <Image
-          src={customer.profileImageUrl}
-          alt={customer.fullName}
-          width={56}
-          height={56}
-          className={styles.avatarImage}
-        />
-        <div>
-          <h3 className={styles.cardTitle}>{customer.fullName}</h3>
-          <p className={styles.cardMeta}>{customer.phoneNumber}</p>
-          <p className={styles.cardSubmeta}>{customer.email}</p>
-        </div>
-      </div>
-
-      <div className={styles.metaGrid}>
-        <div>
-          <span className={styles.metaLabel}>Visit History</span>
-          <strong className={styles.metaValue}>{customer.visitCountLabel}</strong>
-        </div>
-        <div>
-          <span className={styles.metaLabel}>Upcoming</span>
-          <strong className={styles.metaValue}>{customer.upcomingBookingLabel}</strong>
-        </div>
-        <div>
-          <span className={styles.metaLabel}>Preferred Service</span>
-          <strong className={styles.metaValue}>{customer.preferredService}</strong>
-        </div>
-      </div>
-    </article>
+          {booking.messageCustomerHref ? (
+            <div className={styles.inlineActions}>
+              <Link href={booking.messageCustomerHref} className={styles.primaryButton}>
+                Message Customer
+              </Link>
+            </div>
+          ) : null}
+        </article>
+      ))}
+    </div>
   )
 }
 
@@ -123,139 +86,112 @@ export function BarberDashboardTabs({
 }) {
   const [activeTab, setActiveTab] = useState<TabId>('today')
 
+  const nextUpcomingLabel = useMemo(() => {
+    return dashboard.upcoming[0]?.startsAtLabel ?? 'No confirmed booking after today'
+  }, [dashboard.upcoming])
+
   return (
-    <div className={styles.tabbedShell}>
-      <DashboardTabs
-        tabs={TABS}
-        activeTab={activeTab}
-        onChange={setActiveTab}
-        label="Barber dashboard sections"
-      />
-
-      {activeTab === 'today' ? (
-        <section className={styles.tabPanel}>
-          <div className={styles.statsGrid}>
-            <DashboardStatCard
-              label="Confirmed Today"
-              value={dashboard.performance.todayConfirmedCount}
-              detail="Confirmed jobs ready for the chair today."
-              tone="gold"
-            />
-            <DashboardStatCard
-              label="Awaiting Payment"
-              value={dashboard.performance.awaitingPaymentCount}
-              detail="Payment holds still waiting for admin confirmation."
-              tone="rose"
-            />
+    <>
+      <article className={styles.heroCard}>
+        <div className={styles.heroCopy}>
+          <div>
+            <p className={styles.eyebrow}>Today&apos;s Schedule</p>
+            <h2 className={styles.heroTitle}>
+              {dashboard.today.length > 0
+                ? `${dashboard.today.length} confirmed booking${dashboard.today.length === 1 ? '' : 's'} today`
+                : 'No confirmed bookings today'}
+            </h2>
+            <p className={styles.heroText}>
+              {dashboard.today.length > 0
+                ? 'Work from the list below and message clients directly when you need to confirm details.'
+                : 'New confirmed bookings will appear here as soon as admin payment confirmation is complete.'}
+            </p>
           </div>
+        </div>
 
-          {dashboard.today.length > 0 ? (
-            <div className={styles.cardGrid}>
-              {dashboard.today.map((booking) => (
-                <BookingCard key={booking.id} booking={booking} emphasis="confirmed" />
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              title="No confirmed work today"
-              description="Confirmed bookings for today will appear here once they are ready for the chair."
-            />
-          )}
-        </section>
-      ) : null}
-
-      {activeTab === 'upcoming' ? (
-        <section className={styles.tabPanel}>
-          {dashboard.upcoming.length > 0 ? (
-            <div className={styles.cardGrid}>
-              {dashboard.upcoming.map((booking) => (
-                <BookingCard key={booking.id} booking={booking} emphasis="confirmed" />
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              title="No upcoming confirmed bookings"
-              description="Future confirmed bookings assigned to this barber will appear here."
-            />
-          )}
-        </section>
-      ) : null}
-
-      {activeTab === 'awaiting-payment' ? (
-        <section className={styles.tabPanel}>
-          {dashboard.awaitingPayment.length > 0 ? (
-            <div className={styles.cardGrid}>
-              {dashboard.awaitingPayment.map((booking) => (
-                <BookingCard key={booking.id} booking={booking} emphasis="pending" />
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              title="No payment holds"
-              description="Pending-payment bookings stay here until the admin team confirms payment."
-            />
-          )}
-        </section>
-      ) : null}
-
-      {activeTab === 'completed' ? (
-        <section className={styles.tabPanel}>
-          {dashboard.completed.length > 0 ? (
-            <div className={styles.cardGrid}>
-              {dashboard.completed.map((booking) => (
-                <BookingCard key={booking.id} booking={booking} emphasis="completed" />
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              title="No completed jobs yet"
-              description="Completed bookings will appear here once service has been delivered."
-            />
-          )}
-        </section>
-      ) : null}
-
-      {activeTab === 'customers' ? (
-        <section className={styles.tabPanel}>
-          {dashboard.customers.length > 0 ? (
-            <div className={styles.cardGrid}>
-              {dashboard.customers.map((customer) => (
-                <CustomerCard key={customer.id} customer={customer} />
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              title="No customer data yet"
-              description="Customer details will surface here once bookings are connected to the barber workflow."
-            />
-          )}
-        </section>
-      ) : null}
-
-      {activeTab === 'performance' ? (
-        <section className={styles.tabPanel}>
-          <div className={styles.statsGrid}>
-            <DashboardStatCard
-              label="Cuts Completed Today"
-              value={dashboard.performance.cutsCompletedToday}
-              detail="Completed appointments delivered today."
-              tone="emerald"
-            />
-            <DashboardStatCard
-              label="Repeat Clients"
-              value={dashboard.performance.repeatClientsCount}
-              detail="Returning customers visible in the current booking set."
-              tone="blue"
-            />
+        <div className={styles.heroMeta}>
+          <div className={styles.panelCard}>
+            <span className={styles.metaLabel}>Next upcoming</span>
+            <strong className={styles.metaValue}>{nextUpcomingLabel}</strong>
+            <p className={styles.cardSubmeta}>{dashboard.readinessMessage}</p>
           </div>
+        </div>
+      </article>
 
-          <article className={styles.panelCard}>
-            <p className={styles.eyebrow}>Workflow State</p>
-            <h2 className={styles.sectionTitle}>How this shift is connected</h2>
-            <p className={styles.cardText}>{dashboard.readinessMessage}</p>
-          </article>
-        </section>
+      {dashboard.awaitingPayment.length > 0 ? (
+        <article className={styles.panelCard}>
+          <p className={styles.eyebrow}>Waiting For Payment Confirmation</p>
+          <h2 className={styles.sectionTitle}>
+            {dashboard.awaitingPayment.length} booking
+            {dashboard.awaitingPayment.length === 1 ? '' : 's'} still pending admin confirmation
+          </h2>
+          <p className={styles.cardText}>
+            These bookings are assigned to you, but they should only move into your working schedule once admin confirms payment.
+          </p>
+        </article>
       ) : null}
-    </div>
+
+      <div className={styles.tabbedShell}>
+        <DashboardTabs
+          tabs={TABS}
+          activeTab={activeTab}
+          onChange={setActiveTab}
+          label="Barber dashboard sections"
+        />
+
+        {activeTab === 'today' ? (
+          <section className={styles.tabPanel}>
+            <BookingTimeline
+              bookings={dashboard.today}
+              emptyTitle="No confirmed work today"
+              emptyDescription="Confirmed bookings for today will appear here once they are ready for the chair."
+            />
+          </section>
+        ) : null}
+
+        {activeTab === 'upcoming' ? (
+          <section className={styles.tabPanel}>
+            <BookingTimeline
+              bookings={dashboard.upcoming}
+              emptyTitle="No upcoming confirmed bookings"
+              emptyDescription="Future confirmed bookings assigned to you will appear here."
+            />
+          </section>
+        ) : null}
+
+        {activeTab === 'profile' ? (
+          <section className={styles.tabPanel}>
+            <article className={styles.recordCard}>
+              <div className={styles.personTop}>
+                <Image
+                  src={dashboard.operator.image}
+                  alt={dashboard.operator.displayName}
+                  width={72}
+                  height={72}
+                  className={styles.heroAvatar}
+                />
+                <div>
+                  <h3 className={styles.cardTitle}>{dashboard.operator.displayName}</h3>
+                  <p className={styles.cardMeta}>{dashboard.operator.specialty}</p>
+                  <div className={styles.badgeCluster}>
+                    <StatusBadge value={dashboard.operator.activeStatus} />
+                  </div>
+                </div>
+              </div>
+
+              <p className={styles.cardText}>{dashboard.operator.bio}</p>
+
+              {dashboard.operator.editProfileHref ? (
+                <div className={styles.inlineActions}>
+                  <Link href={dashboard.operator.editProfileHref} className={styles.primaryButton}>
+                    Edit Profile
+                  </Link>
+                </div>
+              ) : null}
+            </article>
+          </section>
+        ) : null}
+      </div>
+    </>
   )
 }

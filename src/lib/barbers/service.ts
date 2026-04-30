@@ -6,6 +6,8 @@ export interface BarberProfileSummary {
   displayName: string
   specialty: string
   profileImageUrl: string
+  bio: string
+  isActive: boolean
 }
 
 export interface PublicBarberSummary {
@@ -178,6 +180,8 @@ export async function listBookableBarbers(): Promise<BarberProfileSummary[]> {
     displayName: row.display_name,
     specialty: row.specialty,
     profileImageUrl: row.profile_image_url,
+    bio: row.bio,
+    isActive: row.is_active,
   }))
 }
 
@@ -217,6 +221,8 @@ export async function getBarberProfileByUserId(userId: string) {
       displayName: fallbackDisplayName(userId, authUsers.get(userId)),
       specialty: 'Only Bangers Team',
       profileImageUrl: '/images/header-bg.png',
+      bio: 'Premium barber available through the Only Bangers booking flow.',
+      isActive: true,
     } satisfies BarberProfileSummary
   }
 
@@ -225,6 +231,8 @@ export async function getBarberProfileByUserId(userId: string) {
     displayName: resolveBarberDisplayName(userId, data as Record<string, unknown>),
     specialty: resolveBarberSpecialty(data as Record<string, unknown>),
     profileImageUrl: resolveBarberImage(data as Record<string, unknown>),
+    bio: resolveBarberBio(data as Record<string, unknown>),
+    isActive: resolveBarberActive(data as Record<string, unknown>),
   } satisfies BarberProfileSummary
 }
 
@@ -260,6 +268,8 @@ export async function getBarberProfilesByUserIds(
       displayName: resolveBarberDisplayName(row.user_id, row),
       specialty: resolveBarberSpecialty(row),
       profileImageUrl: resolveBarberImage(row),
+      bio: resolveBarberBio(row),
+      isActive: resolveBarberActive(row),
     })
   }
 

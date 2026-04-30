@@ -9,10 +9,7 @@ import type {
   AdminBookingRow,
   AdminBookingsSection,
   AdminDashboardViewModel,
-  AdminFeatureStatus,
-  AdminOverviewSummary,
   AdminMetric,
-  AdminRevenuePanel,
   AdminUserRow,
   AdminUsersSection,
 } from './types'
@@ -22,21 +19,7 @@ type AdminDashboardParams = {
   bookingStatus?: string
   bookingSort?: 'starts_at' | 'created_at' | 'status'
   bookingDirection?: 'asc' | 'desc'
-  bookingPage?: number
-  userQuery?: string
-  userPage?: number
-  barberQuery?: string
-  barberPage?: number
 }
-
-type CountResponse = {
-  count: number | null
-  error: { code?: string; message?: string } | null
-}
-
-const BOOKING_PAGE_SIZE = 12
-const USER_PAGE_SIZE = 10
-const BARBER_PAGE_SIZE = 10
 
 function normalizeText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
@@ -54,24 +37,12 @@ function resolveFirstText(row: Record<string, unknown>, ...keys: string[]) {
   return ''
 }
 
-function getPrivilegedSupabase() {
-  return createAdminClient()
-}
-
 function toCurrency(amount: number) {
   return new Intl.NumberFormat('en-ZA', {
     style: 'currency',
     currency: 'ZAR',
     maximumFractionDigits: 0,
   }).format(amount)
-}
-
-function formatOptionalDateTime(value?: string | null) {
-  if (!value) {
-    return 'Not set'
-  }
-
-  return formatDateTime(value)
 }
 
 function formatDateTime(value?: string | null) {
@@ -112,14 +83,6 @@ function formatDate(value?: string | null) {
   }).format(parsed)
 }
 
-function normalizePage(value: number | undefined, fallback: number) {
-  if (!value || !Number.isFinite(value) || value < 1) {
-    return fallback
-  }
-
-  return Math.floor(value)
-}
-
 function parseBookingStatus(value?: string): BookingStatus | null {
   switch (value) {
     case 'pending_payment':
@@ -135,8 +98,10 @@ function parseBookingStatus(value?: string): BookingStatus | null {
 
 function parsePaymentStatus(value?: string): PaymentStatus {
   switch (value) {
-    case 'pending_verification':
     case 'paid':
+    case 'cancelled':
+    case 'refunded':
+    case 'pending_verification':
     case 'failed':
       return value
     case 'unpaid':
@@ -160,37 +125,7 @@ function normalizeAdminBookingStatus(
   return status ?? 'pending_payment'
 }
 
-function isMissingRelationError(error: { code?: string; message?: string } | null) {
-  if (!error) {
-    return false
-  }
-
-  return (
-    error.code === '42P01' ||
-    error.code === 'PGRST116' ||
-    error.code === 'PGRST205' ||
-    error.message?.toLowerCase().includes('relation') === true
-  )
-}
-
-function getAuthListTotal(
-  data: { total?: number; users?: unknown[] } | { users?: unknown[] } | null | undefined
-) {
-  if (!data) {
-    return 0
-  }
-
-  if ('total' in data && typeof data.total === 'number') {
-    return data.total
-  }
-
-  return Array.isArray(data.users) ? data.users.length : 0
-}
-
-async function countTable(
-  table: string,
-  apply?: (query: any) => any
-): Promise<CountResponse> {
+async function countTable(table: string, apply?: (query: any) => any) {
   const supabase = await createClient()
   let query = supabase.from(table).select('*', { count: 'exact', head: true })
 
@@ -199,30 +134,7 @@ async function countTable(
   }
 
   const { count, error } = await query
-  return { count, error }
-}
-
-async function loadUserEmails(userIds: string[]) {
-  const adminClient = createAdminClient()
-  const byId = new Map<string, string>()
-
-  if (!adminClient || userIds.length === 0) {
-    return byId
-  }
-
-  await Promise.all(
-    Array.from(new Set(userIds)).map(async (userId) => {
-      const { data, error } = await adminClient.auth.admin.getUserById(userId)
-
-      if (error || !data.user) {
-        return
-      }
-
-      byId.set(userId, data.user.email ?? '')
-    })
-  )
-
-  return byId
+  return { count: count ?? 0, error }
 }
 
 async function loadAuthUsersByIds(userIds: string[]) {
@@ -259,328 +171,219 @@ async function loadAuthUsersByIds(userIds: string[]) {
   return byId
 }
 
-async function getUserIdsForRole(role: 'customer' | 'barber') {
-  const privilegedSupabase = getPrivilegedSupabase()
+async function getUserIdsForRoles() {
+  const privilegedSupabase = createAdminClient()
   const supabase = privilegedSupabase ?? (await createClient())
-  const { data, error } = await supabase
-    .from('user_roles')
-    .select('user_id, role')
-    .eq('role', role)
+  const { data, error } = await supabase.from('user_roles').select('user_id, role')
 
   if (error) {
-    return { ids: [] as string[], error }
+    return {
+      customers: [] as string[],
+      barbers: [] as string[],
+      admins: [] as string[],
+      error,
+    }
   }
 
-  const ids = Array.from(
-    new Set(
-      ((data ?? []) as Array<{ user_id: string | null; role: string | null }>)
-        .filter((row) => normalizeRole(row.role) === role)
-        .map((row) => row.user_id)
-        .filter((value): value is string => typeof value === 'string' && value.length > 0)
-    )
-  )
-
-  return { ids, error: null as null }
-}
-
-async function getMetrics(): Promise<AdminMetric[]> {
-  const supabase = await createClient()
-  const [
-    totalCustomers,
-    totalBarbers,
-    activeBarbers,
-    totalBookings,
-    upcomingBookings,
-    completedBookings,
-    cancelledBookings,
-    customerProfilesResponse,
-    barberProfilesResponse,
-  ] = await Promise.all([
-    countTable('user_roles', (query) => query.eq('role', 'customer')),
-    countTable('barber_profiles'),
-    countTable('barber_profiles', (query) => query.eq('is_active', true)),
-    countTable('bookings'),
-    countTable('bookings', (query) =>
-      query
-        .gte('starts_at', new Date().toISOString())
-        .in('status', ['pending_payment', 'confirmed'])
-    ),
-    countTable('bookings', (query) => query.eq('status', 'completed')),
-    countTable('bookings', (query) => query.eq('status', 'cancelled')),
-    supabase.from('customer_profiles').select('*'),
-    supabase.from('barber_profiles').select('*'),
-  ])
-
-  const incompleteCustomerProfiles = ((customerProfilesResponse.data ?? []) as Array<Record<string, unknown>>)
-    .filter((row) => {
-      const profileImage = resolveFirstText(
-        row,
-        'profile_image_url',
-        'profile_photo_url',
-        'avatar_url'
-      )
-
-      return !normalizeText(row.first_name) || !normalizeText(row.last_name) || !normalizeText(row.phone_number) || !profileImage
-    }).length
-
-  const incompleteBarberProfiles = ((barberProfilesResponse.data ?? []) as Array<Record<string, unknown>>)
-    .filter((row) => {
-      return (
-        !resolveFirstText(row, 'display_name', 'name', 'full_name') ||
-        !resolveFirstText(row, 'specialty') ||
-        !resolveFirstText(row, 'profile_image_url', 'profile_photo_url', 'avatar_url')
-      )
-    }).length
-
-  return [
-    {
-      id: 'total-customers',
-      label: 'Total Customers',
-      value: String(totalCustomers.count ?? 0),
-      detail: 'Customer accounts currently assigned through RBAC.',
-      tone: 'blue',
-    },
-    {
-      id: 'total-barbers',
-      label: 'Total Barbers',
-      value: String(totalBarbers.count ?? 0),
-      detail: `${activeBarbers.count ?? 0} currently marked active for bookings.`,
-      tone: 'gold',
-    },
-    {
-      id: 'total-bookings',
-      label: 'Total Bookings',
-      value: String(totalBookings.count ?? 0),
-      detail: 'All bookings currently stored in the live platform.',
-      tone: 'emerald',
-    },
-    {
-      id: 'upcoming-bookings',
-      label: 'Upcoming Bookings',
-      value: String(upcomingBookings.count ?? 0),
-      detail: 'Bookings still in the active appointment pipeline.',
-      tone: 'gold',
-    },
-    {
-      id: 'completed-bookings',
-      label: 'Completed',
-      value: String(completedBookings.count ?? 0),
-      detail: 'Bookings marked completed.',
-      tone: 'emerald',
-    },
-    {
-      id: 'cancelled-bookings',
-      label: 'Cancelled',
-      value: String(cancelledBookings.count ?? 0),
-      detail: 'Bookings cancelled by staff or customers.',
-      tone: 'rose',
-    },
-    {
-      id: 'customer-profile-gaps',
-      label: 'Customer Profile Gaps',
-      value: String(incompleteCustomerProfiles),
-      detail: 'Customer profiles still missing required booking details.',
-      tone: incompleteCustomerProfiles > 0 ? 'rose' : 'emerald',
-    },
-    {
-      id: 'barber-profile-gaps',
-      label: 'Barber Profile Gaps',
-      value: String(incompleteBarberProfiles),
-      detail: 'Barber records missing profile details needed for operations.',
-      tone: incompleteBarberProfiles > 0 ? 'rose' : 'emerald',
-    },
-  ]
-}
-
-async function getOverviewSummary(): Promise<AdminOverviewSummary> {
-  const [totalBookings, pendingPayments, confirmedBookings, completedBookings] = await Promise.all([
-    countTable('bookings'),
-    countTable('bookings', (query) => query.eq('status', 'pending_payment')),
-    countTable('bookings', (query) => query.eq('status', 'confirmed')),
-    countTable('bookings', (query) => query.eq('status', 'completed')),
-  ])
+  const rows = (data ?? []) as Array<{ user_id: string | null; role: string | null }>
 
   return {
-    totalBookings: String(totalBookings.count ?? 0),
-    pendingPayments: String(pendingPayments.count ?? 0),
-    confirmedBookings: String(confirmedBookings.count ?? 0),
-    completedBookings: String(completedBookings.count ?? 0),
+    customers: Array.from(
+      new Set(
+        rows
+          .filter((row) => normalizeRole(row.role) === 'customer')
+          .map((row) => row.user_id)
+          .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      )
+    ),
+    barbers: Array.from(
+      new Set(
+        rows
+          .filter((row) => normalizeRole(row.role) === 'barber')
+          .map((row) => row.user_id)
+          .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      )
+    ),
+    admins: Array.from(
+      new Set(
+        rows
+          .filter((row) => normalizeRole(row.role) === 'admin')
+          .map((row) => row.user_id)
+          .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      )
+    ),
+    error: null as null,
   }
 }
 
-async function getBookingsSection(params: AdminDashboardParams): Promise<AdminBookingsSection> {
-  const supabase = await createClient()
-  const queryText = params.bookingQuery?.trim() ?? ''
-  const status = params.bookingStatus?.trim() ?? ''
-  const sort = params.bookingSort ?? 'starts_at'
-  const direction = params.bookingDirection === 'asc' ? 'asc' : 'desc'
-  const page = normalizePage(params.bookingPage, 1)
-  let countQuery = supabase.from('bookings').select('id', { count: 'exact', head: true })
-  let rowsQuery = supabase
-    .from('bookings')
-    .select('*')
-    .order(sort, { ascending: direction === 'asc' })
+async function mapBookingRows(rows: Array<Record<string, unknown>>): Promise<AdminBookingRow[]> {
+  const userIds = rows
+    .map((row) => (typeof row.user_id === 'string' ? row.user_id : ''))
+    .filter(Boolean)
+  const profiles = await getCustomerProfilesByUserIds(userIds)
+  const authUsers = await loadAuthUsersByIds(userIds)
 
-  const parsedStatus = parseBookingStatus(status)
-
-  if (parsedStatus) {
-    if (parsedStatus === 'expired') {
-      const nowIso = new Date().toISOString()
-      countQuery = countQuery.eq('status', 'pending_payment').lte('pending_expires_at', nowIso)
-      rowsQuery = rowsQuery.eq('status', 'pending_payment').lte('pending_expires_at', nowIso)
-    } else {
-      countQuery = countQuery.eq('status', parsedStatus)
-      rowsQuery = rowsQuery.eq('status', parsedStatus)
-    }
-  }
-
-  if (!queryText) {
-    const from = (page - 1) * BOOKING_PAGE_SIZE
-    const to = from + BOOKING_PAGE_SIZE - 1
-    rowsQuery = rowsQuery.range(from, to)
-  }
-
-  const [{ count, error: countError }, { data, error }] = await Promise.all([
-    queryText ? Promise.resolve({ count: null, error: null }) : countQuery,
-    rowsQuery,
-  ])
-
-  if (countError || error) {
-    console.error('[admin-dashboard] Failed to load bookings section', {
-      countError,
-      error,
-    })
-
-    return {
-      filters: {
-        query: queryText,
-        status,
-        sort,
-        direction,
-        page,
-        pageSize: BOOKING_PAGE_SIZE,
-      },
-      items: [],
-      totalCount: 0,
-      totalPages: 0,
-      hasResults: false,
-      errorMessage: 'We could not load live bookings for the admin console.',
-    }
-  }
-
-  const rows = (data ?? []) as Array<Record<string, unknown>>
-
-  const profiles = await getCustomerProfilesByUserIds(
-    rows.map((row) => (typeof row.user_id === 'string' ? row.user_id : ''))
-  )
-  const emails = await loadUserEmails(
-    rows.map((row) => (typeof row.user_id === 'string' ? row.user_id : ''))
-  )
-
-  const items: AdminBookingRow[] = rows
+  return rows
     .map((row) => {
       const userId = typeof row.user_id === 'string' ? row.user_id : ''
       const bookingId =
         typeof row.id === 'string' || typeof row.id === 'number' ? String(row.id) : ''
       const profile = profiles.get(userId)
-      const normalizedStatus = normalizeAdminBookingStatus(
-        parseBookingStatus(typeof row.status === 'string' ? row.status : undefined),
-        typeof row.pending_expires_at === 'string' ? row.pending_expires_at : null
-      )
 
       return {
         id: bookingId,
-        customerName: profile?.isComplete ? profile.fullName : 'Profile incomplete',
-        customerEmail: emails.get(userId) || 'Email unavailable',
-        customerPhone: profile?.isComplete ? profile.phoneNumber : 'Phone unavailable',
+        customerName: profile?.fullName ?? 'Profile incomplete',
+        customerEmail: authUsers.get(userId)?.email ?? 'Email unavailable',
+        customerPhone: profile?.phoneNumber ?? 'Phone unavailable',
         serviceName:
-          resolveFirstText(row, 'service_name', 'service', 'service_title') || 'Service unavailable',
+          resolveFirstText(row, 'service_name', 'service', 'service_title') || 'Service not specified',
         barberName:
-          resolveFirstText(row, 'barber_name', 'barber_display_name') || 'Barber unavailable',
+          resolveFirstText(row, 'barber_name', 'barber_display_name') || 'Barber not assigned',
         startsAtLabel: formatDateTime(typeof row.starts_at === 'string' ? row.starts_at : null),
         createdAtLabel: formatDateTime(typeof row.created_at === 'string' ? row.created_at : null),
-        status: normalizedStatus,
+        status: normalizeAdminBookingStatus(
+          parseBookingStatus(typeof row.status === 'string' ? row.status : undefined),
+          typeof row.pending_expires_at === 'string' ? row.pending_expires_at : null
+        ),
         paymentStatus: parsePaymentStatus(
           typeof row.payment_status === 'string' ? row.payment_status : undefined
         ),
         amountDueLabel: toCurrency(typeof row.amount_due === 'number' ? row.amount_due : 0),
         paymentReference:
           (typeof row.payment_reference === 'string' && row.payment_reference) || 'Not assigned',
-        pendingExpiresAtLabel: formatOptionalDateTime(
-          typeof row.pending_expires_at === 'string' ? row.pending_expires_at : null
-        ),
-      }
+        pendingExpiresAtLabel:
+          typeof row.pending_expires_at === 'string'
+            ? formatDateTime(row.pending_expires_at)
+            : 'Not set',
+      } satisfies AdminBookingRow
     })
     .filter((row) => row.id.length > 0)
-    .filter((row) => {
-      if (!queryText) {
-        return true
-      }
-
-      const search = queryText.toLowerCase()
-      return (
-        row.customerName.toLowerCase().includes(search) ||
-        row.customerEmail.toLowerCase().includes(search) ||
-        row.customerPhone.toLowerCase().includes(search) ||
-        row.serviceName.toLowerCase().includes(search) ||
-        row.barberName.toLowerCase().includes(search)
-      )
-    })
-  const pagedItems = queryText
-    ? items.slice((page - 1) * BOOKING_PAGE_SIZE, page * BOOKING_PAGE_SIZE)
-    : items
-  const totalCount = queryText ? items.length : count ?? items.length
-
-  return {
-    filters: {
-      query: queryText,
-      status,
-      sort,
-      direction,
-      page,
-      pageSize: BOOKING_PAGE_SIZE,
-    },
-    items: pagedItems,
-    totalCount,
-    totalPages: Math.max(1, Math.ceil(totalCount / BOOKING_PAGE_SIZE)),
-    hasResults: pagedItems.length > 0,
-  }
 }
 
-async function getUsersSection(params: AdminDashboardParams): Promise<AdminUsersSection> {
-  const queryText = params.userQuery?.trim() ?? ''
-  const page = normalizePage(params.userPage, 1)
-  const { ids: customerIds, error: roleError } = await getUserIdsForRole('customer')
+async function getMetrics(barberProfileGapCount: number): Promise<AdminMetric[]> {
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+  const tomorrowStart = new Date(todayStart)
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1)
 
-  if (roleError) {
-    console.error('[admin-dashboard] Failed to load customer roles', roleError)
+  const [todayBookings, pendingPayments, confirmedBookings, activeBarbers] = await Promise.all([
+    countTable('bookings', (query) =>
+      query.gte('starts_at', todayStart.toISOString()).lt('starts_at', tomorrowStart.toISOString())
+    ),
+    countTable('bookings', (query) => query.eq('status', 'pending_payment')),
+    countTable('bookings', (query) => query.eq('status', 'confirmed')),
+    countTable('barber_profiles', (query) => query.eq('is_active', true)),
+  ])
+
+  return [
+    {
+      id: 'today-bookings',
+      label: "Today's bookings",
+      value: String(todayBookings.count),
+      detail: 'All bookings scheduled for today.',
+      tone: 'gold',
+    },
+    {
+      id: 'pending-payments',
+      label: 'Pending payments',
+      value: String(pendingPayments.count),
+      detail: 'Bookings waiting for admin confirmation.',
+      tone: 'rose',
+    },
+    {
+      id: 'confirmed-bookings',
+      label: 'Confirmed bookings',
+      value: String(confirmedBookings.count),
+      detail: 'Bookings ready for barber operations.',
+      tone: 'emerald',
+    },
+    {
+      id: 'active-barbers',
+      label: 'Active barbers',
+      value: String(activeBarbers.count),
+      detail:
+        barberProfileGapCount > 0
+          ? `${barberProfileGapCount} barber profile${barberProfileGapCount === 1 ? '' : 's'} still need attention.`
+          : 'All active barber profiles look ready.',
+      tone: 'blue',
+    },
+  ]
+}
+
+async function getBookingsSection(params: AdminDashboardParams): Promise<AdminBookingsSection> {
+  const supabase = await createClient()
+  const queryText = params.bookingQuery?.trim().toLowerCase() ?? ''
+  const status = params.bookingStatus?.trim() ?? ''
+  const sort = params.bookingSort ?? 'starts_at'
+  const direction = params.bookingDirection === 'asc' ? 'asc' : 'desc'
+
+  let query = supabase.from('bookings').select('*').order(sort, { ascending: direction === 'asc' })
+  const parsedStatus = parseBookingStatus(status)
+
+  if (parsedStatus === 'expired') {
+    query = query.eq('status', 'pending_payment').lte('pending_expires_at', new Date().toISOString())
+  } else if (parsedStatus) {
+    query = query.eq('status', parsedStatus)
+  }
+
+  const { data, error } = await query.limit(200)
+
+  if (error) {
+    console.error('[admin-dashboard] Failed to load bookings section', error)
     return {
-      filters: { query: queryText, page, pageSize: USER_PAGE_SIZE },
       items: [],
       totalCount: 0,
-      totalPages: 0,
-      enabled: false,
-      errorMessage: 'We could not load customer role assignments from Supabase.',
+      errorMessage: 'We could not load live bookings for the admin console.',
     }
   }
 
-  const idsForLookup = queryText ? customerIds : customerIds.slice((page - 1) * USER_PAGE_SIZE, page * USER_PAGE_SIZE)
-  const [profiles, authUsers] = await Promise.all([
-    getCustomerProfilesByUserIds(idsForLookup),
-    loadAuthUsersByIds(idsForLookup),
+  const items = await mapBookingRows((data ?? []) as Array<Record<string, unknown>>)
+  const filtered = queryText
+    ? items.filter((row) => {
+        return (
+          row.customerName.toLowerCase().includes(queryText) ||
+          row.customerEmail.toLowerCase().includes(queryText) ||
+          row.customerPhone.toLowerCase().includes(queryText) ||
+          row.serviceName.toLowerCase().includes(queryText) ||
+          row.barberName.toLowerCase().includes(queryText)
+        )
+      })
+    : items
+
+  return {
+    items: filtered,
+    totalCount: filtered.length,
+  }
+}
+
+async function getUsersSection(barberRows: AdminBarberRow[]): Promise<AdminUsersSection> {
+  const roles = await getUserIdsForRoles()
+
+  if (roles.error) {
+    console.error('[admin-dashboard] Failed to load user roles', roles.error)
+    return {
+      customers: [],
+      barbers: [],
+      admins: [],
+      enabled: false,
+      errorMessage: 'We could not load role assignments from Supabase.',
+    }
+  }
+
+  const [customerProfiles, authUsers] = await Promise.all([
+    getCustomerProfilesByUserIds(roles.customers),
+    loadAuthUsersByIds([...roles.customers, ...roles.barbers, ...roles.admins]),
   ])
 
-  const baseItems: AdminUserRow[] = idsForLookup.map((userId) => {
-    const profile = profiles.get(userId)
+  const customers = roles.customers.map((userId) => {
+    const profile = customerProfiles.get(userId)
     const authUser = authUsers.get(userId)
-    const isSuspended = Boolean(
-      authUser?.bannedUntil && new Date(authUser.bannedUntil) > new Date()
-    )
+    const isSuspended = Boolean(authUser?.bannedUntil && new Date(authUser.bannedUntil) > new Date())
 
     return {
       id: userId,
       fullName: profile?.fullName ?? 'Profile incomplete',
-      email: authUser?.email || 'Email unavailable',
+      email: authUser?.email ?? 'Email unavailable',
       phoneNumber: profile?.phoneNumber ?? 'Phone unavailable',
       profileImageUrl: profile?.profileImageUrl ?? '/images/header-bg.png',
       role: 'customer',
@@ -590,60 +393,74 @@ async function getUsersSection(params: AdminDashboardParams): Promise<AdminUsers
     } satisfies AdminUserRow
   })
 
-  const filteredItems = queryText
-    ? baseItems.filter((user) => {
-        const search = queryText.toLowerCase()
-        return (
-          user.fullName.toLowerCase().includes(search) ||
-          user.email.toLowerCase().includes(search) ||
-          user.phoneNumber.toLowerCase().includes(search)
-        )
-      })
-    : baseItems
-  const items = queryText
-    ? filteredItems.slice((page - 1) * USER_PAGE_SIZE, page * USER_PAGE_SIZE)
-    : filteredItems
-  const totalCount = queryText ? filteredItems.length : customerIds.length
+  const barbers = roles.barbers.map((userId) => {
+    const row = barberRows.find((item) => item.id === userId)
+    const authUser = authUsers.get(userId)
+
+    return {
+      id: userId,
+      fullName: row?.displayName ?? 'Barber profile missing',
+      email: authUser?.email ?? 'Email unavailable',
+      phoneNumber: 'Managed in barber profile',
+      profileImageUrl: row?.profileImageUrl ?? '/images/header-bg.png',
+      role: 'barber',
+      accountStatus:
+        row?.activeStatus === 'inactive'
+          ? 'pending'
+          : row?.activeStatus ?? 'pending',
+      createdAtLabel: formatDate(authUser?.createdAt),
+      profileComplete: row?.profileComplete ?? false,
+    } satisfies AdminUserRow
+  })
+
+  const admins = roles.admins.map((userId) => {
+    const authUser = authUsers.get(userId)
+    const isSuspended = Boolean(authUser?.bannedUntil && new Date(authUser.bannedUntil) > new Date())
+
+    return {
+      id: userId,
+      fullName: authUser?.email?.split('@')[0] ?? 'Admin user',
+      email: authUser?.email ?? 'Email unavailable',
+      phoneNumber: 'Not shared',
+      profileImageUrl: '/images/header-bg.png',
+      role: 'admin',
+      accountStatus: isSuspended ? 'suspended' : 'active',
+      createdAtLabel: formatDate(authUser?.createdAt),
+      profileComplete: true,
+    } satisfies AdminUserRow
+  })
 
   return {
-    filters: { query: queryText, page, pageSize: USER_PAGE_SIZE },
-    items,
-    totalCount,
-    totalPages: Math.max(1, Math.ceil(totalCount / USER_PAGE_SIZE)),
+    customers,
+    barbers,
+    admins,
     enabled: true,
   }
 }
 
-async function getBarbersSection(params: AdminDashboardParams): Promise<AdminBarbersSection> {
-  const queryText = params.barberQuery?.trim() ?? ''
-  const page = normalizePage(params.barberPage, 1)
-  const { ids: barberIds, error: roleError } = await getUserIdsForRole('barber')
+async function getBarbersSection(): Promise<AdminBarbersSection> {
+  const roles = await getUserIdsForRoles()
 
-  if (roleError) {
-    console.error('[admin-dashboard] Failed to load barber roles', roleError)
+  if (roles.error) {
+    console.error('[admin-dashboard] Failed to load barber roles', roles.error)
     return {
-      filters: { query: queryText, page, pageSize: BARBER_PAGE_SIZE },
       items: [],
       totalCount: 0,
-      totalPages: 0,
       enabled: false,
       errorMessage: 'We could not load barber role assignments from Supabase.',
     }
   }
 
-  const privilegedSupabase = getPrivilegedSupabase()
+  const privilegedSupabase = createAdminClient()
   const supabase = privilegedSupabase ?? (await createClient())
-  const [profileResponse, authUsers] = await Promise.all([
-    supabase
-      .from('barber_profiles')
-      .select('*')
-      .in('user_id', barberIds),
-    loadAuthUsersByIds(barberIds),
+  const [profileResponse, authUsers, bookingResponse] = await Promise.all([
+    supabase.from('barber_profiles').select('*').in('user_id', roles.barbers),
+    loadAuthUsersByIds(roles.barbers),
+    supabase.from('bookings').select('barber_id, status, starts_at').in('barber_id', roles.barbers),
   ])
 
-  const profileError = profileResponse.error
-  if (profileError && profileError.code !== '42P01' && profileError.code !== 'PGRST116') {
-    console.error('[admin-dashboard] Failed to load barber profile rows', profileError)
+  if (profileResponse.error && profileResponse.error.code !== '42P01' && profileResponse.error.code !== 'PGRST116') {
+    console.error('[admin-dashboard] Failed to load barber profiles', profileResponse.error)
   }
 
   const profileMap = new Map(
@@ -652,51 +469,41 @@ async function getBarbersSection(params: AdminDashboardParams): Promise<AdminBar
       .map((row) => [row.user_id as string, row])
   )
 
-  const { data: bookingRows, error: bookingError } = await supabase
-    .from('bookings')
-    .select('barber_id, status, starts_at')
-    .in('barber_id', barberIds)
-
   const bookingMap = new Map<string, { total: number; upcoming: number; completed: number }>()
 
-  if (!bookingError) {
-    for (const row of (bookingRows ?? []) as Array<{
-      barber_id: string | null
-      status: BookingStatus | null
-      starts_at: string | null
-    }>) {
-      if (!row.barber_id) {
-        continue
-      }
-
-      const current = bookingMap.get(row.barber_id) ?? {
-        total: 0,
-        upcoming: 0,
-        completed: 0,
-      }
-
-      current.total += 1
-
-      if (row.status === 'completed') {
-        current.completed += 1
-      }
-
-      if (row.starts_at && new Date(row.starts_at) >= new Date() && row.status !== 'cancelled') {
-        current.upcoming += 1
-      }
-
-      bookingMap.set(row.barber_id, current)
+  for (const row of (bookingResponse.data ?? []) as Array<{
+    barber_id: string | null
+    status: BookingStatus | null
+    starts_at: string | null
+  }>) {
+    if (!row.barber_id) {
+      continue
     }
+
+    const current = bookingMap.get(row.barber_id) ?? { total: 0, upcoming: 0, completed: 0 }
+    current.total += 1
+
+    if (row.status === 'completed') {
+      current.completed += 1
+    }
+
+    if (row.starts_at && new Date(row.starts_at) >= new Date() && row.status !== 'cancelled') {
+      current.upcoming += 1
+    }
+
+    bookingMap.set(row.barber_id, current)
   }
 
-  const items: AdminBarberRow[] = barberIds
+  const items = roles.barbers
     .map((userId) => {
       const profile = profileMap.get(userId)
       const authUser = authUsers.get(userId)
       const stats = bookingMap.get(userId) ?? { total: 0, upcoming: 0, completed: 0 }
       const fallbackName =
-        authUser?.email?.split('@')[0]?.replace(/[._-]+/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase()) ||
-        'Unnamed barber'
+        authUser?.email
+          ?.split('@')[0]
+          ?.replace(/[._-]+/g, ' ')
+          .replace(/\b\w/g, (character) => character.toUpperCase()) || 'Unnamed barber'
       const displayName = resolveFirstText(profile ?? {}, 'display_name', 'name', 'full_name') || fallbackName
       const profileImageUrl =
         resolveFirstText(profile ?? {}, 'profile_image_url', 'profile_photo_url', 'avatar_url') ||
@@ -724,198 +531,55 @@ async function getBarbersSection(params: AdminDashboardParams): Promise<AdminBar
         completedBookings: stats.completed,
       } satisfies AdminBarberRow
     })
-    .filter((barber) => {
-      if (!queryText) {
-        return true
-      }
-
-      const search = queryText.toLowerCase()
-      return (
-        barber.displayName.toLowerCase().includes(search) ||
-        barber.specialty.toLowerCase().includes(search)
-      )
-    })
     .sort((left, right) => left.displayName.localeCompare(right.displayName))
 
-  const pagedItems = items.slice((page - 1) * BARBER_PAGE_SIZE, page * BARBER_PAGE_SIZE)
-
   return {
-    filters: { query: queryText, page, pageSize: BARBER_PAGE_SIZE },
-    items: pagedItems,
+    items,
     totalCount: items.length,
-    totalPages: Math.max(1, Math.ceil(items.length / BARBER_PAGE_SIZE)),
     enabled: true,
   }
-}
-
-async function getRevenuePanel(): Promise<AdminRevenuePanel> {
-  const supabase = await createClient()
-  const startOfWeek = new Date()
-  startOfWeek.setDate(startOfWeek.getDate() - 7)
-
-  const { data, error } = await supabase
-    .from('transactions')
-    .select('amount, processed_at')
-    .order('processed_at', { ascending: false })
-    .limit(500)
-
-  if (error) {
-    if (isMissingRelationError(error)) {
-      const fallback = await supabase
-        .from('bookings')
-        .select('amount_due, confirmed_at, starts_at, payment_status, status')
-        .in('status', ['confirmed', 'completed'])
-        .eq('payment_status', 'paid')
-
-      if (!fallback.error) {
-        const fallbackRows = (fallback.data ?? []) as Array<{
-          amount_due?: number | null
-          confirmed_at?: string | null
-          starts_at?: string | null
-        }>
-        const weeklyRows = fallbackRows.filter((row) => {
-          const marker = row.confirmed_at ?? row.starts_at
-          const processedAt = marker ? new Date(marker) : null
-          return processedAt && processedAt >= startOfWeek
-        })
-        const totalRevenue = fallbackRows.reduce((sum, row) => sum + (row.amount_due ?? 0), 0)
-        const weeklyRevenue = weeklyRows.reduce((sum, row) => sum + (row.amount_due ?? 0), 0)
-        const averageOrderValue =
-          fallbackRows.length > 0 ? totalRevenue / fallbackRows.length : 0
-
-        return {
-          enabled: true,
-          weeklyRevenue: toCurrency(weeklyRevenue),
-          totalRevenue: toCurrency(totalRevenue),
-          averageOrderValue: toCurrency(averageOrderValue),
-          transactionCount: fallbackRows.length,
-        }
-      }
-    }
-
-    return {
-      enabled: false,
-      weeklyRevenue: toCurrency(0),
-      totalRevenue: toCurrency(0),
-      averageOrderValue: toCurrency(0),
-      transactionCount: 0,
-      errorMessage: isMissingRelationError(error)
-        ? 'Revenue tracking is not enabled because the transactions table is not available.'
-        : 'We could not load revenue data from the transactions table.',
-    }
-  }
-
-  const rows = (data ?? []) as Array<{ amount?: number | null; processed_at?: string | null }>
-  const weeklyRows = rows.filter((row) => {
-    const processedAt = row.processed_at ? new Date(row.processed_at) : null
-    return processedAt && processedAt >= startOfWeek
-  })
-  const totalRevenue = rows.reduce((sum, row) => sum + (row.amount ?? 0), 0)
-  const weeklyRevenue = weeklyRows.reduce((sum, row) => sum + (row.amount ?? 0), 0)
-  const averageOrderValue = rows.length > 0 ? totalRevenue / rows.length : 0
-
-  return {
-    enabled: true,
-    weeklyRevenue: toCurrency(weeklyRevenue),
-    totalRevenue: toCurrency(totalRevenue),
-    averageOrderValue: toCurrency(averageOrderValue),
-    transactionCount: rows.length,
-  }
-}
-
-async function getFeatureStatuses(
-  usersEnabled: boolean,
-  revenuePanel: AdminRevenuePanel
-): Promise<AdminFeatureStatus[]> {
-  const supabase = await createClient()
-  const [{ error: contentError }, { error: emailError }] = await Promise.all([
-    supabase.from('content_items').select('id', { head: true, count: 'exact' }).limit(1),
-    supabase.from('email_subscribers').select('id', { head: true, count: 'exact' }).limit(1),
-  ])
-
-  return [
-    {
-      id: 'feature-users',
-      label: 'User directory',
-      status: usersEnabled ? 'enabled' : 'not_enabled',
-      detail: usersEnabled
-        ? 'Admin user management is connected to Supabase Auth and customer profiles.'
-        : 'User directory requires SUPABASE_SERVICE_ROLE_KEY on the server.',
-    },
-    {
-      id: 'feature-services',
-      label: 'Services management',
-      status: 'not_enabled',
-      detail:
-        'Services are still defined in application code and do not have a production CRUD table yet, so admin editing is hidden.',
-    },
-    {
-      id: 'feature-revenue',
-      label: 'Revenue tracking',
-      status: revenuePanel.enabled ? 'enabled' : 'not_enabled',
-      detail: revenuePanel.enabled
-        ? 'Revenue metrics are sourced from the live transactions table.'
-        : revenuePanel.errorMessage || 'Revenue tracking is not enabled.',
-    },
-    {
-      id: 'feature-content',
-      label: 'Content queue',
-      status: contentError
-        ? isMissingRelationError(contentError)
-          ? 'not_enabled'
-          : 'error'
-        : 'enabled',
-      detail: contentError
-        ? isMissingRelationError(contentError)
-          ? 'Content moderation tables are not available yet, so no admin queue is shown.'
-          : 'Content moderation is configured but could not be loaded.'
-        : 'Content moderation records are available in the database.',
-    },
-    {
-      id: 'feature-email',
-      label: 'Email audience',
-      status: emailError
-        ? isMissingRelationError(emailError)
-          ? 'not_enabled'
-          : 'error'
-        : 'enabled',
-      detail: emailError
-        ? isMissingRelationError(emailError)
-          ? 'Email subscriber management is not enabled yet.'
-          : 'Email subscriber data could not be read.'
-        : 'Email subscriber records are available for operational reporting.',
-    },
-  ]
 }
 
 export async function getAdminDashboardViewModel(
   params: AdminDashboardParams = {}
 ): Promise<AdminDashboardViewModel> {
-  const [metrics, overview, bookings, users, barbers, revenue] = await Promise.all([
-    getMetrics(),
-    getOverviewSummary(),
+  const barbers = await getBarbersSection()
+  const [bookings, users, customerProfilesCount, metricsBase] = await Promise.all([
     getBookingsSection(params),
-    getUsersSection(params),
-    getBarbersSection(params),
-    getRevenuePanel(),
+    getUsersSection(barbers.items),
+    countTable('customer_profiles'),
+    Promise.resolve(barbers.items.filter((item) => !item.profileComplete).length),
   ])
 
-  const featureStatuses = await getFeatureStatuses(users.enabled, revenue)
-  const pendingPayments = bookings.items.filter((booking) => booking.status === 'pending_payment')
+  const metrics = await getMetrics(metricsBase)
+  const pendingPayments = bookings.items.filter(
+    (booking) => booking.status === 'pending_payment' || booking.paymentStatus === 'unpaid'
+  )
+  const problemBookings = bookings.items.filter(
+    (booking) =>
+      booking.status === 'cancelled' ||
+      booking.status === 'expired' ||
+      booking.paymentStatus === 'failed' ||
+      booking.paymentStatus === 'cancelled'
+  )
+  const customerProfileGaps = Math.max(
+    0,
+    users.customers.filter((user) => !user.profileComplete).length
+  )
 
   return {
     headerMessage:
-      'This admin console is running on live operational data only. Unsupported backend features are explicitly marked instead of being simulated.',
+      'Review payments first, keep bookings moving, and watch for missing role or profile setup before it becomes an operational issue.',
     metrics,
-    overview,
-    pendingPayments: {
-      items: pendingPayments,
-      countLabel: `${pendingPayments.length} pending payment${pendingPayments.length === 1 ? '' : 's'} on this view`,
+    attention: {
+      pendingPayments,
+      problemBookings,
+      customerProfileGaps:
+        customerProfilesCount.error ? customerProfileGaps : customerProfileGaps,
+      barberProfileGaps: metricsBase,
     },
     bookings,
     users,
     barbers,
-    revenue,
-    featureStatuses,
   }
 }

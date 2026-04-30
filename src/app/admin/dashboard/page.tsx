@@ -9,22 +9,16 @@ import styles from './dashboard.module.css'
 export const dynamic = 'force-dynamic'
 
 type AdminTabId =
-  | 'overview'
-  | 'pending-payments'
   | 'bookings'
-  | 'customers'
+  | 'payments'
+  | 'users'
   | 'barbers'
-  | 'revenue'
-  | 'system-health'
 
 const VALID_TABS = new Set<AdminTabId>([
-  'overview',
-  'pending-payments',
   'bookings',
-  'customers',
+  'payments',
+  'users',
   'barbers',
-  'revenue',
-  'system-health',
 ] as const)
 
 export default async function AdminDashboardPage({
@@ -61,13 +55,7 @@ export default async function AdminDashboardPage({
       typeof resolvedSearchParams.booking_page === 'string'
         ? resolvedSearchParams.booking_page
         : '1',
-    user_q: typeof resolvedSearchParams.user_q === 'string' ? resolvedSearchParams.user_q : '',
-    user_page:
-      typeof resolvedSearchParams.user_page === 'string' ? resolvedSearchParams.user_page : '1',
-    barber_q: typeof resolvedSearchParams.barber_q === 'string' ? resolvedSearchParams.barber_q : '',
-    barber_page:
-      typeof resolvedSearchParams.barber_page === 'string' ? resolvedSearchParams.barber_page : '1',
-    tab: typeof resolvedSearchParams.tab === 'string' ? resolvedSearchParams.tab : 'overview',
+    tab: typeof resolvedSearchParams.tab === 'string' ? resolvedSearchParams.tab : 'bookings',
   }
 
   const dashboard = await getAdminDashboardViewModel({
@@ -78,16 +66,11 @@ export default async function AdminDashboardPage({
         ? current.booking_sort
         : 'starts_at',
     bookingDirection: current.booking_direction === 'asc' ? 'asc' : 'desc',
-    bookingPage: Number(current.booking_page),
-    userQuery: current.user_q,
-    userPage: Number(current.user_page),
-    barberQuery: current.barber_q,
-    barberPage: Number(current.barber_page),
   })
 
   const initialTab: AdminTabId = VALID_TABS.has(current.tab as AdminTabId)
     ? (current.tab as AdminTabId)
-    : 'overview'
+    : 'bookings'
 
   return (
     <div className={styles.page}>
@@ -97,7 +80,9 @@ export default async function AdminDashboardPage({
             <div>
               <p className={styles.eyebrow}>Only Bangers Operations</p>
               <h1 className={styles.heroTitle}>Admin command center</h1>
-              <p className={styles.heroText}>{dashboard.headerMessage}</p>
+              <p className={styles.heroText}>
+                Keep bookings moving, confirm payments quickly, and make sure customer and barber records stay operational.
+              </p>
             </div>
           </div>
 

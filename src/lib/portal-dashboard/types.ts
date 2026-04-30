@@ -36,30 +36,10 @@ export interface PortalProfileSummary {
   email: string
   phoneNumber: string
   profileImageUrl: string
-  preferredBarber: string
-  groomingNotes: string
   accountRoleLabel: string
-  accountStatusLabel: string
   profileCompletionLabel: string
   isComplete: boolean
   editProfileHref: string | null
-}
-
-export interface PortalLoyaltySummary {
-  visitsCompleted: number
-  progressValue: number
-  progressTarget: number
-  progressLabel: string
-  referralHeadline: string
-  perkCopy: string
-}
-
-export interface PortalMediaItem {
-  id: string
-  title: string
-  format: 'photo' | 'video'
-  capturedAtLabel: string
-  imageUrl: string
 }
 
 export interface PortalDashboardViewModel {
@@ -68,39 +48,13 @@ export interface PortalDashboardViewModel {
   account: {
     firstName: string
     initials: string
-    membershipLabel: string
-  }
-  headerDescription: string
-  nextAppointmentSummary: string
-  quickStats: {
-    nextBookingLabel: string
-    pendingPaymentCountLabel: string
-    completedCutsLabel: string
-    loyaltyProgressLabel: string
-  }
-  overview: {
-    nextConfirmedBooking: PortalBookingCard | null
-    pendingPaymentBooking: PortalBookingCard | null
   }
   bookings: {
-    all: PortalBookingCard[]
-    pendingPayment: PortalBookingCard[]
-    confirmedUpcoming: PortalBookingCard[]
-    completed: PortalBookingCard[]
-    cancelledOrExpired: PortalBookingCard[]
-  }
-  payments: {
-    pending: PortalBookingCard[]
-    paid: PortalBookingCard[]
-    failed: PortalBookingCard[]
-  }
-  tasks: PortalTaskItem[]
-  history: PortalBookingCard[]
-  visitSummary: {
-    totalVisitsLabel: string
-    spendToDateLabel: string
+    nextConfirmedBooking: PortalBookingCard | null
+    pendingPaymentBooking: PortalBookingCard | null
+    attentionPending: PortalBookingCard[]
+    active: PortalBookingCard[]
+    history: PortalBookingCard[]
   }
   profile: PortalProfileSummary
-  loyalty: PortalLoyaltySummary
-  media: PortalMediaItem[]
 }

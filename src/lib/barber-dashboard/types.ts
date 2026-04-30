@@ -1,13 +1,14 @@
 import type { BookingStatus, PaymentStatus } from '@/lib/bookings/types'
 
-export type BarberDataSource = 'live' | 'mock'
+export type BarberDataSource = 'live' | 'empty'
 
 export interface BarberOperatorProfile {
   displayName: string
   specialty: string
   image: string
-  shiftLabel: string
-  focusNote: string
+  bio: string
+  activeStatus: 'active' | 'inactive'
+  editProfileHref: string | null
 }
 
 export interface BarberDashboardBooking {
@@ -26,24 +27,7 @@ export interface BarberDashboardBooking {
   pendingExpiresAtLabel: string
   notes: string
   customerAvatarUrl: string
-}
-
-export interface BarberDashboardCustomer {
-  id: string
-  fullName: string
-  phoneNumber: string
-  email: string
-  visitCountLabel: string
-  upcomingBookingLabel: string
-  preferredService: string
-  profileImageUrl: string
-}
-
-export interface BarberPerformanceSummary {
-  cutsCompletedToday: string
-  todayConfirmedCount: string
-  awaitingPaymentCount: string
-  repeatClientsCount: string
+  messageCustomerHref: string | null
 }
 
 export interface BarberDashboardViewModel {
@@ -53,7 +37,4 @@ export interface BarberDashboardViewModel {
   today: BarberDashboardBooking[]
   upcoming: BarberDashboardBooking[]
   awaitingPayment: BarberDashboardBooking[]
-  completed: BarberDashboardBooking[]
-  customers: BarberDashboardCustomer[]
-  performance: BarberPerformanceSummary
 }

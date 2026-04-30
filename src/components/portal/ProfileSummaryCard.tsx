@@ -27,24 +27,14 @@ export function ProfileSummaryCard({
           <span className={styles.infoValue}>{profile.phoneNumber}</span>
         </div>
         <div>
-          <span className={styles.infoLabel}>Preferred Barber</span>
-          <span className={styles.infoValue}>{profile.preferredBarber}</span>
-        </div>
-        <div>
           <span className={styles.infoLabel}>Role</span>
           <span className={styles.infoValue}>{profile.accountRoleLabel}</span>
-        </div>
-        <div>
-          <span className={styles.infoLabel}>Account Status</span>
-          <span className={styles.infoValue}>{profile.accountStatusLabel}</span>
         </div>
         <div>
           <span className={styles.infoLabel}>Profile Status</span>
           <span className={styles.infoValue}>{profile.profileCompletionLabel}</span>
         </div>
       </div>
-
-      <p className={styles.cardText}>{profile.groomingNotes}</p>
 
       {profile.editProfileHref ? (
         <div className={styles.inlineActions}>

@@ -5,8 +5,16 @@ import { BookingStatusBadge } from './BookingStatusBadge'
 
 export function BookingCard({
   booking,
+  actionLabel,
+  actionHref,
+  secondaryActionLabel,
+  secondaryActionHref,
 }: {
   booking: PortalBookingCard
+  actionLabel?: string
+  actionHref?: string | null
+  secondaryActionLabel?: string
+  secondaryActionHref?: string | null
 }) {
   return (
     <article className={styles.bookingCard}>
@@ -56,6 +64,17 @@ export function BookingCard({
           <Link href={booking.whatsappPaymentUrl} className={styles.primaryLink}>
             Open WhatsApp Payment
           </Link>
+        </div>
+      ) : actionLabel && actionHref ? (
+        <div className={styles.inlineActions}>
+          <Link href={actionHref} className={styles.primaryLink}>
+            {actionLabel}
+          </Link>
+          {secondaryActionLabel && secondaryActionHref ? (
+            <Link href={secondaryActionHref} className={styles.inlineLink}>
+              {secondaryActionLabel}
+            </Link>
+          ) : null}
         </div>
       ) : null}
     </article>
