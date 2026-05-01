@@ -106,7 +106,6 @@ export function BarberServicePricesManager({
   const resetForm = () => {
     setEditingId(null)
     setForm(EMPTY_FORM)
-    setMessage('')
     setError('')
   }
 
@@ -131,6 +130,17 @@ export function BarberServicePricesManager({
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+
+    if (!form.serviceId) {
+      setError('Select an approved service before saving.')
+      return
+    }
+
+    if (!form.price || Number.parseFloat(form.price) <= 0) {
+      setError('Enter a valid price greater than 0.')
+      return
+    }
+
     setSaving(true)
     setMessage('')
     setError('')
@@ -155,12 +165,17 @@ export function BarberServicePricesManager({
     const payload = await response.json().catch(() => null)
 
     if (!response.ok || !payload?.ok) {
-      setError(payload?.error?.message ?? 'Could not save this service price.')
+      const details = Array.isArray(payload?.error?.details) ? payload.error.details.join(' ') : ''
+      setError(
+        payload?.error?.message
+          ? `${payload.error.message}${details ? ` ${details}` : ''}`
+          : 'Could not save this service price.'
+      )
       setSaving(false)
       return
     }
 
-    setMessage(editingId ? 'Service price updated.' : 'Service price added.')
+    setMessage(editingId ? 'Service price updated successfully.' : 'Service price added successfully.')
     resetForm()
     setSaving(false)
     await loadPrices()
@@ -210,7 +225,7 @@ export function BarberServicePricesManager({
           <span className={styles.metaLabel}>Price</span>
           <input
             type="number"
-            min="0"
+            min="1"
             step="1"
             className={styles.input}
             value={form.price}

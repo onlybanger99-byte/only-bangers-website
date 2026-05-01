@@ -77,19 +77,28 @@ async function getSupabase() {
   return createAdminClient() ?? (await createClient())
 }
 
-async function getBarberProfileIdentity(userId: string) {
+async function getBarberProfileIdentity(userId: string, requireActive = false) {
   const supabase = await getSupabase()
-  const { data, error } = await supabase
+  let query = supabase
     .from('barber_profiles')
-    .select('id')
+    .select('id, user_id, is_active')
     .eq('user_id', userId)
-    .maybeSingle()
+  if (requireActive) {
+    query = query.eq('is_active', true)
+  }
+  const { data, error } = await query.maybeSingle()
 
   if (error && error.code !== 'PGRST116' && error.code !== '42P01' && error.code !== 'PGRST205') {
     console.error('[barber-service-prices] Failed to resolve barber profile', error)
   }
 
-  return typeof data?.id === 'string' ? data.id : null
+  return data && typeof data.id === 'string'
+    ? {
+        id: data.id,
+        userId: typeof data.user_id === 'string' ? data.user_id : userId,
+        isActive: typeof data.is_active === 'boolean' ? data.is_active : false,
+      }
+    : null
 }
 
 async function getValidActiveServiceIds() {
@@ -176,8 +185,8 @@ async function validateInput(input: BarberServicePriceInput) {
     details.push('Select an approved active service.')
   }
 
-  if (price == null || price < 0) {
-    details.push('Price must be a valid non-negative number.')
+  if (price == null || price <= 0) {
+    details.push('Price must be a valid number greater than 0.')
   }
 
   if (durationMinutes != null && durationMinutes <= 0) {
@@ -199,9 +208,9 @@ async function validateInput(input: BarberServicePriceInput) {
 }
 
 export async function listBarberServicePricesForOwner(userId: string) {
-  const barberProfileId = await getBarberProfileIdentity(userId)
+  const barberProfile = await getBarberProfileIdentity(userId, true)
 
-  if (!barberProfileId) {
+  if (!barberProfile) {
     return {
       ok: false as const,
       message: 'Your barber profile is not active yet.',
@@ -209,7 +218,7 @@ export async function listBarberServicePricesForOwner(userId: string) {
     }
   }
 
-  const result = await getFilteredPriceRows({ barberProfileId })
+  const result = await getFilteredPriceRows({ barberProfileId: barberProfile.id })
 
   if (!result.ok) {
     return result
@@ -222,16 +231,16 @@ export async function listBarberServicePricesForOwner(userId: string) {
 }
 
 export async function listActiveBarberServicePricesForPublic(barberUserId: string) {
-  const barberProfileId = await getBarberProfileIdentity(barberUserId)
+  const barberProfile = await getBarberProfileIdentity(barberUserId, true)
 
-  if (!barberProfileId) {
+  if (!barberProfile) {
     return {
       ok: true as const,
       data: [] as BarberServicePriceSummary[],
     }
   }
 
-  const result = await getFilteredPriceRows({ barberProfileId, onlyActive: true })
+  const result = await getFilteredPriceRows({ barberProfileId: barberProfile.id, onlyActive: true })
 
   if (!result.ok) {
     return result
@@ -398,15 +407,28 @@ export async function getBarberServicePriceById(priceId: string) {
 }
 
 export async function createBarberServicePrice(userId: string, input: BarberServicePriceInput) {
-  const barberProfileId = await getBarberProfileIdentity(userId)
+  console.info('[barber-service-prices] create request', {
+    authUserId: userId,
+    selectedServiceId: input.serviceId,
+    requestedPrice: input.price,
+    requestedDurationMinutes: input.durationMinutes ?? null,
+  })
 
-  if (!barberProfileId) {
+  const barberProfile = await getBarberProfileIdentity(userId, true)
+
+  if (!barberProfile) {
     return {
       ok: false as const,
       message: 'Your barber profile is not active yet.',
       details: ['A barber profile is required before you can add prices.'],
     }
   }
+
+  console.info('[barber-service-prices] barber profile found', {
+    authUserId: userId,
+    barberProfileId: barberProfile.id,
+    barberProfileActive: barberProfile.isActive,
+  })
 
   const validated = await validateInput(input)
 
@@ -418,17 +440,33 @@ export async function createBarberServicePrice(userId: string, input: BarberServ
     }
   }
 
-  const supabase = await createClient()
+  console.info('[barber-service-prices] validated service', {
+    authUserId: userId,
+    barberProfileId: barberProfile.id,
+    selectedServiceId: validated.payload.service_id,
+    selectedServiceName: validated.payload.service_name,
+    price: validated.payload.price,
+    durationMinutes: validated.payload.duration_minutes,
+  })
+
+  const supabase = createAdminClient() ?? (await createClient())
   const { data: existing } = await supabase
     .from('barber_service_prices')
     .select('*')
-    .eq('barber_profile_id', barberProfileId)
+    .eq('barber_profile_id', barberProfile.id)
     .eq('service_id', validated.payload.service_id)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
   if (existing) {
+    console.info('[barber-service-prices] existing row found, updating instead of inserting', {
+      authUserId: userId,
+      barberProfileId: barberProfile.id,
+      existingPriceId: String(existing.id),
+      selectedServiceId: validated.payload.service_id,
+      selectedServiceName: validated.payload.service_name,
+    })
     return updateBarberServicePrice(userId, String(existing.id), {
       serviceId: validated.payload.service_id,
       price: validated.payload.price,
@@ -440,7 +478,7 @@ export async function createBarberServicePrice(userId: string, input: BarberServ
   const { data, error } = await supabase
     .from('barber_service_prices')
     .insert({
-      barber_profile_id: barberProfileId,
+      barber_profile_id: barberProfile.id,
       ...validated.payload,
       is_active: true,
     })
@@ -448,13 +486,30 @@ export async function createBarberServicePrice(userId: string, input: BarberServ
     .single()
 
   if (error) {
-    console.error('[barber-service-prices] Failed to create price', error)
+    console.error('[barber-service-prices] Failed to create price', {
+      authUserId: userId,
+      barberProfileId: barberProfile.id,
+      selectedServiceId: validated.payload.service_id,
+      selectedServiceName: validated.payload.service_name,
+      error,
+    })
     return {
       ok: false as const,
       message: 'We could not save this barber price.',
       details: [error.message],
     }
   }
+
+  console.info('[barber-service-prices] inserted row', {
+    authUserId: userId,
+    barberProfileId: barberProfile.id,
+    priceId: String(data.id),
+    serviceId: data.service_id,
+    serviceName: data.service_name,
+    price: data.price,
+    durationMinutes: data.duration_minutes,
+    isActive: data.is_active,
+  })
 
   return {
     ok: true as const,
@@ -467,9 +522,18 @@ export async function updateBarberServicePrice(
   priceId: string,
   input: Partial<BarberServicePriceInput> & { isActive?: boolean }
 ) {
-  const barberProfileId = await getBarberProfileIdentity(userId)
+  console.info('[barber-service-prices] update request', {
+    authUserId: userId,
+    priceId,
+    selectedServiceId: input.serviceId ?? null,
+    requestedPrice: input.price ?? null,
+    requestedDurationMinutes: input.durationMinutes ?? null,
+    requestedIsActive: input.isActive ?? null,
+  })
 
-  if (!barberProfileId) {
+  const barberProfile = await getBarberProfileIdentity(userId, true)
+
+  if (!barberProfile) {
     return {
       ok: false as const,
       message: 'Your barber profile is not active yet.',
@@ -477,12 +541,18 @@ export async function updateBarberServicePrice(
     }
   }
 
-  const supabase = await createClient()
+  console.info('[barber-service-prices] barber profile found', {
+    authUserId: userId,
+    barberProfileId: barberProfile.id,
+    barberProfileActive: barberProfile.isActive,
+  })
+
+  const supabase = createAdminClient() ?? (await createClient())
   const { data: existing, error: existingError } = await supabase
     .from('barber_service_prices')
     .select('*')
     .eq('id', priceId)
-    .eq('barber_profile_id', barberProfileId)
+    .eq('barber_profile_id', barberProfile.id)
     .maybeSingle()
 
   if (existingError) {
@@ -525,6 +595,16 @@ export async function updateBarberServicePrice(
     }
   }
 
+  console.info('[barber-service-prices] validated service for update', {
+    authUserId: userId,
+    barberProfileId: barberProfile.id,
+    priceId,
+    selectedServiceId: validated.payload.service_id,
+    selectedServiceName: validated.payload.service_name,
+    price: validated.payload.price,
+    durationMinutes: validated.payload.duration_minutes,
+  })
+
   const updates: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
     ...validated.payload,
@@ -538,12 +618,19 @@ export async function updateBarberServicePrice(
     .from('barber_service_prices')
     .update(updates)
     .eq('id', priceId)
-    .eq('barber_profile_id', barberProfileId)
+    .eq('barber_profile_id', barberProfile.id)
     .select('*')
     .maybeSingle()
 
   if (error) {
-    console.error('[barber-service-prices] Failed to update price', error)
+    console.error('[barber-service-prices] Failed to update price', {
+      authUserId: userId,
+      barberProfileId: barberProfile.id,
+      priceId,
+      selectedServiceId: validated.payload.service_id,
+      selectedServiceName: validated.payload.service_name,
+      error,
+    })
     return {
       ok: false as const,
       message: 'We could not update this barber price.',
@@ -558,6 +645,17 @@ export async function updateBarberServicePrice(
       details: ['The selected service price does not belong to the current barber.'],
     }
   }
+
+  console.info('[barber-service-prices] upserted row', {
+    authUserId: userId,
+    barberProfileId: barberProfile.id,
+    priceId: String(data.id),
+    serviceId: data.service_id,
+    serviceName: data.service_name,
+    price: data.price,
+    durationMinutes: data.duration_minutes,
+    isActive: data.is_active,
+  })
 
   return {
     ok: true as const,

@@ -52,6 +52,14 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
+  console.info('[api/barber/service-prices] POST request', {
+    authUserId: user.id,
+    role,
+    serviceId: body?.serviceId ?? null,
+    price: body?.price ?? null,
+    durationMinutes: body?.durationMinutes ?? null,
+    isActive: body?.isActive ?? null,
+  })
 
   if (typeof body.serviceName === 'string' && body.serviceName.trim().length > 0) {
     return Response.json(
@@ -68,11 +76,24 @@ export async function POST(request: NextRequest) {
   })
 
   if (!result.ok) {
+    console.error('[api/barber/service-prices] POST failed', {
+      authUserId: user.id,
+      serviceId: body?.serviceId ?? null,
+      errorMessage: result.message,
+      errorDetails: result.details ?? [],
+    })
     return Response.json(
       { ok: false, error: { code: 'VALIDATION_ERROR', message: result.message, details: result.details } },
       { status: 400 }
     )
   }
+
+  console.info('[api/barber/service-prices] POST success', {
+    authUserId: user.id,
+    priceId: result.data.id,
+    serviceId: result.data.serviceId,
+    serviceName: result.data.serviceName,
+  })
 
   return Response.json({ ok: true, data: result.data }, { status: 201 })
 }

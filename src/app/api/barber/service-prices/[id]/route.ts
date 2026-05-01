@@ -27,6 +27,15 @@ export async function PATCH(
 
   const { id } = await context.params
   const body = await request.json()
+  console.info('[api/barber/service-prices/[id]] PATCH request', {
+    authUserId: user.id,
+    role,
+    priceId: id,
+    serviceId: body?.serviceId ?? null,
+    price: body?.price ?? null,
+    durationMinutes: body?.durationMinutes ?? null,
+    isActive: body?.isActive ?? null,
+  })
 
   if (typeof body.serviceName === 'string' && body.serviceName.trim().length > 0) {
     return Response.json(
@@ -43,11 +52,24 @@ export async function PATCH(
   })
 
   if (!result.ok) {
+    console.error('[api/barber/service-prices/[id]] PATCH failed', {
+      authUserId: user.id,
+      priceId: id,
+      errorMessage: result.message,
+      errorDetails: result.details ?? [],
+    })
     return Response.json(
       { ok: false, error: { code: 'VALIDATION_ERROR', message: result.message, details: result.details } },
       { status: 400 }
     )
   }
+
+  console.info('[api/barber/service-prices/[id]] PATCH success', {
+    authUserId: user.id,
+    priceId: result.data.id,
+    serviceId: result.data.serviceId,
+    serviceName: result.data.serviceName,
+  })
 
   return Response.json({ ok: true, data: result.data })
 }
@@ -73,9 +95,20 @@ export async function DELETE(
   }
 
   const { id } = await context.params
+  console.info('[api/barber/service-prices/[id]] DELETE request', {
+    authUserId: user.id,
+    role,
+    priceId: id,
+  })
   const result = await deactivateBarberServicePrice(user.id, id)
 
   if (!result.ok) {
+    console.error('[api/barber/service-prices/[id]] DELETE failed', {
+      authUserId: user.id,
+      priceId: id,
+      errorMessage: result.message,
+      errorDetails: result.details ?? [],
+    })
     return Response.json(
       { ok: false, error: { code: 'VALIDATION_ERROR', message: result.message, details: result.details } },
       { status: 400 }
