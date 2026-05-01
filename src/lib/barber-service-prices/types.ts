@@ -31,10 +31,10 @@ export interface PublicBarberServicePriceSummary extends BarberServicePriceSumma
 }
 
 export interface BarberServicePriceInput {
-  serviceId?: string | null
-  serviceName: string
+  serviceId: string
   price: number
   durationMinutes?: number | null
+  isActive?: boolean
 }
 
 export interface PublicServicePriceSummary {

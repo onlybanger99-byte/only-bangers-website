@@ -6,7 +6,6 @@ import {
   getCustomerProfile,
   isProfileComplete,
 } from '@/lib/customer-profiles/service'
-import { services } from '@/data/services'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import {
@@ -419,10 +418,6 @@ function normalizeBookingStatus(
   return normalized
 }
 
-function getServiceAmount(service: { price: string }) {
-  return Number.parseInt(service.price.replace(/[^\d]/g, ''), 10)
-}
-
 function normalizeBookingRecord(row: RawBookingRecord): BookingRecord {
   const rawRecord = row as Record<string, unknown>
   const pendingExpiresAt = row.pending_expires_at ?? null
@@ -452,25 +447,6 @@ function normalizeBookingRecord(row: RawBookingRecord): BookingRecord {
     confirmed_by: row.confirmed_by ?? null,
     created_at: row.created_at ?? '',
   }
-}
-
-function getServiceDefinition(input: { serviceId?: string; serviceName?: string }) {
-  if (input.serviceId) {
-    const byId = services.find((service) => service.id === input.serviceId)
-
-    if (byId) {
-      return byId
-    }
-  }
-
-  if (input.serviceName) {
-    const normalizedName = input.serviceName.trim().toLowerCase()
-    return (
-      services.find((service) => service.name.trim().toLowerCase() === normalizedName) ?? null
-    )
-  }
-
-  return null
 }
 
 function getDateOnly(value: string) {

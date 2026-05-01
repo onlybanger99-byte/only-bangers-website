@@ -1,13 +1,20 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { services } from '@/data/services'
+import { useEffect, useMemo, useState } from 'react'
 import type { BarberServicePriceSummary } from '@/lib/barber-service-prices/types'
 import styles from '@/app/barber/dashboard/dashboard.module.css'
 
+type ServiceOption = {
+  id: string
+  name: string
+  slug: string
+  description: string
+  duration: string
+  sortOrder: number
+}
+
 type PriceFormState = {
   serviceId: string
-  serviceName: string
   price: string
   durationMinutes: string
   isActive: boolean
@@ -15,7 +22,6 @@ type PriceFormState = {
 
 const EMPTY_FORM: PriceFormState = {
   serviceId: '',
-  serviceName: '',
   price: '',
   durationMinutes: '30',
   isActive: true,
@@ -27,6 +33,7 @@ export function BarberServicePricesManager({
   initialPrices: BarberServicePriceSummary[]
 }) {
   const [prices, setPrices] = useState(initialPrices)
+  const [services, setServices] = useState<ServiceOption[]>([])
   const [form, setForm] = useState<PriceFormState>(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -36,6 +43,41 @@ export function BarberServicePricesManager({
   useEffect(() => {
     setPrices(initialPrices)
   }, [initialPrices])
+
+  useEffect(() => {
+    let isActive = true
+
+    fetch('/api/services')
+      .then(async (response) => {
+        const payload = await response.json()
+
+        if (!response.ok || !payload?.ok) {
+          throw new Error(payload?.error?.message ?? 'Could not load approved services.')
+        }
+
+        return Array.isArray(payload.data) ? (payload.data as ServiceOption[]) : []
+      })
+      .then((data) => {
+        if (isActive) {
+          setServices(data)
+        }
+      })
+      .catch((loadError) => {
+        console.error('[barber-service-prices] Failed to load service catalog:', loadError)
+        if (isActive) {
+          setError('Could not load approved services.')
+        }
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  const selectedService = useMemo(
+    () => services.find((service) => service.id === form.serviceId) ?? null,
+    [form.serviceId, services]
+  )
 
   async function loadPrices() {
     const response = await fetch('/api/barber/service-prices')
@@ -53,7 +95,6 @@ export function BarberServicePricesManager({
     setEditingId(price.id)
     setForm({
       serviceId: price.serviceId ?? '',
-      serviceName: price.serviceName,
       price: String(price.price),
       durationMinutes: price.durationMinutes ? String(price.durationMinutes) : '30',
       isActive: price.isActive,
@@ -65,16 +106,27 @@ export function BarberServicePricesManager({
   const resetForm = () => {
     setEditingId(null)
     setForm(EMPTY_FORM)
+    setMessage('')
+    setError('')
   }
 
   const handleServiceSelection = (value: string) => {
-    const selected = services.find((service) => service.id === value)
+    const existing = prices.find((price) => price.serviceId === value) ?? null
 
+    if (existing) {
+      startEditing(existing)
+      setMessage('Existing service price loaded for editing.')
+      return
+    }
+
+    setEditingId(null)
     setForm((current) => ({
       ...current,
       serviceId: value,
-      serviceName: selected?.name ?? current.serviceName,
+      isActive: true,
     }))
+    setMessage('')
+    setError('')
   }
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -84,10 +136,9 @@ export function BarberServicePricesManager({
     setError('')
 
     const requestBody = {
-      serviceId: form.serviceId || null,
-      serviceName: form.serviceName,
+      serviceId: form.serviceId,
       price: Number.parseFloat(form.price),
-      durationMinutes: Number.parseInt(form.durationMinutes, 10),
+      durationMinutes: form.durationMinutes ? Number.parseInt(form.durationMinutes, 10) : null,
       isActive: form.isActive,
     }
 
@@ -130,6 +181,9 @@ export function BarberServicePricesManager({
     }
 
     setMessage('Service price deactivated.')
+    if (editingId === id) {
+      resetForm()
+    }
     await loadPrices()
   }
 
@@ -137,29 +191,20 @@ export function BarberServicePricesManager({
     <div className={styles.formStack}>
       <form className={styles.formGrid} onSubmit={submit}>
         <label className={styles.field}>
-          <span className={styles.metaLabel}>Existing Service</span>
+          <span className={styles.metaLabel}>Approved Service</span>
           <select
             className={styles.input}
             value={form.serviceId}
             onChange={(event) => handleServiceSelection(event.target.value)}
+            required
           >
-            <option value="">Custom service name</option>
+            <option value="">Select a service</option>
             {services.map((service) => (
               <option key={service.id} value={service.id}>
                 {service.name}
               </option>
             ))}
           </select>
-        </label>
-        <label className={styles.field}>
-          <span className={styles.metaLabel}>Service Name</span>
-          <input
-            className={styles.input}
-            value={form.serviceName}
-            onChange={(event) => setForm((current) => ({ ...current, serviceName: event.target.value }))}
-            placeholder="Classic Cut"
-            required
-          />
         </label>
         <label className={styles.field}>
           <span className={styles.metaLabel}>Price</span>
@@ -184,7 +229,6 @@ export function BarberServicePricesManager({
             value={form.durationMinutes}
             onChange={(event) => setForm((current) => ({ ...current, durationMinutes: event.target.value }))}
             placeholder="30"
-            required
           />
         </label>
         <label className={styles.field}>
@@ -207,6 +251,14 @@ export function BarberServicePricesManager({
           </button>
         </div>
       </form>
+
+      {selectedService ? (
+        <div className={styles.panelCard}>
+          <p className={styles.eyebrow}>Selected Service</p>
+          <h3 className={styles.cardTitle}>{selectedService.name}</h3>
+          <p className={styles.cardText}>{selectedService.description}</p>
+        </div>
+      ) : null}
 
       {editingId ? (
         <div className={styles.inlineActions}>
@@ -249,7 +301,7 @@ export function BarberServicePricesManager({
           ))}
         </div>
       ) : (
-        <p className={styles.cardSubmeta}>No services or prices added yet.</p>
+        <p className={styles.cardSubmeta}>No approved services have been priced yet.</p>
       )}
     </div>
   )

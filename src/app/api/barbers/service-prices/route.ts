@@ -6,10 +6,9 @@ import {
 
 export async function GET(request: NextRequest) {
   const serviceId = request.nextUrl.searchParams.get('serviceId')
-  const serviceName = request.nextUrl.searchParams.get('serviceName')
 
-  if (serviceId || serviceName) {
-    const result = await listPublicBarbersForService({ serviceId, serviceName })
+  if (serviceId) {
+    const result = await listPublicBarbersForService({ serviceId })
 
     if (!result.ok) {
       return Response.json(

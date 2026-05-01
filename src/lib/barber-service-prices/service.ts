@@ -1,5 +1,5 @@
-import { services } from '@/data/services'
-import { getSafeImage, isSafeImageSource } from '@/lib/safe-image'
+import { isSafeImageSource } from '@/lib/safe-image'
+import { getActiveServiceById, listActiveServices } from '@/lib/services/service'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import type {
@@ -92,56 +92,10 @@ async function getBarberProfileIdentity(userId: string) {
   return typeof data?.id === 'string' ? data.id : null
 }
 
-function validateInput(input: BarberServicePriceInput) {
-  const serviceName = normalizeText(input.serviceName)
-  const price = normalizeNumber(input.price)
-  const durationMinutes =
-    input.durationMinutes == null ? null : normalizeNumber(input.durationMinutes)
-  const details: string[] = []
+async function getValidActiveServiceIds() {
+  const servicesResult = await listActiveServices()
 
-  if (!serviceName) {
-    details.push('Service name is required.')
-  }
-
-  if (price == null || price < 0) {
-    details.push('Price must be a valid non-negative number.')
-  }
-
-  if (durationMinutes != null && durationMinutes <= 0) {
-    details.push('Duration must be greater than zero.')
-  }
-
-  return {
-    details,
-    payload: {
-      service_id: normalizeText(input.serviceId) || null,
-      service_name: serviceName,
-      price: price ?? 0,
-      duration_minutes: durationMinutes == null ? null : Math.round(durationMinutes),
-    },
-  }
-}
-
-function matchesRequestedService(
-  row: BarberServicePriceRecord,
-  filter?: { serviceId?: string | null; serviceName?: string | null }
-) {
-  const serviceId = normalizeText(filter?.serviceId)
-  const serviceName = normalizeText(filter?.serviceName).toLowerCase()
-
-  if (!serviceId && !serviceName) {
-    return true
-  }
-
-  if (serviceId && row.service_id === serviceId) {
-    return true
-  }
-
-  if (serviceName && normalizeText(row.service_name).toLowerCase() === serviceName) {
-    return true
-  }
-
-  return false
+  return new Set(servicesResult.data.map((service) => service.id))
 }
 
 async function getPublicProfilesMap(barberProfileIds: string[]) {
@@ -168,6 +122,82 @@ async function getPublicProfilesMap(barberProfileIds: string[]) {
   )
 }
 
+async function getFilteredPriceRows(options?: {
+  barberProfileId?: string | null
+  onlyActive?: boolean
+  serviceId?: string | null
+}) {
+  const supabase = await getSupabase()
+  let query = supabase.from('barber_service_prices').select('*').order('service_name', { ascending: true })
+
+  if (options?.barberProfileId) {
+    query = query.eq('barber_profile_id', options.barberProfileId)
+  }
+
+  if (options?.onlyActive) {
+    query = query.eq('is_active', true)
+  }
+
+  if (options?.serviceId) {
+    query = query.eq('service_id', options.serviceId)
+  }
+
+  const { data, error } = await query
+
+  if (error && error.code !== '42P01' && error.code !== 'PGRST205') {
+    console.error('[barber-service-prices] Failed to load price rows', error)
+    return {
+      ok: false as const,
+      message: 'We could not load barber service prices right now.',
+      data: [] as BarberServicePriceRecord[],
+    }
+  }
+
+  const validServiceIds = await getValidActiveServiceIds()
+  const filtered = ((data ?? []) as BarberServicePriceRecord[]).filter(
+    (row) => typeof row.service_id === 'string' && validServiceIds.has(row.service_id)
+  )
+
+  return {
+    ok: true as const,
+    data: filtered,
+  }
+}
+
+async function validateInput(input: BarberServicePriceInput) {
+  const serviceId = normalizeText(input.serviceId)
+  const price = normalizeNumber(input.price)
+  const durationMinutes =
+    input.durationMinutes == null ? null : normalizeNumber(input.durationMinutes)
+  const details: string[] = []
+  const service = await getActiveServiceById(serviceId)
+
+  if (!service) {
+    details.push('Select an approved active service.')
+  }
+
+  if (price == null || price < 0) {
+    details.push('Price must be a valid non-negative number.')
+  }
+
+  if (durationMinutes != null && durationMinutes <= 0) {
+    details.push('Duration must be greater than zero.')
+  }
+
+  return {
+    details,
+    service,
+    payload: service
+      ? {
+          service_id: service.id,
+          service_name: service.name,
+          price: price ?? 0,
+          duration_minutes: durationMinutes == null ? null : Math.round(durationMinutes),
+        }
+      : null,
+  }
+}
+
 export async function listBarberServicePricesForOwner(userId: string) {
   const barberProfileId = await getBarberProfileIdentity(userId)
 
@@ -179,25 +209,15 @@ export async function listBarberServicePricesForOwner(userId: string) {
     }
   }
 
-  const supabase = await getSupabase()
-  const { data, error } = await supabase
-    .from('barber_service_prices')
-    .select('*')
-    .eq('barber_profile_id', barberProfileId)
-    .order('service_name', { ascending: true })
+  const result = await getFilteredPriceRows({ barberProfileId })
 
-  if (error && error.code !== '42P01' && error.code !== 'PGRST205') {
-    console.error('[barber-service-prices] Failed to load owner prices', error)
-    return {
-      ok: false as const,
-      message: 'We could not load your barber prices right now.',
-      data: [] as BarberServicePriceSummary[],
-    }
+  if (!result.ok) {
+    return result
   }
 
   return {
     ok: true as const,
-    data: ((data ?? []) as BarberServicePriceRecord[]).map(toSummary),
+    data: result.data.map(toSummary),
   }
 }
 
@@ -211,60 +231,56 @@ export async function listActiveBarberServicePricesForPublic(barberUserId: strin
     }
   }
 
-  const supabase = await getSupabase()
-  const { data, error } = await supabase
-    .from('barber_service_prices')
-    .select('*')
-    .eq('barber_profile_id', barberProfileId)
-    .eq('is_active', true)
-    .order('service_name', { ascending: true })
+  const result = await getFilteredPriceRows({ barberProfileId, onlyActive: true })
 
-  if (error && error.code !== '42P01' && error.code !== 'PGRST205') {
-    console.error('[barber-service-prices] Failed to load public prices', error)
-    return {
-      ok: false as const,
-      message: 'We could not load barber service prices right now.',
-      data: [] as BarberServicePriceSummary[],
-    }
+  if (!result.ok) {
+    return result
   }
 
   return {
     ok: true as const,
-    data: ((data ?? []) as BarberServicePriceRecord[]).map(toSummary),
+    data: result.data.map(toSummary),
   }
 }
 
 export async function listPublicBarbersForService(filter: {
   serviceId?: string | null
-  serviceName?: string | null
 }) {
-  const supabase = await getSupabase()
-  const { data, error } = await supabase
-    .from('barber_service_prices')
-    .select('*')
-    .eq('is_active', true)
-    .order('price', { ascending: true })
-    .order('service_name', { ascending: true })
+  const serviceId = normalizeText(filter.serviceId)
 
-  if (error && error.code !== '42P01' && error.code !== 'PGRST205') {
-    console.error('[barber-service-prices] Failed to load service offerings', error)
+  if (!serviceId) {
     return {
-      ok: false as const,
-      message: 'We could not load barber prices for this service right now.',
+      ok: true as const,
       data: [] as PublicBarberServicePriceSummary[],
     }
   }
 
-  const matchingRows = ((data ?? []) as BarberServicePriceRecord[]).filter((row) =>
-    matchesRequestedService(row, filter)
-  )
+  const service = await getActiveServiceById(serviceId)
+
+  if (!service) {
+    return {
+      ok: true as const,
+      data: [] as PublicBarberServicePriceSummary[],
+    }
+  }
+
+  const result = await getFilteredPriceRows({ serviceId: service.id, onlyActive: true })
+
+  if (!result.ok) {
+    return {
+      ok: false as const,
+      message: result.message,
+      data: [] as PublicBarberServicePriceSummary[],
+    }
+  }
+
   const profileMap = await getPublicProfilesMap(
-    Array.from(new Set(matchingRows.map((row) => row.barber_profile_id)))
+    Array.from(new Set(result.data.map((row) => row.barber_profile_id)))
   )
 
   return {
     ok: true as const,
-    data: matchingRows
+    data: result.data
       .map((row) => {
         const profile = profileMap.get(row.barber_profile_id)
 
@@ -297,52 +313,29 @@ export async function listPublicBarbersForService(filter: {
 }
 
 export async function listPublicServicePriceSummaries() {
-  const supabase = await getSupabase()
-  const { data, error } = await supabase
-    .from('barber_service_prices')
-    .select('*')
-    .eq('is_active', true)
+  const result = await getFilteredPriceRows({ onlyActive: true })
 
-  if (error && error.code !== '42P01' && error.code !== 'PGRST205') {
-    console.error('[barber-service-prices] Failed to load public service summaries', error)
+  if (!result.ok) {
     return {
       ok: false as const,
-      message: 'We could not load public service pricing right now.',
+      message: result.message,
       data: [] as PublicServicePriceSummary[],
     }
   }
 
-  const profileMap = await getPublicProfilesMap(
-    Array.from(new Set(((data ?? []) as BarberServicePriceRecord[]).map((row) => row.barber_profile_id)))
-  )
-  const serviceDefinitions = new Map(
-    services.map((service) => [
-      service.id,
-      {
-        serviceId: service.id,
-        serviceName: service.name,
-      },
-    ])
-  )
   const grouped = new Map<string, PublicServicePriceSummary>()
 
-  for (const row of (data ?? []) as BarberServicePriceRecord[]) {
-    const profile = profileMap.get(row.barber_profile_id)
-
-    if (!profile) {
+  for (const row of result.data) {
+    if (!row.service_id) {
       continue
     }
 
-    const knownDefinition = row.service_id ? serviceDefinitions.get(row.service_id) : null
-    const serviceName = knownDefinition?.serviceName ?? normalizeText(row.service_name)
-    const serviceId = knownDefinition?.serviceId ?? row.service_id ?? null
-    const key = serviceId ?? serviceName.toLowerCase()
-    const current = grouped.get(key)
+    const current = grouped.get(row.service_id)
 
     if (!current) {
-      grouped.set(key, {
-        serviceId,
-        serviceName,
+      grouped.set(row.service_id, {
+        serviceId: row.service_id,
+        serviceName: row.service_name,
         minPrice: row.price,
         maxPrice: row.price,
         barberCount: 1,
@@ -355,11 +348,22 @@ export async function listPublicServicePriceSummaries() {
     current.barberCount += 1
   }
 
+  const servicesResult = await listActiveServices()
+  const ordered = servicesResult.data.map((service) => {
+    const summary = grouped.get(service.id)
+
+    return {
+      serviceId: service.id,
+      serviceName: service.name,
+      minPrice: summary?.minPrice ?? null,
+      maxPrice: summary?.maxPrice ?? null,
+      barberCount: summary?.barberCount ?? 0,
+    } satisfies PublicServicePriceSummary
+  })
+
   return {
     ok: true as const,
-    data: Array.from(grouped.values()).sort((left, right) =>
-      left.serviceName.localeCompare(right.serviceName)
-    ),
+    data: ordered,
   }
 }
 
@@ -376,7 +380,21 @@ export async function getBarberServicePriceById(priceId: string) {
     return null
   }
 
-  return data ? toSummary(data as BarberServicePriceRecord) : null
+  if (!data) {
+    return null
+  }
+
+  if (typeof data.service_id !== 'string') {
+    return null
+  }
+
+  const service = await getActiveServiceById(data.service_id)
+
+  if (!service) {
+    return null
+  }
+
+  return toSummary(data as BarberServicePriceRecord)
 }
 
 export async function createBarberServicePrice(userId: string, input: BarberServicePriceInput) {
@@ -390,9 +408,9 @@ export async function createBarberServicePrice(userId: string, input: BarberServ
     }
   }
 
-  const validated = validateInput(input)
+  const validated = await validateInput(input)
 
-  if (validated.details.length > 0) {
+  if (validated.details.length > 0 || !validated.payload) {
     return {
       ok: false as const,
       message: 'Service pricing is invalid.',
@@ -401,6 +419,24 @@ export async function createBarberServicePrice(userId: string, input: BarberServ
   }
 
   const supabase = await createClient()
+  const { data: existing } = await supabase
+    .from('barber_service_prices')
+    .select('*')
+    .eq('barber_profile_id', barberProfileId)
+    .eq('service_id', validated.payload.service_id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (existing) {
+    return updateBarberServicePrice(userId, String(existing.id), {
+      serviceId: validated.payload.service_id,
+      price: validated.payload.price,
+      durationMinutes: validated.payload.duration_minutes,
+      isActive: true,
+    })
+  }
+
   const { data, error } = await supabase
     .from('barber_service_prices')
     .insert({
@@ -441,58 +477,63 @@ export async function updateBarberServicePrice(
     }
   }
 
+  const supabase = await createClient()
+  const { data: existing, error: existingError } = await supabase
+    .from('barber_service_prices')
+    .select('*')
+    .eq('id', priceId)
+    .eq('barber_profile_id', barberProfileId)
+    .maybeSingle()
+
+  if (existingError) {
+    console.error('[barber-service-prices] Failed to load price for update', existingError)
+    return {
+      ok: false as const,
+      message: 'We could not load this barber price.',
+      details: [existingError.message],
+    }
+  }
+
+  if (!existing) {
+    return {
+      ok: false as const,
+      message: 'This barber price was not found.',
+      details: ['The selected service price does not belong to the current barber.'],
+    }
+  }
+
+  const resolvedServiceId =
+    normalizeText(input.serviceId) ||
+    (typeof existing.service_id === 'string' ? existing.service_id : '')
+  const resolvedPrice =
+    Object.prototype.hasOwnProperty.call(input, 'price') ? input.price : existing.price
+  const resolvedDuration =
+    Object.prototype.hasOwnProperty.call(input, 'durationMinutes')
+      ? input.durationMinutes
+      : existing.duration_minutes
+  const validated = await validateInput({
+    serviceId: resolvedServiceId,
+    price: resolvedPrice as number,
+    durationMinutes: resolvedDuration as number | null | undefined,
+  })
+
+  if (validated.details.length > 0 || !validated.payload) {
+    return {
+      ok: false as const,
+      message: 'Service pricing is invalid.',
+      details: validated.details,
+    }
+  }
+
   const updates: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
-  }
-  const details: string[] = []
-
-  if (Object.prototype.hasOwnProperty.call(input, 'serviceName')) {
-    const serviceName = normalizeText(input.serviceName)
-
-    if (!serviceName) {
-      details.push('Service name is required.')
-    } else {
-      updates.service_name = serviceName
-    }
-  }
-
-  if (Object.prototype.hasOwnProperty.call(input, 'serviceId')) {
-    updates.service_id = normalizeText(input.serviceId) || null
-  }
-
-  if (Object.prototype.hasOwnProperty.call(input, 'price')) {
-    const price = normalizeNumber(input.price)
-
-    if (price == null || price < 0) {
-      details.push('Price must be a valid non-negative number.')
-    } else {
-      updates.price = price
-    }
-  }
-
-  if (Object.prototype.hasOwnProperty.call(input, 'durationMinutes')) {
-    const duration = input.durationMinutes == null ? null : normalizeNumber(input.durationMinutes)
-
-    if (duration != null && duration <= 0) {
-      details.push('Duration must be greater than zero.')
-    } else {
-      updates.duration_minutes = duration == null ? null : Math.round(duration)
-    }
+    ...validated.payload,
   }
 
   if (typeof input.isActive === 'boolean') {
     updates.is_active = input.isActive
   }
 
-  if (details.length > 0) {
-    return {
-      ok: false as const,
-      message: 'Service pricing is invalid.',
-      details,
-    }
-  }
-
-  const supabase = await createClient()
   const { data, error } = await supabase
     .from('barber_service_prices')
     .update(updates)
@@ -526,16 +567,4 @@ export async function updateBarberServicePrice(
 
 export async function deactivateBarberServicePrice(userId: string, priceId: string) {
   return updateBarberServicePrice(userId, priceId, { isActive: false })
-}
-
-export function getPriceDisplayLabel(price?: number | null) {
-  if (price == null || !Number.isFinite(price)) {
-    return 'Prices vary by barber'
-  }
-
-  return `From R${price}`
-}
-
-export function getSafeProfileImage(src?: string | null) {
-  return getSafeImage(src)
 }

@@ -107,7 +107,6 @@ export default function BookingFlowModal({
 
     const params = new URLSearchParams({
       serviceId: service.id,
-      serviceName: service.name,
     })
 
     fetch(`/api/barbers/service-prices?${params.toString()}`)
@@ -132,7 +131,7 @@ export default function BookingFlowModal({
 
         if (isActive) {
           setOffers([])
-          setErrorMessage('We could not load barber pricing for this cut right now. Please try again.')
+          setErrorMessage('We could not load barber pricing for this service right now. Please try again.')
         }
       })
       .finally(() => {
@@ -438,7 +437,7 @@ export default function BookingFlowModal({
                 <div className="loading-times">Loading barber prices...</div>
               ) : offers.length === 0 ? (
                 <div className="no-times-message">
-                  <p>No barbers are currently offering this cut.</p>
+                  <p>No barbers are currently offering this service.</p>
                 </div>
               ) : (
                 <div className="barber-list">

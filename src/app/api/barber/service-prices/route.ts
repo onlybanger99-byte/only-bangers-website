@@ -52,11 +52,19 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
+
+  if (typeof body.serviceName === 'string' && body.serviceName.trim().length > 0) {
+    return Response.json(
+      { ok: false, error: { code: 'VALIDATION_ERROR', message: 'Custom service names are not allowed.' } },
+      { status: 400 }
+    )
+  }
+
   const result = await createBarberServicePrice(user.id, {
     serviceId: body.serviceId,
-    serviceName: body.serviceName,
     price: body.price,
     durationMinutes: body.durationMinutes,
+    isActive: body.isActive,
   })
 
   if (!result.ok) {

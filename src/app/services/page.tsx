@@ -3,15 +3,16 @@
 import { useEffect, useState } from 'react'
 import BookingFlowModal from '@/components/BookingFlowModal'
 import { readBookingDraft } from '@/lib/bookings/draft'
-import { services } from '@/data/services'
+import { services as fallbackServices } from '@/data/services'
 import styles from './services.module.css'
 
 type ServiceCard = {
   id: string
+  slug: string
   name: string
-  price: number
-  duration: string
   description: string
+  duration: string
+  price: number
   image: string
   priceLabel: string
 }
@@ -22,12 +23,21 @@ type PublicServicePriceSummary = {
   minPrice: number | null
 }
 
-const baseServiceCards: ServiceCard[] = services.map((service) => ({
+type ServiceOption = {
+  id: string
+  slug: string
+  name: string
+  description: string
+  duration: string
+}
+
+const fallbackServiceCards: ServiceCard[] = fallbackServices.map((service) => ({
   id: service.id,
+  slug: service.slug,
   name: service.name,
-  price: Number.parseInt(service.price.replace(/[^\d]/g, ''), 10),
-  duration: service.duration,
   description: service.description,
+  duration: service.duration,
+  price: 0,
   image: '/images/header-bg.png',
   priceLabel: 'Prices vary by barber',
 }))
@@ -43,47 +53,47 @@ function getPriceDisplayLabel(price?: number | null) {
 export default function ServicesPage() {
   const [selectedService, setSelectedService] = useState<ServiceCard | null>(null)
   const [showBookingModal, setShowBookingModal] = useState(false)
-  const [serviceCards, setServiceCards] = useState<ServiceCard[]>(baseServiceCards)
+  const [serviceCards, setServiceCards] = useState<ServiceCard[]>(fallbackServiceCards)
 
   useEffect(() => {
     let isActive = true
 
-    fetch('/api/barbers/service-prices')
-      .then(async (response) => {
-        const payload = await response.json()
-
-        if (!response.ok || !payload?.ok) {
-          throw new Error(payload?.error?.message ?? 'Could not load live barber pricing.')
-        }
-
-        return Array.isArray(payload.data) ? (payload.data as PublicServicePriceSummary[]) : []
-      })
-      .then((summaries) => {
+    Promise.all([
+      fetch('/api/services').then((response) => response.json()),
+      fetch('/api/barbers/service-prices').then((response) => response.json()),
+    ])
+      .then(([servicesPayload, summariesPayload]) => {
         if (!isActive) {
           return
         }
 
+        const activeServices = Array.isArray(servicesPayload?.data)
+          ? (servicesPayload.data as ServiceOption[])
+          : fallbackServiceCards
+        const summaries = Array.isArray(summariesPayload?.data)
+          ? (summariesPayload.data as PublicServicePriceSummary[])
+          : []
         const byService = new Map(
-          summaries.map((summary) => [
-            summary.serviceId ?? summary.serviceName.trim().toLowerCase(),
-            summary,
-          ])
+          summaries
+            .filter((summary) => typeof summary.serviceId === 'string')
+            .map((summary) => [summary.serviceId as string, summary])
         )
 
         setServiceCards(
-          baseServiceCards.map((service) => {
-            const summary =
-              byService.get(service.id) ?? byService.get(service.name.trim().toLowerCase())
-
-            return {
-              ...service,
-              priceLabel: getPriceDisplayLabel(summary?.minPrice ?? null),
-            }
-          })
+          activeServices.map((service) => ({
+            id: service.id,
+            slug: service.slug,
+            name: service.name,
+            description: service.description,
+            duration: service.duration,
+            price: 0,
+            image: '/images/header-bg.png',
+            priceLabel: getPriceDisplayLabel(byService.get(service.id)?.minPrice ?? null),
+          }))
         )
       })
       .catch((error) => {
-        console.error('[services] Failed to load public service price summaries:', error)
+        console.error('[services] Failed to load fixed service catalog:', error)
       })
 
     return () => {
@@ -125,7 +135,7 @@ export default function ServicesPage() {
       <div className="main-content">
         <div className="page-header">
           <h1 className="page-title">Our Services</h1>
-          <p className="page-subtitle">Choose your cut first, then match with the barber and price that fit you best.</p>
+          <p className="page-subtitle">Choose one of our approved cuts, then pick the barber and price that work for you.</p>
         </div>
 
         <div className="services-grid">
@@ -153,7 +163,7 @@ export default function ServicesPage() {
                   </span>
                 </div>
 
-                <p className={styles.priceHint}>Final price is set by the barber you choose.</p>
+                <p className={styles.priceHint}>Final price depends on the barber you choose.</p>
 
                 <div className="card-actions">
                   <button
