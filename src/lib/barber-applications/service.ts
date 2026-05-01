@@ -1,6 +1,7 @@
 import { getCustomerProfileCompletionState } from '@/lib/customer-profiles/service'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   copyApplicationAvailabilityToBarber,
   listApplicationAvailabilitySlots,
@@ -139,6 +140,147 @@ function validateInput(input: CreateBarberApplicationInput | UpdateBarberProfile
 
 async function getPrivilegedSupabase() {
   return createAdminClient() ?? (await createClient())
+}
+
+function logApprovalStep(step: string, context: Record<string, unknown>) {
+  console.info('[barber-applications][approve]', step, context)
+}
+
+function serializeError(error: { message?: string; code?: string; details?: string | null; hint?: string | null } | null | undefined) {
+  if (!error) {
+    return 'Unknown error.'
+  }
+
+  return [error.message, error.code, error.details, error.hint].filter(Boolean).join(' | ')
+}
+
+function isMissingColumnError(error: { code?: string; message?: string } | null | undefined) {
+  if (!error) {
+    return false
+  }
+
+  return error.code === '42703' || /column .* does not exist/i.test(error.message ?? '')
+}
+
+async function requireAdminSupabaseForMutations() {
+  const adminClient = createAdminClient()
+
+  if (!adminClient) {
+    return {
+      ok: false as const,
+      message: 'Supabase service role is not configured for admin approval.',
+      details: ['Set SUPABASE_SERVICE_ROLE_KEY in the deployment environment before approving barber applications.'],
+    }
+  }
+
+  return {
+    ok: true as const,
+    client: adminClient,
+  }
+}
+
+async function insertOrUpdateBarberProfileWithFallbacks(
+  supabase: SupabaseClient,
+  userId: string,
+  payload: Record<string, unknown>
+) {
+  const optionalColumns = new Set([
+    'specialty',
+    'phone',
+    'avatar_url',
+    'profile_image_url',
+    'profile_photo_url',
+    'instagram_url',
+    'tiktok_url',
+    'facebook_url',
+    'portfolio_url',
+    'available_days',
+    'available_start_time',
+    'available_end_time',
+    'location',
+    'cutting_location',
+    'bio',
+    'display_name',
+    'is_active',
+  ])
+
+  const nextPayload = { ...payload }
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const saveResult = await saveBarberProfileForUser(supabase, userId, nextPayload)
+
+    if (saveResult.ok) {
+      return saveResult
+    }
+
+    if (!isMissingColumnError(saveResult.error)) {
+      return saveResult
+    }
+
+    const match = /column ["']?([a-zA-Z0-9_]+)["']?/i.exec(saveResult.error.message ?? '')
+    const missingColumn = match?.[1]
+
+    if (!missingColumn || !optionalColumns.has(missingColumn) || !(missingColumn in nextPayload)) {
+      return saveResult
+    }
+
+    logApprovalStep('retry_without_missing_column', {
+      userId,
+      missingColumn,
+    })
+    delete nextPayload[missingColumn]
+  }
+
+  return {
+    ok: false as const,
+    error: {
+      message: 'Too many schema compatibility retries while saving the barber profile.',
+    },
+  }
+}
+
+async function saveBarberProfileForUser(
+  supabase: Awaited<ReturnType<typeof getPrivilegedSupabase>>,
+  userId: string,
+  payload: Record<string, unknown>
+) {
+  const { data: existingProfile, error: existingProfileError } = await supabase
+    .from('barber_profiles')
+    .select('id')
+    .eq('user_id', userId)
+    .limit(1)
+    .maybeSingle()
+
+  if (
+    existingProfileError &&
+    existingProfileError.code !== 'PGRST116' &&
+    existingProfileError.code !== '42P01' &&
+    existingProfileError.code !== 'PGRST205'
+  ) {
+    return {
+      ok: false as const,
+      error: existingProfileError,
+    }
+  }
+
+  if (existingProfile?.id) {
+    const { error } = await supabase
+      .from('barber_profiles')
+      .update({
+        ...payload,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existingProfile.id)
+
+    return error ? { ok: false as const, error } : { ok: true as const }
+  }
+
+  const { error } = await supabase.from('barber_profiles').insert({
+    user_id: userId,
+    ...payload,
+  })
+
+  return error ? { ok: false as const, error } : { ok: true as const }
 }
 
 export async function getLatestBarberApplicationForUser(userId: string) {
@@ -291,7 +433,14 @@ export async function createBarberApplication(userId: string, input: CreateBarbe
 }
 
 export async function approveBarberApplication(applicationId: string, reviewerId: string) {
-  const supabase = await getPrivilegedSupabase()
+  const adminResult = await requireAdminSupabaseForMutations()
+
+  if (!adminResult.ok) {
+    return adminResult
+  }
+
+  const supabase = adminResult.client
+  logApprovalStep('start', { applicationId, reviewerId })
   const { data, error } = await supabase
     .from('barber_applications')
     .select('*')
@@ -303,16 +452,27 @@ export async function approveBarberApplication(applicationId: string, reviewerId
     return {
       ok: false as const,
       message: 'Application not found.',
-      details: [error?.message ?? 'Missing application record.'],
+      details: [serializeError(error) || 'Missing application record.'],
     }
   }
 
   const application = data as BarberApplicationRecord
+  logApprovalStep('application_loaded', {
+    applicationId,
+    applicantUserId: application.user_id,
+    status: application.status,
+  })
   const { data: customerProfile } = await supabase
     .from('customer_profiles')
     .select('*')
     .eq('user_id', application.user_id)
     .maybeSingle()
+  const authUser = await supabase.auth.admin.getUserById(application.user_id)
+  const fallbackDisplayName =
+    normalizeText(application.display_name) ||
+    normalizeText(customerProfile?.full_name) ||
+    normalizeText(authUser?.data.user?.email?.split('@')[0]) ||
+    'Barber'
 
   const profileImage =
     normalizeNullableText(customerProfile?.profile_image_url) ??
@@ -320,15 +480,15 @@ export async function approveBarberApplication(applicationId: string, reviewerId
     normalizeNullableText(customerProfile?.avatar_url)
 
   const profilePayload = {
-    user_id: application.user_id,
-    display_name:
-      normalizeText(application.display_name) || 'Only Bangers Barber',
+    display_name: fallbackDisplayName,
+    phone: normalizeNullableText(application.phone),
     specialty: 'Only Bangers Team',
-    bio: normalizeText(application.bio),
+    bio: normalizeText(application.bio) || 'Only Bangers barber profile approved by admin.',
     profile_image_url: profileImage,
     profile_photo_url: profileImage,
     avatar_url: profileImage,
     cutting_location: normalizeText(application.cutting_location),
+    location: normalizeText(application.cutting_location),
     instagram_url: normalizeNullableText(application.instagram_url),
     tiktok_url: normalizeNullableText(application.tiktok_url),
     facebook_url: normalizeNullableText(application.facebook_url),
@@ -337,36 +497,77 @@ export async function approveBarberApplication(applicationId: string, reviewerId
     available_start_time: null,
     available_end_time: null,
     is_active: true,
-    updated_at: new Date().toISOString(),
   }
 
-  const { error: profileError } = await supabase
-    .from('barber_profiles')
-    .upsert(profilePayload, { onConflict: 'user_id' })
+  logApprovalStep('saving_profile', {
+    applicantUserId: application.user_id,
+    hasPhone: Boolean(profilePayload.phone),
+    hasProfileImage: Boolean(profileImage),
+  })
+  const profileResult = await insertOrUpdateBarberProfileWithFallbacks(
+    supabase,
+    application.user_id,
+    profilePayload
+  )
 
-  if (profileError) {
-    console.error('[barber-applications] Failed to upsert barber profile', profileError)
+  if (!profileResult.ok) {
+    console.error(
+      '[barber-applications] Failed to create or update barber profile',
+      profileResult.error
+    )
     return {
       ok: false as const,
       message: 'Could not activate barber profile.',
-      details: [profileError.message],
+      details: [serializeError(profileResult.error)],
     }
   }
 
-  const { error: roleError } = await supabase
+  logApprovalStep('profile_saved', { applicantUserId: application.user_id })
+  const { data: existingRoleRow, error: existingRoleError } = await supabase
     .from('user_roles')
-    .upsert({ user_id: application.user_id, role: 'barber' }, { onConflict: 'user_id' })
+    .select('role')
+    .eq('user_id', application.user_id)
+    .maybeSingle()
 
-  if (roleError) {
-    console.error('[barber-applications] Failed to promote role', roleError)
+  if (existingRoleError && existingRoleError.code !== 'PGRST116' && existingRoleError.code !== 'PGRST205') {
+    console.error('[barber-applications] Failed to inspect existing role', existingRoleError)
     return {
       ok: false as const,
-      message: 'Could not update the user role to barber.',
-      details: [roleError.message],
+      message: 'Could not inspect the current user role before approval.',
+      details: [serializeError(existingRoleError)],
     }
   }
 
-  await copyApplicationAvailabilityToBarber(application.id, application.user_id)
+  if (existingRoleRow?.role !== 'admin') {
+    const { error: roleError } = await supabase
+      .from('user_roles')
+      .upsert({ user_id: application.user_id, role: 'barber' }, { onConflict: 'user_id' })
+
+    if (roleError) {
+      console.error('[barber-applications] Failed to promote role', roleError)
+      return {
+        ok: false as const,
+        message: 'Could not update the user role to barber.',
+        details: [serializeError(roleError)],
+      }
+    }
+
+    logApprovalStep('role_updated', {
+      applicantUserId: application.user_id,
+      role: 'barber',
+    })
+  } else {
+    logApprovalStep('role_preserved', {
+      applicantUserId: application.user_id,
+      existingRole: 'admin',
+    })
+  }
+
+  await copyApplicationAvailabilityToBarber(application.id, application.user_id, supabase)
+  logApprovalStep('availability_copied', {
+    applicationId,
+    applicantUserId: application.user_id,
+  })
 
   const { data: updated, error: updateError } = await supabase
     .from('barber_applications')
@@ -386,9 +587,15 @@ export async function approveBarberApplication(applicationId: string, reviewerId
     return {
       ok: false as const,
       message: 'Barber role was updated, but the application status could not be finalized.',
-      details: [updateError.message],
+      details: [serializeError(updateError)],
     }
   }
+
+  logApprovalStep('complete', {
+    applicationId,
+    applicantUserId: application.user_id,
+    finalStatus: 'approved',
+  })
 
   return {
     ok: true as const,

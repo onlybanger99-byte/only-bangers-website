@@ -4,6 +4,7 @@ export interface BookingDraft {
   serviceId: string
   serviceName: string
   servicePrice: number
+  barberServicePriceId?: string
   serviceImage?: string
   barberId: string
   barberName: string

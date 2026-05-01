@@ -8,6 +8,7 @@ import {
   buildBookingWhatsAppMessage,
   buildBookingWhatsAppUrl,
 } from '@/lib/whatsapp/booking-message'
+import { formatDate, formatDateTime, formatTime, isValidDateValue } from '@/lib/date-time'
 import type { PortalBookingCard, PortalDashboardViewModel } from './types'
 
 function getFirstName(email: string) {
@@ -36,62 +37,6 @@ function getFullName(email: string) {
   return segments.join(' ')
 }
 
-function formatDateLabel(value?: string | null) {
-  if (!value) {
-    return 'Date pending'
-  }
-
-  const parsed = new Date(value)
-
-  if (Number.isNaN(parsed.getTime())) {
-    return 'Date pending'
-  }
-
-  return new Intl.DateTimeFormat('en-ZA', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(parsed)
-}
-
-function formatTimeLabel(value?: string | null) {
-  if (!value) {
-    return 'Time pending'
-  }
-
-  const parsed = new Date(value)
-
-  if (Number.isNaN(parsed.getTime())) {
-    return 'Time pending'
-  }
-
-  return new Intl.DateTimeFormat('en-ZA', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(parsed)
-}
-
-function formatDateTimeLabel(value?: string | null) {
-  if (!value) {
-    return 'Date pending'
-  }
-
-  const parsed = new Date(value)
-
-  if (Number.isNaN(parsed.getTime())) {
-    return 'Date pending'
-  }
-
-  return new Intl.DateTimeFormat('en-ZA', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(parsed)
-}
-
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat('en-ZA', {
     style: 'currency',
@@ -105,23 +50,11 @@ function formatOptionalCurrency(amount: number | null | undefined) {
 }
 
 function formatOptionalDateTime(value?: string | null) {
-  if (!value) {
+  if (!value || !isValidDateValue(value)) {
     return null
   }
 
-  const parsed = new Date(value)
-
-  if (Number.isNaN(parsed.getTime())) {
-    return null
-  }
-
-  return new Intl.DateTimeFormat('en-ZA', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(parsed)
+  return formatDateTime(value)
 }
 
 function getAppointmentStatusMessage(status: BookingStatus) {
@@ -182,8 +115,8 @@ function buildPaymentUrl(input: {
         barberName:
           input.booking.barber_name ?? formatBookingBarberName(input.booking.barber_id),
         serviceName: input.booking.service_name,
-        dateLabel: formatDateLabel(input.booking.starts_at),
-        timeLabel: formatTimeLabel(input.booking.starts_at),
+        dateLabel: formatDate(input.booking.starts_at),
+        timeLabel: formatTime(input.booking.starts_at),
         bookingReference: input.booking.payment_reference,
         amountDueLabel: formatCurrency(input.booking.amount_due),
       })
@@ -207,9 +140,9 @@ function toPortalBookingCard(input: {
     barberName:
       booking.barber_name ?? formatBookingBarberName(booking.barber_id) ?? 'Barber not assigned',
     startsAt: booking.starts_at,
-    dateLabel: formatDateLabel(booking.starts_at),
-    timeLabel: formatTimeLabel(booking.starts_at),
-    startsAtLabel: formatDateTimeLabel(booking.starts_at),
+    dateLabel: formatDate(booking.starts_at),
+    timeLabel: formatTime(booking.starts_at),
+    startsAtLabel: formatDateTime(booking.starts_at),
     status: booking.status,
     paymentStatus: booking.payment_status,
     statusMessage: getAppointmentStatusMessage(booking.status),

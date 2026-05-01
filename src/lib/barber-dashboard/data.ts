@@ -1,8 +1,10 @@
 import { barbers } from '@/data/barbers'
 import { getLatestBarberApplicationForUser } from '@/lib/barber-applications/service'
+import { listBarberServicePricesForOwner } from '@/lib/barber-service-prices/service'
 import { getBarberProfileByUserId } from '@/lib/barbers/service'
 import { listBookings } from '@/lib/bookings/service'
 import { getCustomerProfilesByUserIds } from '@/lib/customer-profiles/service'
+import { formatDate, formatDateTime, formatTime } from '@/lib/date-time'
 import type { BarberDashboardBooking, BarberDashboardViewModel, BarberOperatorProfile } from './types'
 
 type BarberDashboardIdentity = {
@@ -12,61 +14,6 @@ type BarberDashboardIdentity = {
 
 type InternalBooking = BarberDashboardBooking & {
   rawStartsAt: string
-}
-
-function formatTimeLabel(value?: string | null) {
-  if (!value) {
-    return 'Time pending'
-  }
-
-  const parsed = new Date(value)
-
-  if (Number.isNaN(parsed.getTime())) {
-    return 'Time pending'
-  }
-
-  return new Intl.DateTimeFormat('en-ZA', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(parsed)
-}
-
-function formatDateLabel(value?: string | null) {
-  if (!value) {
-    return 'Date pending'
-  }
-
-  const parsed = new Date(value)
-
-  if (Number.isNaN(parsed.getTime())) {
-    return 'Date pending'
-  }
-
-  return new Intl.DateTimeFormat('en-ZA', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(parsed)
-}
-
-function formatDateTimeLabel(value?: string | null) {
-  if (!value) {
-    return 'Not set'
-  }
-
-  const parsed = new Date(value)
-
-  if (Number.isNaN(parsed.getTime())) {
-    return 'Not set'
-  }
-
-  return new Intl.DateTimeFormat('en-ZA', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(parsed)
 }
 
 function formatAmount(amount?: number | null) {
@@ -93,7 +40,7 @@ async function buildOperatorProfile(identity: BarberDashboardIdentity): Promise<
     return {
       displayName: liveProfile.displayName,
       specialty: liveProfile.specialty,
-      image: liveProfile.profileImageUrl,
+      image: liveProfile.profileImageUrl ?? null,
       bio: liveProfile.bio,
       cuttingLocation: liveProfile.cuttingLocation,
       instagramUrl: liveProfile.instagramUrl,
@@ -118,7 +65,7 @@ async function buildOperatorProfile(identity: BarberDashboardIdentity): Promise<
   return {
     displayName: matched.name,
     specialty: matched.specialty,
-    image: matched.image,
+    image: matched.image ?? null,
     bio:
       latestApplication?.bio ||
       'Your public barber profile can be completed once profile management is connected.',
@@ -176,12 +123,12 @@ async function getLiveAppointments(
         customerPhone: profile?.phoneNumber ?? 'Phone pending',
         customerEmail: 'Email unavailable',
         serviceName: row.service_name || 'Service not specified',
-        bookingDateLabel: formatDateLabel(row.starts_at),
-        bookingTimeLabel: formatTimeLabel(row.starts_at),
-        startsAtLabel: formatDateTimeLabel(row.starts_at),
+        bookingDateLabel: formatDate(row.starts_at),
+        bookingTimeLabel: formatTime(row.starts_at),
+        startsAtLabel: formatDateTime(row.starts_at),
         amountDueLabel: formatAmount(row.amount_due),
         pendingExpiresAtLabel:
-          row.pending_expires_at ? formatDateTimeLabel(row.pending_expires_at) : 'Not set',
+          row.pending_expires_at ? formatDateTime(row.pending_expires_at) : 'Date not set',
         notes: row.notes ?? 'No customer notes were captured for this booking.',
         customerAvatarUrl: profile?.profileImageUrl ?? '/images/header-bg.png',
         messageCustomerHref: buildWhatsAppHref(profile?.phoneNumber ?? null),
@@ -232,7 +179,10 @@ export async function getBarberDashboardViewModel(
   identity: BarberDashboardIdentity
 ): Promise<BarberDashboardViewModel> {
   const operator = await buildOperatorProfile(identity)
-  const liveAppointments = await getLiveAppointments(identity)
+  const [liveAppointments, servicePricesResult] = await Promise.all([
+    getLiveAppointments(identity),
+    listBarberServicePricesForOwner(identity.userId),
+  ])
 
   return {
     dataSource:
@@ -244,6 +194,7 @@ export async function getBarberDashboardViewModel(
     readinessMessage:
       'Confirmed bookings appear in your working schedule. Pending-payment holds stay separate until admin verification is complete.',
     operator,
+    servicePrices: servicePricesResult.ok ? servicePricesResult.data : [],
     today: liveAppointments.today,
     upcoming: liveAppointments.upcoming,
     awaitingPayment: liveAppointments.awaitingPayment,

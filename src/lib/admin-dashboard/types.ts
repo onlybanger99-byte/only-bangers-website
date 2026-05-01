@@ -41,6 +41,7 @@ export interface AdminUserRow {
   accountStatus: 'active' | 'suspended' | 'pending'
   createdAtLabel: string
   profileComplete: boolean
+  editable: boolean
 }
 
 export interface AdminUsersSection {
@@ -56,11 +57,24 @@ export interface AdminBarberRow {
   displayName: string
   specialty: string
   profileImageUrl: string
+  bio: string
+  cuttingLocation: string
+  instagramUrl: string | null
+  tiktokUrl: string | null
+  facebookUrl: string | null
+  portfolioUrl: string | null
   activeStatus: 'active' | 'inactive'
   profileComplete: boolean
   totalBookings: number
   upcomingBookings: number
   completedBookings: number
+  servicePrices: Array<{
+    id: string
+    serviceName: string
+    price: number
+    durationMinutes: number | null
+    isActive: boolean
+  }>
 }
 
 export interface AdminBarberApplicationRow {

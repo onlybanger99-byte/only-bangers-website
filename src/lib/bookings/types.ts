@@ -36,6 +36,7 @@ export interface BookingRecord {
   user_id: string
   barber_id: string | null
   barber_name: string | null
+  barber_service_price_id: string | null
   service_name: string
   service_id: string | null
   starts_at: string
@@ -70,6 +71,7 @@ export interface BookingListFilters {
 
 export interface CreateBookingInput {
   barberId?: string | null
+  barberServicePriceId?: string | null
   serviceId?: string
   serviceName?: string
   startsAt: string
@@ -95,6 +97,12 @@ export interface UpdateBookingInput {
 export interface BookingAvailability {
   barberId: string
   date: string
+  slots: Array<{
+    id: string
+    available_date: string
+    start_time: string
+    end_time: string
+  }>
   availabilitySlots: Array<{
     id: string
     availableDate: string

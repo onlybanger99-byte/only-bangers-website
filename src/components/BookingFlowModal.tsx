@@ -7,6 +7,7 @@ import {
   readBookingDraft,
   writeBookingDraft,
 } from '@/lib/bookings/draft'
+import { formatDate, formatDateTime, formatTime } from '@/lib/date-time'
 import { supabase } from '@/lib/supabase/client'
 
 interface BookingFlowModalProps {
@@ -29,7 +30,15 @@ interface BarberOption {
   isActive?: boolean
 }
 
-type Step = 'barber' | 'date' | 'time' | 'confirm'
+interface BarberServicePriceOption {
+  id: string
+  serviceId: string | null
+  serviceName: string
+  price: number
+  durationMinutes: number | null
+}
+
+type Step = 'barber' | 'service' | 'date' | 'time' | 'confirm'
 
 function isSelectableDate(dateStr: string) {
   const date = new Date(`${dateStr}T00:00:00.000Z`)
@@ -51,10 +60,13 @@ export default function BookingFlowModal({
   const [selectedBarber, setSelectedBarber] = useState<BarberOption | null>(null)
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedTime, setSelectedTime] = useState('')
+  const [selectedServicePrice, setSelectedServicePrice] = useState<BarberServicePriceOption | null>(null)
   const [availableTimes, setAvailableTimes] = useState<string[]>([])
+  const [servicePrices, setServicePrices] = useState<BarberServicePriceOption[]>([])
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [barbers, setBarbers] = useState<BarberOption[]>([])
   const [loadingBarbers, setLoadingBarbers] = useState(false)
+  const [loadingPrices, setLoadingPrices] = useState(false)
   const [loadingTimes, setLoadingTimes] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -64,13 +76,7 @@ export default function BookingFlowModal({
       return ''
     }
 
-    return new Date(`${selectedDate}T${selectedTime}:00`).toLocaleString('en-ZA', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    return `${formatDate(selectedDate)} at ${formatTime(selectedTime)}`
   }, [selectedDate, selectedTime])
 
   useEffect(() => {
@@ -89,8 +95,10 @@ export default function BookingFlowModal({
     if (!isOpen) {
       setStep('barber')
       setSelectedBarber(null)
+      setSelectedServicePrice(null)
       setSelectedDate('')
       setSelectedTime('')
+      setServicePrices([])
       setCurrentMonth(new Date())
       setAvailableTimes([])
       setErrorMessage('')
@@ -173,10 +181,95 @@ export default function BookingFlowModal({
     }
 
     setSelectedBarber(draftBarber)
+    setSelectedServicePrice(null)
     setSelectedDate(draft.date)
     setSelectedTime(draft.time)
-    setStep('confirm')
+    setStep('service')
   }, [barbers, isOpen, service.id])
+
+  useEffect(() => {
+    if (!selectedBarber) {
+      setServicePrices([])
+      setSelectedServicePrice(null)
+      return
+    }
+
+    let isActive = true
+    setLoadingPrices(true)
+    setErrorMessage('')
+
+    fetch(`/api/barbers/${selectedBarber.id}/service-prices`)
+      .then(async (response) => {
+        const payload = await response.json()
+
+        if (!response.ok || !payload?.ok) {
+          throw new Error(payload?.error?.message ?? 'Could not load barber prices.')
+        }
+
+        return Array.isArray(payload.data) ? payload.data : []
+      })
+      .then((items) => {
+        if (!isActive) {
+          return
+        }
+
+        const nextPrices = (items as Record<string, unknown>[])
+          .map((item: Record<string, unknown>) => ({
+            id: typeof item.id === 'string' ? item.id : '',
+            serviceId: typeof item.serviceId === 'string' ? item.serviceId : null,
+            serviceName:
+              typeof item.serviceName === 'string'
+                ? item.serviceName
+                : typeof item.service_name === 'string'
+                  ? item.service_name
+                  : 'Service not specified',
+            price: typeof item.price === 'number' ? item.price : Number.parseFloat(String(item.price ?? 0)),
+            durationMinutes:
+              typeof item.durationMinutes === 'number'
+                ? item.durationMinutes
+                : typeof item.duration_minutes === 'number'
+                  ? item.duration_minutes
+                  : null,
+          }))
+          .filter(
+            (item): item is BarberServicePriceOption =>
+              Boolean(item.id && item.serviceName && Number.isFinite(item.price))
+          )
+
+        setServicePrices(nextPrices)
+
+        const preferred =
+          nextPrices.find((item) => item.serviceId === service.id) ??
+          nextPrices.find((item) => item.serviceName.toLowerCase() === service.name.toLowerCase()) ??
+          null
+
+        setSelectedServicePrice((current) => {
+          if (current && nextPrices.some((item) => item.id === current.id)) {
+            return current
+          }
+
+          return preferred
+        })
+      })
+      .catch((error) => {
+        console.error('[booking-flow] Failed to load barber service prices:', error)
+
+        if (isActive) {
+          setServicePrices([])
+          setSelectedServicePrice(null)
+          setErrorMessage('Could not load barber prices. Please try again.')
+        }
+      })
+      .finally(() => {
+        if (isActive) {
+          setLoadingPrices(false)
+        }
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [selectedBarber, service.id, service.name])
 
   useEffect(() => {
     if (!selectedBarber || !selectedDate) {
@@ -202,7 +295,7 @@ export default function BookingFlowModal({
           throw new Error(payload?.error?.message ?? 'Failed to load availability.')
         }
 
-        return payload.data.availableSlots as string[]
+        return Array.isArray(payload?.data?.availableSlots) ? payload.data.availableSlots as string[] : []
       })
       .then((slots) => {
         if (!isActive) {
@@ -220,9 +313,7 @@ export default function BookingFlowModal({
 
         if (isActive) {
           setAvailableTimes([])
-          setErrorMessage(
-            error instanceof Error ? error.message : 'Failed to load availability.'
-          )
+          setErrorMessage(error instanceof Error ? error.message : 'Could not load availability. Please try again.')
         }
       })
       .finally(() => {
@@ -237,14 +328,15 @@ export default function BookingFlowModal({
   }, [selectedBarber, selectedDate, selectedTime])
 
   const persistDraft = () => {
-    if (!selectedBarber || !selectedDate || !selectedTime) {
+    if (!selectedBarber || !selectedServicePrice || !selectedDate || !selectedTime) {
       return
     }
 
     writeBookingDraft({
-      serviceId: service.id,
-      serviceName: service.name,
-      servicePrice: service.price,
+      serviceId: selectedServicePrice.serviceId ?? service.id,
+      serviceName: selectedServicePrice.serviceName,
+      servicePrice: selectedServicePrice.price,
+      barberServicePriceId: selectedServicePrice.id,
       serviceImage: service.image,
       barberId: selectedBarber.id,
       barberName: selectedBarber.displayName,
@@ -264,7 +356,7 @@ export default function BookingFlowModal({
   }
 
   const handleContinueToConfirm = async () => {
-    if (!selectedBarber || !selectedDate || !selectedTime) {
+    if (!selectedBarber || !selectedServicePrice || !selectedDate || !selectedTime) {
       return
     }
 
@@ -297,7 +389,7 @@ export default function BookingFlowModal({
   }
 
   const handleConfirmBooking = async () => {
-    if (!selectedBarber || !selectedDate || !selectedTime) {
+    if (!selectedBarber || !selectedServicePrice || !selectedDate || !selectedTime) {
       return
     }
 
@@ -313,7 +405,9 @@ export default function BookingFlowModal({
       },
       body: JSON.stringify({
         barberId: selectedBarber.id,
-        serviceId: service.id,
+        barberServicePriceId: selectedServicePrice.id,
+        serviceId: selectedServicePrice.serviceId ?? service.id,
+        serviceName: selectedServicePrice.serviceName,
         startsAt,
       }),
     })
@@ -445,10 +539,11 @@ export default function BookingFlowModal({
                       key={barber.id}
                       className="barber-card"
                       onClick={() => {
-                        setSelectedBarber(barber)
-                        setSelectedDate('')
-                        setSelectedTime('')
-                        setStep('date')
+      setSelectedBarber(barber)
+      setSelectedServicePrice(null)
+      setSelectedDate('')
+      setSelectedTime('')
+      setStep('service')
                       }}
                     >
                       <img
@@ -484,7 +579,7 @@ export default function BookingFlowModal({
                   Previous
                 </button>
                 <span className="calendar-month">
-                  {currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                  {new Intl.DateTimeFormat('en-ZA', { month: 'long', year: 'numeric' }).format(currentMonth)}
                 </span>
                 <button className="calendar-nav-btn" onClick={() => changeMonth(1)}>
                   Next
@@ -508,18 +603,56 @@ export default function BookingFlowModal({
             </>
           ) : null}
 
+          {step === 'service' ? (
+            <>
+              <h2>Choose Service</h2>
+              <p className="modal-subtitle">Services offered by {selectedBarber?.displayName}</p>
+              {loadingPrices ? (
+                <div className="loading-times">Loading barber prices...</div>
+              ) : servicePrices.length === 0 ? (
+                <div className="no-times-message">
+                  <p>This barber has not added services yet.</p>
+                  <button className="modal-btn secondary" onClick={() => setStep('barber')}>
+                    Back
+                  </button>
+                </div>
+              ) : (
+                <div className="barber-list">
+                  {servicePrices.map((item) => (
+                    <div
+                      key={item.id}
+                      className="barber-card"
+                      onClick={() => {
+                        setSelectedServicePrice(item)
+                        setSelectedDate('')
+                        setSelectedTime('')
+                        setStep('date')
+                      }}
+                    >
+                      <div className="barber-info">
+                        <h4>{item.serviceName}</h4>
+                        <p>R{item.price}</p>
+                        <p>
+                          {item.durationMinutes ? `${item.durationMinutes} minutes` : 'Duration not set'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="modal-actions">
+                <button className="modal-btn secondary" onClick={() => setStep('barber')}>
+                  Back
+                </button>
+              </div>
+            </>
+          ) : null}
+
           {step === 'time' ? (
             <>
               <h2>Choose Time</h2>
               <p className="modal-subtitle">
-                {selectedDate
-                  ? new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-ZA', {
-                      weekday: 'long',
-                      month: 'long',
-                      day: 'numeric',
-                    })
-                  : ''}
-                {' '}with {selectedBarber?.displayName}
+                {selectedDate ? formatDate(selectedDate) : 'Date not set'} with {selectedBarber?.displayName}
               </p>
               {loadingTimes ? (
                 <div className="loading-times">Loading available times...</div>
@@ -538,7 +671,7 @@ export default function BookingFlowModal({
                       className={`time-slot ${selectedTime === time ? 'selected' : ''}`}
                       onClick={() => setSelectedTime(time)}
                     >
-                      {time}
+                      {formatTime(time)}
                     </button>
                   ))}
                 </div>
@@ -570,9 +703,10 @@ export default function BookingFlowModal({
                   alt={selectedBarber?.displayName || 'Selected barber'}
                 />
                 <div className="barber-info">
-                  <h4>{service.name}</h4>
+                  <h4>{selectedServicePrice?.serviceName ?? 'Service not selected'}</h4>
                   <p>{selectedBarber?.displayName}</p>
-                  <p>{formattedSelection}</p>
+                  <p>{selectedServicePrice ? `R${selectedServicePrice.price}` : 'Price not set'}</p>
+                  <p>{formattedSelection || formatDateTime(selectedDate)}</p>
                 </div>
               </div>
               <div className="modal-actions">
@@ -582,7 +716,7 @@ export default function BookingFlowModal({
                 <button
                   className="modal-btn primary"
                   onClick={handleConfirmBooking}
-                  disabled={submitting}
+                  disabled={submitting || !selectedServicePrice}
                 >
                   {submitting ? 'Creating Checkout...' : 'Checkout on WhatsApp'}
                 </button>

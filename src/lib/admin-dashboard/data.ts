@@ -1,10 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { listBarberApplicationsForAdmin } from '@/lib/barber-applications/service'
+import { listActiveBarberServicePricesForPublic } from '@/lib/barber-service-prices/service'
 import type { BarberApplicationSummary } from '@/lib/barber-applications/types'
 import { getCustomerProfilesByUserIds } from '@/lib/customer-profiles/service'
 import { normalizeRole } from '@/lib/auth/roles'
 import type { BookingStatus, PaymentStatus } from '@/lib/bookings/types'
+import { formatDate, formatDateTime } from '@/lib/date-time'
 import type {
   AdminBarberRow,
   AdminBarberApplicationRow,
@@ -46,44 +48,6 @@ function toCurrency(amount: number) {
     currency: 'ZAR',
     maximumFractionDigits: 0,
   }).format(amount)
-}
-
-function formatDateTime(value?: string | null) {
-  if (!value) {
-    return 'Not available'
-  }
-
-  const parsed = new Date(value)
-
-  if (Number.isNaN(parsed.getTime())) {
-    return 'Not available'
-  }
-
-  return new Intl.DateTimeFormat('en-ZA', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(parsed)
-}
-
-function formatDate(value?: string | null) {
-  if (!value) {
-    return 'Not available'
-  }
-
-  const parsed = new Date(value)
-
-  if (Number.isNaN(parsed.getTime())) {
-    return 'Not available'
-  }
-
-  return new Intl.DateTimeFormat('en-ZA', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(parsed)
 }
 
 function parseBookingStatus(value?: string): BookingStatus | null {
@@ -393,6 +357,7 @@ async function getUsersSection(barberRows: AdminBarberRow[]): Promise<AdminUsers
       accountStatus: isSuspended ? 'suspended' : profile?.isComplete ? 'active' : 'pending',
       createdAtLabel: formatDate(authUser?.createdAt),
       profileComplete: profile?.isComplete ?? false,
+      editable: true,
     } satisfies AdminUserRow
   })
 
@@ -413,6 +378,7 @@ async function getUsersSection(barberRows: AdminBarberRow[]): Promise<AdminUsers
           : row?.activeStatus ?? 'pending',
       createdAtLabel: formatDate(authUser?.createdAt),
       profileComplete: row?.profileComplete ?? false,
+      editable: true,
     } satisfies AdminUserRow
   })
 
@@ -430,6 +396,7 @@ async function getUsersSection(barberRows: AdminBarberRow[]): Promise<AdminUsers
       accountStatus: isSuspended ? 'suspended' : 'active',
       createdAtLabel: formatDate(authUser?.createdAt),
       profileComplete: true,
+      editable: true,
     } satisfies AdminUserRow
   })
 
@@ -498,10 +465,11 @@ async function getBarbersSection(): Promise<AdminBarbersSection> {
   }
 
   const items = roles.barbers
-    .map((userId) => {
+    .map(async (userId) => {
       const profile = profileMap.get(userId)
       const authUser = authUsers.get(userId)
       const stats = bookingMap.get(userId) ?? { total: 0, upcoming: 0, completed: 0 }
+      const servicePricesResult = await listActiveBarberServicePricesForPublic(userId)
       const fallbackName =
         authUser?.email
           ?.split('@')[0]
@@ -518,6 +486,12 @@ async function getBarbersSection(): Promise<AdminBarbersSection> {
         displayName,
         specialty,
         profileImageUrl,
+        bio: resolveFirstText(profile ?? {}, 'bio') || 'Bio not set',
+        cuttingLocation: resolveFirstText(profile ?? {}, 'cutting_location') || '',
+        instagramUrl: resolveFirstText(profile ?? {}, 'instagram_url') || null,
+        tiktokUrl: resolveFirstText(profile ?? {}, 'tiktok_url') || null,
+        facebookUrl: resolveFirstText(profile ?? {}, 'facebook_url') || null,
+        portfolioUrl: resolveFirstText(profile ?? {}, 'portfolio_url') || null,
         activeStatus:
           profile && typeof profile.is_active === 'boolean'
             ? (profile.is_active === false ? 'inactive' : 'active')
@@ -532,13 +506,14 @@ async function getBarbersSection(): Promise<AdminBarbersSection> {
         totalBookings: stats.total,
         upcomingBookings: stats.upcoming,
         completedBookings: stats.completed,
+        servicePrices: servicePricesResult.ok ? servicePricesResult.data : [],
       } satisfies AdminBarberRow
     })
-    .sort((left, right) => left.displayName.localeCompare(right.displayName))
+  const resolvedItems = await Promise.all(items)
 
   return {
-    items,
-    totalCount: items.length,
+    items: resolvedItems.sort((left, right) => left.displayName.localeCompare(right.displayName)),
+    totalCount: resolvedItems.length,
     enabled: true,
   }
 }

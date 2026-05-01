@@ -1,11 +1,13 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { isSafeImageSource } from '@/lib/safe-image'
 
 export interface BarberProfileSummary {
+  id: string | null
   userId: string
   displayName: string
   specialty: string
-  profileImageUrl: string
+  profileImageUrl: string | null
   bio: string
   cuttingLocation: string | null
   instagramUrl: string | null
@@ -21,7 +23,7 @@ export interface BarberProfileSummary {
 export interface PublicBarberSummary {
   id: string
   display_name: string
-  profile_image_url: string
+  profile_image_url: string | null
   specialty: string
   bio: string
   cutting_location: string | null
@@ -62,13 +64,13 @@ function resolveBarberDisplayName(
 }
 
 function resolveBarberImage(profile: Record<string, unknown> | null | undefined) {
-  const candidates = [
-    normalizeText(profile?.profile_image_url),
-    normalizeText(profile?.profile_photo_url),
-    normalizeText(profile?.avatar_url),
-  ]
+  const avatarUrl = normalizeText(profile?.avatar_url)
+  const profileImageUrl = normalizeText(profile?.profile_image_url)
+  const profilePhotoUrl = normalizeText(profile?.profile_photo_url)
+  const candidates = [avatarUrl, profileImageUrl, profilePhotoUrl]
+  const valid = candidates.find((candidate) => isSafeImageSource(candidate))
 
-  return candidates.find(Boolean) || '/images/header-bg.png'
+  return valid ?? null
 }
 
 function resolveBarberSpecialty(profile: Record<string, unknown> | null | undefined) {
@@ -231,10 +233,11 @@ export async function listBookableBarbers(): Promise<BarberProfileSummary[]> {
   const rows = await listPublicBarbers()
 
   return rows.map((row) => ({
+    id: null,
     userId: row.id,
     displayName: row.display_name,
     specialty: row.specialty,
-    profileImageUrl: row.profile_image_url,
+      profileImageUrl: row.profile_image_url,
     bio: row.bio,
     cuttingLocation: row.cutting_location,
     instagramUrl: row.instagram_url,
@@ -280,10 +283,11 @@ export async function getBarberProfileByUserId(userId: string) {
     const authUsers = await loadAuthUsersByIds([userId])
 
     return {
+      id: null,
       userId,
       displayName: fallbackDisplayName(userId, authUsers.get(userId)),
       specialty: 'Only Bangers Team',
-      profileImageUrl: '/images/header-bg.png',
+      profileImageUrl: null,
       bio: 'Premium barber available through the Only Bangers booking flow.',
       cuttingLocation: null,
       instagramUrl: null,
@@ -298,10 +302,11 @@ export async function getBarberProfileByUserId(userId: string) {
   }
 
   return {
+    id: typeof data.id === 'string' ? data.id : null,
     userId: typeof data.user_id === 'string' ? data.user_id : userId,
     displayName: resolveBarberDisplayName(userId, data as Record<string, unknown>),
-    specialty: resolveBarberSpecialty(data as Record<string, unknown>),
-    profileImageUrl: resolveBarberImage(data as Record<string, unknown>),
+      specialty: resolveBarberSpecialty(data as Record<string, unknown>),
+      profileImageUrl: resolveBarberImage(data as Record<string, unknown>),
     bio: resolveBarberBio(data as Record<string, unknown>),
     cuttingLocation: resolveBarberLocation(data as Record<string, unknown>),
     instagramUrl: resolveOptionalLink(data as Record<string, unknown>, 'instagram_url'),
@@ -343,6 +348,7 @@ export async function getBarberProfilesByUserIds(
     }
 
     byId.set(row.user_id, {
+      id: typeof row.id === 'string' ? row.id : null,
       userId: row.user_id,
       displayName: resolveBarberDisplayName(row.user_id, row),
       specialty: resolveBarberSpecialty(row),

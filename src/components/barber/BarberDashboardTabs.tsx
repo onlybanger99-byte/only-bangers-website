@@ -9,11 +9,14 @@ import { EmptyState } from '@/components/dashboard/EmptyState'
 import { StatusBadge } from '@/components/dashboard/StatusBadge'
 import { AvailabilitySlotManager } from './AvailabilitySlotManager'
 import { BarberProfileEditor } from './BarberProfileEditor'
+import { BarberServicePricesManager } from './BarberServicePricesManager'
+import { getSafeImage } from '@/lib/safe-image'
 import styles from '@/app/barber/dashboard/dashboard.module.css'
 
 const TABS = [
   { id: 'today', label: 'Today' },
   { id: 'upcoming', label: 'Upcoming' },
+  { id: 'services', label: 'Services & Prices' },
   { id: 'profile', label: 'Profile' },
 ] as const
 
@@ -112,6 +115,10 @@ export function BarberDashboardTabs({
 }: {
   dashboard: BarberDashboardViewModel
 }) {
+  if (!dashboard?.operator) {
+    return null
+  }
+
   const [activeTab, setActiveTab] = useState<TabId>('today')
 
   const nextUpcomingLabel = useMemo(() => {
@@ -192,7 +199,7 @@ export function BarberDashboardTabs({
             <article className={styles.recordCard}>
               <div className={styles.personTop}>
                 <Image
-                  src={dashboard.operator.image}
+                  src={getSafeImage(dashboard.operator.image)}
                   alt={dashboard.operator.displayName}
                   width={72}
                   height={72}
@@ -277,6 +284,22 @@ export function BarberDashboardTabs({
                 </div>
                 <AvailabilitySlotManager />
               </div>
+            </article>
+          </section>
+        ) : null}
+
+        {activeTab === 'services' ? (
+          <section className={styles.tabPanel}>
+            <article className={styles.recordCard}>
+              <div>
+                <p className={styles.eyebrow}>Services & Prices</p>
+                <h3 className={styles.cardTitle}>Manage your bookable services</h3>
+                <p className={styles.cardText}>
+                  Customers only see the services and prices you publish here.
+                </p>
+              </div>
+
+              <BarberServicePricesManager initialPrices={dashboard.servicePrices} />
             </article>
           </section>
         ) : null}

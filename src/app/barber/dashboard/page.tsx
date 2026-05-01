@@ -4,6 +4,7 @@ import { BarberDashboardTabs } from '@/components/barber/BarberDashboardTabs'
 import { getUserRole } from '@/lib/auth/get-user-role'
 import { getDefaultDashboardForRole } from '@/lib/auth/roles'
 import { getBarberDashboardViewModel } from '@/lib/barber-dashboard/data'
+import { getSafeImage } from '@/lib/safe-image'
 import styles from './dashboard.module.css'
 
 export const dynamic = 'force-dynamic'
@@ -24,13 +25,17 @@ export default async function BarberDashboardPage() {
     email: user.email,
   })
 
+  if (!dashboard?.operator) {
+    return null
+  }
+
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
         <header className={styles.heroCard}>
           <div className={styles.heroCopy}>
             <Image
-              src={dashboard.operator.image}
+              src={getSafeImage(dashboard.operator.image)}
               alt={dashboard.operator.displayName}
               width={84}
               height={84}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { formatDate, formatTimeRange } from '@/lib/date-time'
 import styles from '@/app/barber/dashboard/dashboard.module.css'
 
 type AvailabilitySlot = {
@@ -155,7 +156,7 @@ export function AvailabilitySlotManager() {
       ) : groupedSlots.length > 0 ? (
         groupedSlots.map(([date, items]) => (
           <article key={date} className={styles.recordCard}>
-            <p className={styles.referenceText}>{date}</p>
+            <p className={styles.referenceText}>{formatDate(date)}</p>
             <div className={styles.inlineActions}>
               {items.map((slot) => (
                 <button
@@ -164,14 +165,14 @@ export function AvailabilitySlotManager() {
                   className={styles.secondaryButton}
                   onClick={() => removeSlot(slot.id)}
                 >
-                  {slot.startTime} - {slot.endTime} Remove
+                  {formatTimeRange(slot.startTime, slot.endTime)} Remove
                 </button>
               ))}
             </div>
           </article>
         ))
       ) : (
-        <p className={styles.cardSubmeta}>No availability slots added yet.</p>
+        <p className={styles.cardSubmeta}>No availability slots set.</p>
       )}
     </div>
   )

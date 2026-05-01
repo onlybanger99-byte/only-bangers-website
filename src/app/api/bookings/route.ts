@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
 
     const result = await createBooking({
       barberId: body.barberId,
+      barberServicePriceId: body.barberServicePriceId,
       serviceId: body.serviceId,
       serviceName: body.serviceName,
       startsAt: body.startsAt,

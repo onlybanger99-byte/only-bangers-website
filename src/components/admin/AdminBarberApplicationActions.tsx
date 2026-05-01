@@ -15,6 +15,16 @@ export function AdminBarberApplicationActions({
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
+  const buildErrorMessage = (payload: any, fallback: string) => {
+    const pieces = [
+      payload?.error?.debugMessage,
+      payload?.error?.message,
+      ...(Array.isArray(payload?.error?.details) ? payload.error.details : []),
+    ].filter((value, index, array) => typeof value === 'string' && value.length > 0 && array.indexOf(value) === index)
+
+    return pieces.length > 0 ? pieces.join(' | ') : fallback
+  }
+
   const approve = async () => {
     if (!window.confirm('Approve this barber application and promote the user to barber?')) {
       return
@@ -30,7 +40,7 @@ export function AdminBarberApplicationActions({
     const payload = await response.json().catch(() => null)
 
     if (!response.ok || !payload?.ok) {
-      setError(payload?.error?.message ?? 'Could not approve this application.')
+      setError(buildErrorMessage(payload, 'Could not approve this application.'))
       setLoading(null)
       return
     }
@@ -60,7 +70,7 @@ export function AdminBarberApplicationActions({
     const payload = await response.json().catch(() => null)
 
     if (!response.ok || !payload?.ok) {
-      setError(payload?.error?.message ?? 'Could not reject this application.')
+      setError(buildErrorMessage(payload, 'Could not reject this application.'))
       setLoading(null)
       return
     }

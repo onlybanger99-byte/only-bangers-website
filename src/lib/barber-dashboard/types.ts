@@ -1,11 +1,12 @@
 import type { BookingStatus, PaymentStatus } from '@/lib/bookings/types'
+import type { BarberServicePriceSummary } from '@/lib/barber-service-prices/types'
 
 export type BarberDataSource = 'live' | 'empty'
 
 export interface BarberOperatorProfile {
   displayName: string
   specialty: string
-  image: string
+  image?: string | null
   bio: string
   cuttingLocation: string | null
   instagramUrl: string | null
@@ -42,6 +43,7 @@ export interface BarberDashboardViewModel {
   dataSource: BarberDataSource
   readinessMessage: string
   operator: BarberOperatorProfile
+  servicePrices: BarberServicePriceSummary[]
   today: BarberDashboardBooking[]
   upcoming: BarberDashboardBooking[]
   awaitingPayment: BarberDashboardBooking[]

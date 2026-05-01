@@ -7,9 +7,11 @@ export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  console.info('[api][admin][barber-applications][approve] request_received')
   const authError = await requireRole(request, ['admin'])
 
   if (authError) {
+    console.warn('[api][admin][barber-applications][approve] role_check_failed')
     return authError
   }
 
@@ -23,9 +25,19 @@ export async function POST(
   }
 
   const { id } = await context.params
+  console.info('[api][admin][barber-applications][approve] approving', {
+    applicationId: id,
+    reviewerId: user.id,
+  })
   const result = await approveBarberApplication(id, user.id)
 
   if (!result.ok) {
+    console.error('[api][admin][barber-applications][approve] failed', {
+      applicationId: id,
+      reviewerId: user.id,
+      message: result.message,
+      details: result.details,
+    })
     return Response.json(
       {
         ok: false,
@@ -33,11 +45,16 @@ export async function POST(
           code: 'DATABASE_ERROR',
           message: result.message,
           details: result.details,
+          debugMessage: [result.message, ...(result.details ?? [])].filter(Boolean).join(' | '),
         },
       },
-      { status: 400 }
+      { status: 500 }
     )
   }
 
+  console.info('[api][admin][barber-applications][approve] success', {
+    applicationId: id,
+    reviewerId: user.id,
+  })
   return Response.json({ ok: true, data: result.data })
 }

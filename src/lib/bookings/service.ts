@@ -1,5 +1,6 @@
 import { getUserRole } from '@/lib/auth/get-user-role'
 import { listBarberAvailabilitySlotsForDate } from '@/lib/barber-availability/service'
+import { getBarberServicePriceById } from '@/lib/barber-service-prices/service'
 import { getBarberProfileByUserId } from '@/lib/barbers/service'
 import {
   getCustomerProfile,
@@ -12,6 +13,7 @@ import {
   buildBookingWhatsAppMessage,
   buildBookingWhatsAppUrl,
 } from '@/lib/whatsapp/booking-message'
+import { formatDate, formatTime } from '@/lib/date-time'
 import type {
   BookingAvailability,
   BookingActor,
@@ -45,6 +47,7 @@ type RawBookingRecord = {
   user_id?: string | null
   barber_id?: string | null
   barber_name?: string | null
+  barber_service_price_id?: string | null
   barber_display_name?: string | null
   service_id?: string | null
   service_name?: string | null
@@ -379,22 +382,6 @@ function formatCurrency(amount: number) {
   }).format(amount)
 }
 
-function formatDateLabel(value: string) {
-  return new Intl.DateTimeFormat('en-ZA', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date(value))
-}
-
-function formatTimeLabel(value: string) {
-  return new Intl.DateTimeFormat('en-ZA', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
-}
-
 function buildPaymentReference(bookingId: string) {
   return `OB-${bookingId.slice(0, 8).toUpperCase()}`
 }
@@ -448,6 +435,7 @@ function normalizeBookingRecord(row: RawBookingRecord): BookingRecord {
     user_id: row.user_id ?? '',
     barber_id: row.barber_id ?? null,
     barber_name: barberName,
+    barber_service_price_id: row.barber_service_price_id ?? null,
     service_id: row.service_id ?? null,
     service_name: serviceName,
     starts_at: row.starts_at ?? '',
@@ -584,16 +572,15 @@ async function getActorOrError(): Promise<BookingResult<BookingActor>> {
 
 function validateCreateInput(input: CreateBookingInput, actor: BookingActor) {
   const details: string[] = []
-  const service = getServiceDefinition({
-    serviceId: input.serviceId,
-    serviceName: input.serviceName,
-  })
   const startsAt = normalizeTimestamp(input.startsAt)
   const notes = normalizeOptionalText(input.notes)
   const barberId = normalizeRequiredText(input.barberId)
+  const barberServicePriceId = normalizeOptionalText(input.barberServicePriceId)
+  const serviceName = normalizeRequiredText(input.serviceName)
+  const serviceId = normalizeOptionalText(input.serviceId)
 
-  if (!service) {
-    details.push('serviceId or serviceName must match a supported service.')
+  if (!barberServicePriceId && !serviceName) {
+    details.push('A barber-specific service selection is required.')
   }
 
   if (!startsAt || !isValidBookableSlot(startsAt)) {
@@ -608,14 +595,15 @@ function validateCreateInput(input: CreateBookingInput, actor: BookingActor) {
     details.push('Only customers can create bookings.')
   }
 
-  if (details.length > 0 || !service || !startsAt || !barberId) {
+  if (details.length > 0 || !startsAt || !barberId) {
     return failure<CreateBookingInput>('VALIDATION_ERROR', 'Booking payload is invalid.', details)
   }
 
   return success({
     barberId,
-    serviceId: service.id,
-    serviceName: service.name,
+    barberServicePriceId,
+    serviceId,
+    serviceName: serviceName ?? undefined,
     startsAt,
     notes,
   })
@@ -937,9 +925,21 @@ export async function createBooking(
   const payload = payloadResult.data
   const barber = await getBarberProfileByUserId(payload.barberId ?? '')
   const customerProfile = await getCustomerProfile(actor.userId)
+  const barberPrice = payload.barberServicePriceId
+    ? await getBarberServicePriceById(payload.barberServicePriceId)
+    : null
 
   if (!barber) {
     return failure('VALIDATION_ERROR', 'Selected barber does not exist.')
+  }
+
+  if (!barberPrice || !barberPrice.isActive) {
+    return failure('VALIDATION_ERROR', 'Selected barber service price does not exist.')
+  }
+
+  if (barber.id && barberPrice.barberProfileId !== barber.id) {
+    // Defensive check for mismatched barber selections.
+    return failure('VALIDATION_ERROR', 'Selected service does not belong to this barber.')
   }
 
   if (!customerProfile?.isComplete) {
@@ -965,16 +965,7 @@ export async function createBooking(
     )
   }
 
-  const service = getServiceDefinition({
-    serviceId: payload.serviceId,
-    serviceName: payload.serviceName,
-  })
-
-  if (!service) {
-    return failure('VALIDATION_ERROR', 'Selected service does not exist.')
-  }
-
-  const amountDue = getServiceAmount(service)
+  const amountDue = barberPrice.price
   const bookingId = crypto.randomUUID()
   const paymentReference = buildPaymentReference(bookingId)
   const pendingExpiresAt = getPendingExpiryTimestamp()
@@ -987,9 +978,9 @@ export async function createBooking(
         customerName: customerProfile.fullName,
         phoneNumber: customerProfile.phoneNumber,
         barberName: barber.displayName,
-        serviceName: service.name,
-        dateLabel: formatDateLabel(payload.startsAt),
-        timeLabel: formatTimeLabel(payload.startsAt),
+        serviceName: barberPrice.serviceName,
+        dateLabel: formatDate(payload.startsAt),
+        timeLabel: formatTime(payload.startsAt),
         bookingReference: paymentReference,
         amountDueLabel: formatCurrency(amountDue),
       })
@@ -1008,8 +999,9 @@ export async function createBooking(
       user_id: actor.userId,
       barber_id: payload.barberId,
       barber_name: barber.displayName,
-      service_id: payload.serviceId ?? null,
-      service_name: payload.serviceName,
+      barber_service_price_id: barberPrice.id,
+      service_id: barberPrice.serviceId ?? payload.serviceId ?? null,
+      service_name: barberPrice.serviceName,
       starts_at: payload.startsAt,
       status: 'pending_payment',
       payment_status: 'unpaid',
@@ -1049,6 +1041,7 @@ export async function getAvailabilityForBarberDate(
   barberId: string,
   date: string
 ): Promise<BookingResult<BookingAvailability>> {
+  console.info('[bookings][availability] request', { barberId, date })
   if (!barberId) {
     return failure('VALIDATION_ERROR', 'barberId is required.')
   }
@@ -1063,6 +1056,7 @@ export async function getAvailabilityForBarberDate(
     return success({
       barberId,
       date,
+      slots: [],
       availabilitySlots: [],
       availableSlots: [],
       bookedSlots: [],
@@ -1073,12 +1067,24 @@ export async function getAvailabilityForBarberDate(
   const barber = await getBarberProfileByUserId(barberId)
 
   if (!barber) {
+    console.warn('[bookings][availability] barber_not_found', { barberId, date })
     return failure('VALIDATION_ERROR', 'Selected barber does not exist.')
   }
+
+  console.info('[bookings][availability] barber_found', {
+    barberId,
+    barberProfileId: barber.id,
+    displayName: barber.displayName,
+  })
 
   const slotsResult = await listBarberAvailabilitySlotsForDate(barberId, date)
 
   if (!slotsResult.ok) {
+    console.error('[bookings][availability] slot_lookup_failed', {
+      barberId,
+      date,
+      message: slotsResult.message,
+    })
     return failure('DATABASE_ERROR', slotsResult.message)
   }
 
@@ -1163,6 +1169,12 @@ export async function getAvailabilityForBarberDate(
     .map((value) => getTimeOnly(new Date(value).toISOString()))
 
   const blockedSet = new Set([...bookedSlots, ...temporarilyReservedSlots])
+  const slots = slotsResult.data.map((slot) => ({
+    id: slot.id,
+    available_date: slot.availableDate,
+    start_time: slot.startTime,
+    end_time: slot.endTime,
+  }))
 
   const availableSlots = Array.from(
     new Set(
@@ -1173,9 +1185,17 @@ export async function getAvailabilityForBarberDate(
     )
   ).sort()
 
+  console.info('[bookings][availability] response', {
+    barberId,
+    date,
+    slotCount: slots.length,
+    availableCount: availableSlots.length,
+  })
+
   return success({
     barberId,
     date,
+    slots,
     availabilitySlots: slotsResult.data,
     bookedSlots,
     temporarilyReservedSlots,

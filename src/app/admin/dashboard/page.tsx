@@ -9,15 +9,15 @@ import styles from './dashboard.module.css'
 export const dynamic = 'force-dynamic'
 
 type AdminTabId =
+  | 'overview'
   | 'bookings'
-  | 'payments'
   | 'users'
   | 'barbers'
   | 'barber-applications'
 
 const VALID_TABS = new Set<AdminTabId>([
+  'overview',
   'bookings',
-  'payments',
   'users',
   'barbers',
   'barber-applications',
@@ -57,7 +57,7 @@ export default async function AdminDashboardPage({
       typeof resolvedSearchParams.booking_page === 'string'
         ? resolvedSearchParams.booking_page
         : '1',
-    tab: typeof resolvedSearchParams.tab === 'string' ? resolvedSearchParams.tab : 'bookings',
+    tab: typeof resolvedSearchParams.tab === 'string' ? resolvedSearchParams.tab : 'overview',
   }
 
   const dashboard = await getAdminDashboardViewModel({
@@ -72,18 +72,18 @@ export default async function AdminDashboardPage({
 
   const initialTab: AdminTabId = VALID_TABS.has(current.tab as AdminTabId)
     ? (current.tab as AdminTabId)
-    : 'bookings'
+    : 'overview'
 
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
-        <header className={styles.heroCard}>
+        <header className={styles.panelCard}>
           <div className={styles.heroCopy}>
             <div>
               <p className={styles.eyebrow}>Only Bangers Operations</p>
-              <h1 className={styles.heroTitle}>Admin command center</h1>
+              <h1 className={styles.sectionTitle}>Admin command center</h1>
               <p className={styles.heroText}>
-                Keep bookings moving, confirm payments quickly, and make sure customer and barber records stay operational.
+                Signed in with admin access. Use the dashboard below to review approvals, manage bookings, and control user roles.
               </p>
             </div>
           </div>

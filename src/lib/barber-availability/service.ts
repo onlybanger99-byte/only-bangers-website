@@ -67,8 +67,11 @@ async function getPrivilegedSupabase() {
   return createAdminClient() ?? (await createClient())
 }
 
-async function getBarberProfileIdentity(userId: string) {
-  const supabase = await getPrivilegedSupabase()
+async function getBarberProfileIdentity(
+  userId: string,
+  supabaseOverride?: Awaited<ReturnType<typeof getPrivilegedSupabase>>
+) {
+  const supabase = supabaseOverride ?? (await getPrivilegedSupabase())
   const { data } = await supabase
     .from('barber_profiles')
     .select('id')
@@ -161,9 +164,13 @@ export async function replaceApplicationAvailabilitySlots(
   }
 }
 
-export async function copyApplicationAvailabilityToBarber(applicationId: string, userId: string) {
-  const supabase = await getPrivilegedSupabase()
-  const barberProfileId = await getBarberProfileIdentity(userId)
+export async function copyApplicationAvailabilityToBarber(
+  applicationId: string,
+  userId: string,
+  supabaseOverride?: Awaited<ReturnType<typeof getPrivilegedSupabase>>
+) {
+  const supabase = supabaseOverride ?? (await getPrivilegedSupabase())
+  const barberProfileId = await getBarberProfileIdentity(userId, supabase)
 
   if (!barberProfileId) {
     return
