@@ -14,7 +14,7 @@ export interface CustomerProfileInput {
   firstName: string
   lastName: string
   phoneNumber: string
-  profileImageUrl: string
+  profileImageUrl?: string
 }
 
 export interface CustomerProfileSummary {
@@ -31,5 +31,5 @@ export interface CustomerProfileCompletionState {
   userId: string
   profile: CustomerProfileSummary | null
   isComplete: boolean
-  missingRequiredFields: Array<'first_name' | 'last_name' | 'phone_number' | 'profile_image_url'>
+  missingRequiredFields: Array<'first_name' | 'phone_number'>
 }

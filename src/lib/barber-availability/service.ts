@@ -74,11 +74,19 @@ async function getBarberProfileIdentity(
   const supabase = supabaseOverride ?? (await getPrivilegedSupabase())
   const { data } = await supabase
     .from('barber_profiles')
-    .select('id')
+    .select('id, is_active')
     .eq('user_id', userId)
     .maybeSingle()
 
-  return typeof data?.id === 'string' ? data.id : null
+  if (typeof data?.id !== 'string') {
+    return null
+  }
+
+  if (typeof data?.is_active === 'boolean' && !data.is_active) {
+    return null
+  }
+
+  return data.id
 }
 
 export async function listBarberAvailabilitySlots(userId: string) {
@@ -290,6 +298,51 @@ export async function removeBarberAvailabilitySlot(userId: string, slotId: strin
   }
 
   return { ok: true as const }
+}
+
+export async function updateBarberAvailabilitySlot(
+  userId: string,
+  slotId: string,
+  input: AvailabilitySlotInput
+) {
+  const validated = validateSlot(input)
+
+  if (validated.details.length > 0) {
+    return {
+      ok: false as const,
+      message: 'Availability slot is invalid.',
+      details: validated.details,
+    }
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('barber_availability_slots')
+    .update({
+      available_date: validated.availableDate,
+      start_time: validated.startTime,
+      end_time: validated.endTime,
+      updated_at: new Date().toISOString(),
+      is_active: true,
+    })
+    .eq('id', slotId)
+    .eq('user_id', userId)
+    .select('*')
+    .single()
+
+  if (error) {
+    console.error('[barber-availability] Failed to update slot', error)
+    return {
+      ok: false as const,
+      message: 'We could not update this availability slot.',
+      details: [error.message],
+    }
+  }
+
+  return {
+    ok: true as const,
+    data: toSummary(data as AvailabilitySlotRecord),
+  }
 }
 
 export async function listBarberAvailabilitySlotsForDate(userId: string, date: string) {

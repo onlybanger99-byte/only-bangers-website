@@ -887,7 +887,7 @@ export async function createBooking(
     return failure(
       'INCOMPLETE_PROFILE',
       'Your profile must be completed before you can confirm a booking.',
-      ['Required fields: first_name, last_name, phone_number, profile_image_url.']
+      ['Required fields: first_name and phone_number.']
     )
   }
 

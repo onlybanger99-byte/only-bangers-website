@@ -223,22 +223,26 @@ export function BarberServicePricesManager({
   return (
     <div className={styles.formStack}>
       <form className={styles.formGrid} onSubmit={submit}>
-        <label className={styles.field}>
+        <div className={styles.fieldFull}>
           <span className={styles.metaLabel}>Approved Service</span>
-          <select
-            className={styles.input}
-            value={form.serviceId}
-            onChange={(event) => handleServiceSelection(event.target.value)}
-            required
-          >
-            <option value="">Select a service</option>
-            {services.map((service) => (
-              <option key={service.id} value={service.id}>
-                {service.name}
-              </option>
-            ))}
-          </select>
-        </label>
+          <div className={styles.selectionGrid}>
+            {services.map((service) => {
+              const isSelected = form.serviceId === service.id
+              return (
+                <button
+                  key={service.id}
+                  type="button"
+                  className={styles.selectionCard}
+                  data-selected={isSelected}
+                  onClick={() => handleServiceSelection(service.id)}
+                >
+                  <span className={styles.selectionTitle}>{service.name}</span>
+                  <span className={styles.selectionDescription}>{service.description}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
         <label className={styles.field}>
           <span className={styles.metaLabel}>Price</span>
           <input
@@ -266,16 +270,24 @@ export function BarberServicePricesManager({
         </label>
         <label className={styles.field}>
           <span className={styles.metaLabel}>Status</span>
-          <select
-            className={styles.input}
-            value={form.isActive ? 'active' : 'inactive'}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, isActive: event.target.value === 'active' }))
-            }
-          >
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
+          <div className={styles.toggleGroup}>
+            <button
+              type="button"
+              className={styles.toggleButton}
+              data-active={form.isActive}
+              onClick={() => setForm((current) => ({ ...current, isActive: true }))}
+            >
+              Active
+            </button>
+            <button
+              type="button"
+              className={styles.toggleButton}
+              data-active={!form.isActive}
+              onClick={() => setForm((current) => ({ ...current, isActive: false }))}
+            >
+              Inactive
+            </button>
+          </div>
         </label>
         <div className={styles.field}>
           <span className={styles.metaLabel}>Action</span>
@@ -290,6 +302,7 @@ export function BarberServicePricesManager({
           <p className={styles.eyebrow}>Selected Service</p>
           <h3 className={styles.cardTitle}>{selectedService.name}</h3>
           <p className={styles.cardText}>{selectedService.description}</p>
+          <p className={styles.cardSubmeta}>Using service UUID internally for barber-specific pricing.</p>
         </div>
       ) : null}
 

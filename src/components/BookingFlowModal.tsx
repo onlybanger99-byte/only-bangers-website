@@ -581,6 +581,9 @@ export default function BookingFlowModal({
                 </div>
               </div>
               <div className="modal-actions">
+                <button className="modal-btn secondary" onClick={onClose} disabled={submitting}>
+                  Continue Browsing
+                </button>
                 <button className="modal-btn secondary" onClick={() => setStep('time')}>
                   Back
                 </button>

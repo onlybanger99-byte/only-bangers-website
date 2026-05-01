@@ -30,7 +30,7 @@ export default async function BarberDashboardPage() {
   }
 
   return (
-    <div className={styles.page}>
+    <div className="page-background">
       <div className={styles.shell}>
         <header className={styles.heroCard}>
           <div className={styles.heroCopy}>

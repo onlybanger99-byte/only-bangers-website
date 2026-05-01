@@ -36,11 +36,7 @@ function toSummary(
     fullName: [firstName, lastName].filter(Boolean).join(' ').trim() || 'Only Bangers Customer',
     phoneNumber,
     profileImageUrl,
-    isComplete:
-      firstName.length > 0 &&
-      lastName.length > 0 &&
-      phoneNumber.length > 0 &&
-      profileImageUrl.length > 0,
+    isComplete: firstName.length > 0 && phoneNumber.length > 0,
   }
 }
 
@@ -59,14 +55,9 @@ export async function getCustomerProfileCompletionState(
     isComplete: isCustomerProfileComplete(profile),
     missingRequiredFields: [
       !profile?.firstName ? 'first_name' : null,
-      !profile?.lastName ? 'last_name' : null,
       !profile?.phoneNumber ? 'phone_number' : null,
-      !profile?.profileImageUrl ? 'profile_image_url' : null,
     ].filter(
-      (
-        field
-      ): field is 'first_name' | 'last_name' | 'phone_number' | 'profile_image_url' =>
-        field !== null
+      (field): field is 'first_name' | 'phone_number' => field !== null
     ),
   }
 }
@@ -145,16 +136,8 @@ export async function upsertCustomerProfile(
     details.push('first_name is required.')
   }
 
-  if (!payload.last_name) {
-    details.push('last_name is required.')
-  }
-
   if (!payload.phone_number) {
     details.push('phone_number is required.')
-  }
-
-  if (!payload.profile_image_url) {
-    details.push('profile_image_url is required.')
   }
 
   if (details.length > 0) {

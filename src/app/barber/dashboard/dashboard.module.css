@@ -84,9 +84,14 @@
 }
 
 .field,
+.fieldFull,
 .formStack {
   display: grid;
   gap: 0.75rem;
+}
+
+.fieldFull {
+  grid-column: 1 / -1;
 }
 
 .cardSubmeta {
@@ -176,6 +181,14 @@
   background: rgba(255, 255, 255, 0.03);
   color: var(--text-primary);
   padding: 0.82rem 0.95rem;
+  font: inherit;
+}
+
+.input:focus,
+.textarea:focus {
+  outline: none;
+  border-color: rgba(212, 175, 55, 0.55);
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.08);
 }
 
 .dayOption {
@@ -193,11 +206,17 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.55rem;
   border-radius: 999px;
   text-decoration: none;
   transition: all 0.24s ease;
   cursor: pointer;
   padding: 0.82rem 1.1rem;
+  min-height: 2.9rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .primaryButton {
@@ -215,11 +234,123 @@
   background: rgba(255, 255, 255, 0.02);
 }
 
+.primaryButton:hover,
+.secondaryButton:hover {
+  transform: translateY(-1px);
+}
+
 .metaValue {
   display: block;
   color: var(--text-primary);
   font-size: 0.98rem;
   line-height: 1.5;
+}
+
+.inlineActions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.successText {
+  margin: 0;
+  color: #a7f3d0;
+}
+
+.errorText {
+  margin: 0;
+  color: #fecdd3;
+}
+
+.selectionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.selectionCard {
+  display: grid;
+  gap: 0.4rem;
+  text-align: left;
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid rgba(212, 175, 55, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.22s ease;
+}
+
+.selectionCard:hover,
+.selectionCard[data-selected='true'] {
+  border-color: rgba(212, 175, 55, 0.65);
+  background: rgba(212, 175, 55, 0.1);
+  box-shadow: 0 16px 35px rgba(0, 0, 0, 0.18);
+}
+
+.selectionTitle {
+  font-weight: 700;
+}
+
+.selectionDescription {
+  color: var(--text-secondary);
+  line-height: 1.5;
+  font-size: 0.88rem;
+}
+
+.toggleGroup {
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.toggleButton {
+  flex: 1 1 8rem;
+  border-radius: 999px;
+  border: 1px solid rgba(212, 175, 55, 0.18);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  padding: 0.85rem 1rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.22s ease;
+}
+
+.toggleButton[data-active='true'] {
+  color: var(--premium-dark);
+  border-color: transparent;
+  background: linear-gradient(135deg, #b88916 0%, #d4af37 55%, #f1d77a 100%);
+}
+
+.slotStack {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.slotRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  border: 1px solid rgba(212, 175, 55, 0.12);
+  border-radius: 1rem;
+  padding: 0.9rem 1rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.availabilityModal {
+  max-width: 880px;
+}
+
+.availabilitySummaryCard {
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  border-radius: 1.1rem;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 1rem;
+  margin-bottom: 1rem;
 }
 
 @media (max-width: 1180px) {
@@ -228,7 +359,8 @@
   .cardGrid,
   .metaGrid,
   .formGrid,
-  .dayGrid {
+  .dayGrid,
+  .selectionGrid {
     grid-template-columns: 1fr;
   }
 }
@@ -248,7 +380,8 @@
 
   .heroCopy,
   .recordTop,
-  .personTop {
+  .personTop,
+  .slotRow {
     grid-template-columns: 1fr;
     flex-direction: column;
     align-items: flex-start;

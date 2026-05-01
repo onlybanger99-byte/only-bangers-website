@@ -11,10 +11,11 @@ export const dynamic = 'force-dynamic'
 export default async function CompleteProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>
+  searchParams: Promise<{ next?: string; setup?: string }>
 }) {
   const resolvedSearchParams = await searchParams
   const requestedNextPath = sanitizeNextPath(resolvedSearchParams.next)
+  const requirePasswordSetup = resolvedSearchParams.setup === '1'
   const nextPath =
     requestedNextPath && !requestedNextPath.startsWith('/portal/profile/complete')
       ? requestedNextPath
@@ -36,18 +37,22 @@ export default async function CompleteProfilePage({
   }
 
   return (
-    <div className={styles.page}>
+    <div className="page-background">
       <div className={styles.shell}>
         <div className={styles.heroCard}>
           <p className={styles.eyebrow}>Complete your profile</p>
           <h1 className={styles.title}>We need a few more details before you can continue</h1>
           <p className={styles.subtitle}>
-            Add your name, phone number, and profile photo so your dashboard and booking flow
-            can continue without interruption.
+            Add your name and phone number so your dashboard and booking flow can continue
+            without interruption.
           </p>
         </div>
 
-        <CompleteProfileForm nextPath={nextPath} initialProfile={profile} />
+        <CompleteProfileForm
+          nextPath={nextPath}
+          initialProfile={profile}
+          requirePasswordSetup={requirePasswordSetup}
+        />
       </div>
     </div>
   )

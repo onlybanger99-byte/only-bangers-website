@@ -75,7 +75,7 @@ export default async function AdminDashboardPage({
     : 'overview'
 
   return (
-    <div className={styles.page}>
+    <div className="page-background">
       <div className={styles.shell}>
         <header className={styles.panelCard}>
           <div className={styles.heroCopy}>

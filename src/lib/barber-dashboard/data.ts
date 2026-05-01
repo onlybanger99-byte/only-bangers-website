@@ -144,7 +144,7 @@ async function getLiveAppointments(
 
   const today = items
     .filter((item) => {
-      if (item.status !== 'confirmed') {
+      if (item.status !== 'confirmed' || item.paymentStatus !== 'paid') {
         return false
       }
 
@@ -155,7 +155,7 @@ async function getLiveAppointments(
 
   const upcoming = items
     .filter((item) => {
-      if (item.status !== 'confirmed') {
+      if (item.status !== 'confirmed' || item.paymentStatus !== 'paid') {
         return false
       }
 
@@ -192,7 +192,7 @@ export async function getBarberDashboardViewModel(
         ? 'live'
         : 'empty',
     readinessMessage:
-      'Confirmed bookings appear in your working schedule. Pending-payment holds stay separate until admin verification is complete.',
+      'Confirmed and paid bookings appear in your working schedule. Pending-payment holds stay separate until admin verification is complete.',
     operator,
     servicePrices: servicePricesResult.ok ? servicePricesResult.data : [],
     today: liveAppointments.today,

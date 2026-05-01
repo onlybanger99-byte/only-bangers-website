@@ -61,6 +61,14 @@ function BookingTimeline({
     return <EmptyState title={emptyTitle} description={emptyDescription} />
   }
 
+  const getReadinessLabel = (booking: BarberDashboardBooking) => {
+    if (booking.status === 'confirmed' && booking.paymentStatus === 'paid') {
+      return 'Ready'
+    }
+
+    return null
+  }
+
   return (
     <div className={styles.cardGrid}>
       {bookings.map((booking) => (
@@ -73,6 +81,7 @@ function BookingTimeline({
             </div>
 
             <div className={styles.badgeCluster}>
+              {getReadinessLabel(booking) ? <span className={styles.secondaryButton}>Ready</span> : null}
               <StatusBadge value={booking.status} />
               <StatusBadge value={booking.paymentStatus} />
             </div>
@@ -90,6 +99,14 @@ function BookingTimeline({
             <div>
               <span className={styles.metaLabel}>Amount</span>
               <strong className={styles.metaValue}>{booking.amountDueLabel}</strong>
+            </div>
+            <div>
+              <span className={styles.metaLabel}>Booking State</span>
+              <strong className={styles.metaValue}>
+                {booking.status === 'confirmed' && booking.paymentStatus === 'paid'
+                  ? 'Ready and paid'
+                  : `${booking.status.replace(/_/g, ' ')} / ${booking.paymentStatus.replace(/_/g, ' ')}`}
+              </strong>
             </div>
             <div>
               <span className={styles.metaLabel}>Notes</span>
@@ -133,13 +150,13 @@ export function BarberDashboardTabs({
             <p className={styles.eyebrow}>Today&apos;s Schedule</p>
             <h2 className={styles.heroTitle}>
               {dashboard.today.length > 0
-                ? `${dashboard.today.length} confirmed booking${dashboard.today.length === 1 ? '' : 's'} today`
+                ? `${dashboard.today.length} ready booking${dashboard.today.length === 1 ? '' : 's'} today`
                 : 'No confirmed bookings today'}
             </h2>
             <p className={styles.heroText}>
               {dashboard.today.length > 0
-                ? 'Work from the list below and message clients directly when you need to confirm details.'
-                : 'New confirmed bookings will appear here as soon as admin payment confirmation is complete.'}
+                ? 'Paid and confirmed bookings are ready for the chair. Message clients directly when you need to confirm details.'
+                : 'New confirmed and paid bookings will appear here as soon as admin payment confirmation is complete.'}
             </p>
           </div>
         </div>

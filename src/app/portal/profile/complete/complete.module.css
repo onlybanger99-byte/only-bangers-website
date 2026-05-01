@@ -109,6 +109,11 @@
   color: #fecdd3;
 }
 
+.successMessage {
+  margin: 1rem 0 0;
+  color: #a7f3d0;
+}
+
 @media (max-width: 720px) {
   .formGrid {
     grid-template-columns: 1fr;
