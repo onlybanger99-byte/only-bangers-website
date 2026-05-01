@@ -1,5 +1,5 @@
 import { isSafeImageSource } from '@/lib/safe-image'
-import { getActiveServiceById, listActiveServices } from '@/lib/services/service'
+import { getActiveServiceById, isUuid, listActiveServices } from '@/lib/services/service'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import type {
@@ -180,6 +180,10 @@ async function validateInput(input: BarberServicePriceInput) {
     input.durationMinutes == null ? null : normalizeNumber(input.durationMinutes)
   const details: string[] = []
   const service = await getActiveServiceById(serviceId)
+
+  if (!serviceId || !isUuid(serviceId)) {
+    details.push('Select a valid approved service UUID.')
+  }
 
   if (!service) {
     details.push('Select an approved active service.')

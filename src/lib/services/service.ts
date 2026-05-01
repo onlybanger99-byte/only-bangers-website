@@ -24,6 +24,12 @@ function normalizeText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+export function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  )
+}
+
 function getFallbackDuration(slug: string) {
   return fallbackServices.find((service) => service.slug === slug)?.duration ?? '30 min'
 }
@@ -67,27 +73,29 @@ export async function listActiveServices() {
     return {
       ok: false as const,
       message: 'We could not load the service catalog right now.',
-      data: fallbackToSummaries(),
+      data: [] as ServiceSummary[],
     }
   }
 
   if (!data || data.length === 0) {
     return {
       ok: true as const,
-      data: fallbackToSummaries(),
+      data: [] as ServiceSummary[],
     }
   }
 
   return {
     ok: true as const,
-    data: (data as ServiceRow[]).map(toServiceSummary),
+    data: (data as ServiceRow[])
+      .filter((row) => typeof row.id === 'string' && isUuid(row.id))
+      .map(toServiceSummary),
   }
 }
 
 export async function getActiveServiceById(serviceId: string) {
   const normalized = normalizeText(serviceId)
 
-  if (!normalized) {
+  if (!normalized || !isUuid(normalized)) {
     return null
   }
 
@@ -106,21 +114,7 @@ export async function getActiveServiceById(serviceId: string) {
   if (data) {
     return toServiceSummary(data as ServiceRow)
   }
-
-  const fallback = fallbackServices.find((service) => service.id === normalized || service.slug === normalized)
-
-  if (!fallback) {
-    return null
-  }
-
-  return {
-    id: fallback.id,
-    name: fallback.name,
-    slug: fallback.slug,
-    description: fallback.description,
-    duration: fallback.duration,
-    sortOrder: fallback.sortOrder,
-  } satisfies ServiceSummary
+  return null
 }
 
 export function getFallbackServices() {

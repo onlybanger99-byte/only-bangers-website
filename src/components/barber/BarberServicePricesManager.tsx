@@ -27,6 +27,12 @@ const EMPTY_FORM: PriceFormState = {
   isActive: true,
 }
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  )
+}
+
 export function BarberServicePricesManager({
   initialPrices,
 }: {
@@ -59,7 +65,14 @@ export function BarberServicePricesManager({
       })
       .then((data) => {
         if (isActive) {
-          setServices(data)
+          const validServices = data.filter((service) => isUuid(service.id))
+
+          if (validServices.length !== data.length) {
+            console.error('[barber-service-prices] Non-UUID services received from API:', data)
+            setError('Approved services are not configured correctly. Please contact support.')
+          }
+
+          setServices(validServices)
         }
       })
       .catch((loadError) => {
@@ -133,6 +146,11 @@ export function BarberServicePricesManager({
 
     if (!form.serviceId) {
       setError('Select an approved service before saving.')
+      return
+    }
+
+    if (!isUuid(form.serviceId)) {
+      setError('The selected service is invalid. Reload the page and try again.')
       return
     }
 

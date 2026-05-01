@@ -4,6 +4,7 @@ import {
   deactivateBarberServicePrice,
   updateBarberServicePrice,
 } from '@/lib/barber-service-prices/service'
+import { isUuid } from '@/lib/services/service'
 
 export async function PATCH(
   request: NextRequest,
@@ -40,6 +41,19 @@ export async function PATCH(
   if (typeof body.serviceName === 'string' && body.serviceName.trim().length > 0) {
     return Response.json(
       { ok: false, error: { code: 'VALIDATION_ERROR', message: 'Custom service names are not allowed.' } },
+      { status: 400 }
+    )
+  }
+
+  if (typeof body.serviceId !== 'string' || !isUuid(body.serviceId)) {
+    return Response.json(
+      {
+        ok: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'service_id is required and must be a valid service UUID.',
+        },
+      },
       { status: 400 }
     )
   }

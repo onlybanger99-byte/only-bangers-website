@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import BookingFlowModal from '@/components/BookingFlowModal'
 import { readBookingDraft } from '@/lib/bookings/draft'
-import { services as fallbackServices } from '@/data/services'
 import styles from './services.module.css'
 
 type ServiceCard = {
@@ -31,16 +30,11 @@ type ServiceOption = {
   duration: string
 }
 
-const fallbackServiceCards: ServiceCard[] = fallbackServices.map((service) => ({
-  id: service.id,
-  slug: service.slug,
-  name: service.name,
-  description: service.description,
-  duration: service.duration,
-  price: 0,
-  image: '/images/header-bg.png',
-  priceLabel: 'Prices vary by barber',
-}))
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  )
+}
 
 function getPriceDisplayLabel(price?: number | null) {
   if (price == null || !Number.isFinite(price)) {
@@ -53,7 +47,7 @@ function getPriceDisplayLabel(price?: number | null) {
 export default function ServicesPage() {
   const [selectedService, setSelectedService] = useState<ServiceCard | null>(null)
   const [showBookingModal, setShowBookingModal] = useState(false)
-  const [serviceCards, setServiceCards] = useState<ServiceCard[]>(fallbackServiceCards)
+  const [serviceCards, setServiceCards] = useState<ServiceCard[]>([])
 
   useEffect(() => {
     let isActive = true
@@ -68,8 +62,8 @@ export default function ServicesPage() {
         }
 
         const activeServices = Array.isArray(servicesPayload?.data)
-          ? (servicesPayload.data as ServiceOption[])
-          : fallbackServiceCards
+          ? (servicesPayload.data as ServiceOption[]).filter((service) => isUuid(service.id))
+          : []
         const summaries = Array.isArray(summariesPayload?.data)
           ? (summariesPayload.data as PublicServicePriceSummary[])
           : []
