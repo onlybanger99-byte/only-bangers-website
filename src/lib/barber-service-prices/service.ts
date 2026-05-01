@@ -1,10 +1,16 @@
+import { services } from '@/data/services'
+import { getSafeImage, isSafeImageSource } from '@/lib/safe-image'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import type {
   BarberServicePriceInput,
   BarberServicePriceRecord,
   BarberServicePriceSummary,
+  PublicBarberServicePriceSummary,
+  PublicServicePriceSummary,
 } from './types'
+
+type BarberProfileRow = Record<string, unknown>
 
 function normalizeText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
@@ -21,6 +27,38 @@ function normalizeNumber(value: unknown) {
   }
 
   return null
+}
+
+function resolveLocation(profile: BarberProfileRow) {
+  const location = normalizeText(profile.location)
+  const cuttingLocation = normalizeText(profile.cutting_location)
+  return {
+    location: location || null,
+    cuttingLocation: cuttingLocation || null,
+  }
+}
+
+function resolveProfileImage(profile: BarberProfileRow) {
+  const candidates = [
+    normalizeText(profile.avatar_url),
+    normalizeText(profile.profile_image_url),
+    normalizeText(profile.profile_photo_url),
+  ]
+  const safe = candidates.find((candidate) => isSafeImageSource(candidate))
+  return safe || null
+}
+
+function resolveDisplayName(profile: BarberProfileRow) {
+  return (
+    normalizeText(profile.display_name) ||
+    normalizeText(profile.name) ||
+    normalizeText(profile.full_name) ||
+    'Only Bangers Barber'
+  )
+}
+
+function resolveBio(profile: BarberProfileRow) {
+  return normalizeText(profile.bio) || 'Premium barber available through the Only Bangers booking flow.'
 }
 
 function toSummary(row: BarberServicePriceRecord): BarberServicePriceSummary {
@@ -84,6 +122,52 @@ function validateInput(input: BarberServicePriceInput) {
   }
 }
 
+function matchesRequestedService(
+  row: BarberServicePriceRecord,
+  filter?: { serviceId?: string | null; serviceName?: string | null }
+) {
+  const serviceId = normalizeText(filter?.serviceId)
+  const serviceName = normalizeText(filter?.serviceName).toLowerCase()
+
+  if (!serviceId && !serviceName) {
+    return true
+  }
+
+  if (serviceId && row.service_id === serviceId) {
+    return true
+  }
+
+  if (serviceName && normalizeText(row.service_name).toLowerCase() === serviceName) {
+    return true
+  }
+
+  return false
+}
+
+async function getPublicProfilesMap(barberProfileIds: string[]) {
+  if (barberProfileIds.length === 0) {
+    return new Map<string, BarberProfileRow>()
+  }
+
+  const supabase = await getSupabase()
+  const { data, error } = await supabase
+    .from('barber_profiles')
+    .select('*')
+    .in('id', barberProfileIds)
+    .eq('is_active', true)
+
+  if (error && error.code !== '42P01' && error.code !== 'PGRST205') {
+    console.error('[barber-service-prices] Failed to load public barber profiles', error)
+    return new Map<string, BarberProfileRow>()
+  }
+
+  return new Map(
+    ((data ?? []) as BarberProfileRow[])
+      .filter((row) => typeof row.id === 'string' && typeof row.user_id === 'string')
+      .map((row) => [row.id as string, row])
+  )
+}
+
 export async function listBarberServicePricesForOwner(userId: string) {
   const barberProfileId = await getBarberProfileIdentity(userId)
 
@@ -95,7 +179,7 @@ export async function listBarberServicePricesForOwner(userId: string) {
     }
   }
 
-  const supabase = await createClient()
+  const supabase = await getSupabase()
   const { data, error } = await supabase
     .from('barber_service_prices')
     .select('*')
@@ -147,6 +231,135 @@ export async function listActiveBarberServicePricesForPublic(barberUserId: strin
   return {
     ok: true as const,
     data: ((data ?? []) as BarberServicePriceRecord[]).map(toSummary),
+  }
+}
+
+export async function listPublicBarbersForService(filter: {
+  serviceId?: string | null
+  serviceName?: string | null
+}) {
+  const supabase = await getSupabase()
+  const { data, error } = await supabase
+    .from('barber_service_prices')
+    .select('*')
+    .eq('is_active', true)
+    .order('price', { ascending: true })
+    .order('service_name', { ascending: true })
+
+  if (error && error.code !== '42P01' && error.code !== 'PGRST205') {
+    console.error('[barber-service-prices] Failed to load service offerings', error)
+    return {
+      ok: false as const,
+      message: 'We could not load barber prices for this service right now.',
+      data: [] as PublicBarberServicePriceSummary[],
+    }
+  }
+
+  const matchingRows = ((data ?? []) as BarberServicePriceRecord[]).filter((row) =>
+    matchesRequestedService(row, filter)
+  )
+  const profileMap = await getPublicProfilesMap(
+    Array.from(new Set(matchingRows.map((row) => row.barber_profile_id)))
+  )
+
+  return {
+    ok: true as const,
+    data: matchingRows
+      .map((row) => {
+        const profile = profileMap.get(row.barber_profile_id)
+
+        if (!profile || typeof profile.user_id !== 'string') {
+          return null
+        }
+
+        const { location, cuttingLocation } = resolveLocation(profile)
+
+        return {
+          ...toSummary(row),
+          barberUserId: profile.user_id,
+          barberName: resolveDisplayName(profile),
+          location,
+          cuttingLocation,
+          bio: resolveBio(profile),
+          profileImageUrl: resolveProfileImage(profile),
+          barberIsActive: Boolean(profile.is_active),
+        } satisfies PublicBarberServicePriceSummary
+      })
+      .filter((row): row is PublicBarberServicePriceSummary => row !== null)
+      .sort((left, right) => {
+        if (left.price !== right.price) {
+          return left.price - right.price
+        }
+
+        return left.barberName.localeCompare(right.barberName)
+      }),
+  }
+}
+
+export async function listPublicServicePriceSummaries() {
+  const supabase = await getSupabase()
+  const { data, error } = await supabase
+    .from('barber_service_prices')
+    .select('*')
+    .eq('is_active', true)
+
+  if (error && error.code !== '42P01' && error.code !== 'PGRST205') {
+    console.error('[barber-service-prices] Failed to load public service summaries', error)
+    return {
+      ok: false as const,
+      message: 'We could not load public service pricing right now.',
+      data: [] as PublicServicePriceSummary[],
+    }
+  }
+
+  const profileMap = await getPublicProfilesMap(
+    Array.from(new Set(((data ?? []) as BarberServicePriceRecord[]).map((row) => row.barber_profile_id)))
+  )
+  const serviceDefinitions = new Map(
+    services.map((service) => [
+      service.id,
+      {
+        serviceId: service.id,
+        serviceName: service.name,
+      },
+    ])
+  )
+  const grouped = new Map<string, PublicServicePriceSummary>()
+
+  for (const row of (data ?? []) as BarberServicePriceRecord[]) {
+    const profile = profileMap.get(row.barber_profile_id)
+
+    if (!profile) {
+      continue
+    }
+
+    const knownDefinition = row.service_id ? serviceDefinitions.get(row.service_id) : null
+    const serviceName = knownDefinition?.serviceName ?? normalizeText(row.service_name)
+    const serviceId = knownDefinition?.serviceId ?? row.service_id ?? null
+    const key = serviceId ?? serviceName.toLowerCase()
+    const current = grouped.get(key)
+
+    if (!current) {
+      grouped.set(key, {
+        serviceId,
+        serviceName,
+        minPrice: row.price,
+        maxPrice: row.price,
+        barberCount: 1,
+      })
+      continue
+    }
+
+    current.minPrice = current.minPrice == null ? row.price : Math.min(current.minPrice, row.price)
+    current.maxPrice = current.maxPrice == null ? row.price : Math.max(current.maxPrice, row.price)
+    current.barberCount += 1
+  }
+
+  return {
+    ok: true as const,
+    data: Array.from(grouped.values()).sort((left, right) =>
+      left.serviceName.localeCompare(right.serviceName)
+    ),
   }
 }
 
@@ -313,4 +526,16 @@ export async function updateBarberServicePrice(
 
 export async function deactivateBarberServicePrice(userId: string, priceId: string) {
   return updateBarberServicePrice(userId, priceId, { isActive: false })
+}
+
+export function getPriceDisplayLabel(price?: number | null) {
+  if (price == null || !Number.isFinite(price)) {
+    return 'Prices vary by barber'
+  }
+
+  return `From R${price}`
+}
+
+export function getSafeProfileImage(src?: string | null) {
+  return getSafeImage(src)
 }

@@ -22,6 +22,8 @@ export default function BookingModal({ service, isOpen, onClose }: BookingModalP
         name: service.name,
         price: service.price,
         image: '/images/header-bg.png',
+        description: service.description,
+        duration: service.duration,
       }}
       isOpen={isOpen}
       onClose={onClose}

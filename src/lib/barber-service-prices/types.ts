@@ -20,9 +20,27 @@ export interface BarberServicePriceSummary {
   isActive: boolean
 }
 
+export interface PublicBarberServicePriceSummary extends BarberServicePriceSummary {
+  barberUserId: string
+  barberName: string
+  location: string | null
+  cuttingLocation: string | null
+  bio: string
+  profileImageUrl: string | null
+  barberIsActive: boolean
+}
+
 export interface BarberServicePriceInput {
   serviceId?: string | null
   serviceName: string
   price: number
   durationMinutes?: number | null
+}
+
+export interface PublicServicePriceSummary {
+  serviceId: string | null
+  serviceName: string
+  minPrice: number | null
+  maxPrice: number | null
+  barberCount: number
 }

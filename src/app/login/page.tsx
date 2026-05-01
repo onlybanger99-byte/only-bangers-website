@@ -44,6 +44,10 @@ function LoginPageContent() {
   };
 
   const getPostLoginPath = async (role: AppRole) => {
+    if (role === "admin" || role === "barber") {
+      return getDefaultDashboardForRole(role);
+    }
+
     const resumePath =
       nextPath ||
       (readBookingDraft() ? "/services?resumeBooking=1" : null) ||

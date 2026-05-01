@@ -6,6 +6,10 @@
   align-items: center;
   justify-content: center;
   padding: 2rem 1rem;
+  background:
+    radial-gradient(circle at top left, rgba(212, 175, 55, 0.12), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(212, 175, 55, 0.08), transparent 32%),
+    linear-gradient(180deg, #090909 0%, #050505 100%);
 }
 
 .loginCard {
@@ -37,6 +41,7 @@
   text-align: center;
   margin-bottom: 2.5rem;
   font-size: 0.95rem;
+  line-height: 1.6;
 }
 
 /* OAuth Buttons */
@@ -63,12 +68,20 @@
   letter-spacing: 0.05em;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
 }
 
 .oauthButton:hover {
   border-color: var(--premium-gold);
   background: rgba(212, 175, 55, 0.1);
   transform: translateY(-2px);
+}
+
+.oauthButton:focus-visible,
+.magicLinkButton:focus-visible,
+.emailInput:focus-visible {
+  outline: 2px solid rgba(230, 193, 88, 0.9);
+  outline-offset: 3px;
 }
 
 /* Divider */

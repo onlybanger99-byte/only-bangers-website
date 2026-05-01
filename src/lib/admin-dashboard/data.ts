@@ -1,12 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { listBarberApplicationsForAdmin } from '@/lib/barber-applications/service'
-import { listActiveBarberServicePricesForPublic } from '@/lib/barber-service-prices/service'
+import { listBarberServicePricesForOwner } from '@/lib/barber-service-prices/service'
 import type { BarberApplicationSummary } from '@/lib/barber-applications/types'
 import { getCustomerProfilesByUserIds } from '@/lib/customer-profiles/service'
 import { normalizeRole } from '@/lib/auth/roles'
 import type { BookingStatus, PaymentStatus } from '@/lib/bookings/types'
 import { formatDate, formatDateTime } from '@/lib/date-time'
+import { getSafeImage } from '@/lib/safe-image'
 import type {
   AdminBarberRow,
   AdminBarberApplicationRow,
@@ -469,16 +470,17 @@ async function getBarbersSection(): Promise<AdminBarbersSection> {
       const profile = profileMap.get(userId)
       const authUser = authUsers.get(userId)
       const stats = bookingMap.get(userId) ?? { total: 0, upcoming: 0, completed: 0 }
-      const servicePricesResult = await listActiveBarberServicePricesForPublic(userId)
+      const servicePricesResult = await listBarberServicePricesForOwner(userId)
       const fallbackName =
         authUser?.email
           ?.split('@')[0]
           ?.replace(/[._-]+/g, ' ')
           .replace(/\b\w/g, (character) => character.toUpperCase()) || 'Unnamed barber'
       const displayName = resolveFirstText(profile ?? {}, 'display_name', 'name', 'full_name') || fallbackName
-      const profileImageUrl =
+      const profileImageUrl = getSafeImage(
         resolveFirstText(profile ?? {}, 'profile_image_url', 'profile_photo_url', 'avatar_url') ||
-        '/images/header-bg.png'
+          null
+      )
       const specialty = resolveFirstText(profile ?? {}, 'specialty') || 'Specialty not set'
 
       return {

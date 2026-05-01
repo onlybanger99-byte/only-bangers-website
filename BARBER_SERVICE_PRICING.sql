@@ -41,6 +41,11 @@ create table if not exists public.barber_service_prices (
   updated_at timestamptz not null default now()
 );
 
+alter table public.barber_profiles
+  add column if not exists location text,
+  add column if not exists avatar_url text,
+  add column if not exists profile_image_url text;
+
 alter table public.barber_service_prices
   add column if not exists barber_profile_id uuid references public.barber_profiles(id) on delete cascade,
   add column if not exists service_id text,
@@ -60,7 +65,11 @@ on public.barber_service_prices(is_active);
 alter table public.bookings
   add column if not exists barber_service_price_id uuid references public.barber_service_prices(id),
   add column if not exists amount_due numeric,
-  add column if not exists service_name text;
+  add column if not exists service_name text,
+  add column if not exists barber_name text,
+  add column if not exists starts_at timestamptz,
+  add column if not exists status text,
+  add column if not exists payment_status text;
 
 drop trigger if exists trg_barber_service_prices_set_updated_at on public.barber_service_prices;
 create trigger trg_barber_service_prices_set_updated_at

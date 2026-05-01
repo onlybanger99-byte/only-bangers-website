@@ -1,19 +1,24 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { services } from '@/data/services'
 import type { BarberServicePriceSummary } from '@/lib/barber-service-prices/types'
 import styles from '@/app/barber/dashboard/dashboard.module.css'
 
 type PriceFormState = {
+  serviceId: string
   serviceName: string
   price: string
   durationMinutes: string
+  isActive: boolean
 }
 
 const EMPTY_FORM: PriceFormState = {
+  serviceId: '',
   serviceName: '',
   price: '',
   durationMinutes: '30',
+  isActive: true,
 }
 
 export function BarberServicePricesManager({
@@ -47,9 +52,11 @@ export function BarberServicePricesManager({
   const startEditing = (price: BarberServicePriceSummary) => {
     setEditingId(price.id)
     setForm({
+      serviceId: price.serviceId ?? '',
       serviceName: price.serviceName,
       price: String(price.price),
       durationMinutes: price.durationMinutes ? String(price.durationMinutes) : '30',
+      isActive: price.isActive,
     })
     setMessage('')
     setError('')
@@ -60,6 +67,16 @@ export function BarberServicePricesManager({
     setForm(EMPTY_FORM)
   }
 
+  const handleServiceSelection = (value: string) => {
+    const selected = services.find((service) => service.id === value)
+
+    setForm((current) => ({
+      ...current,
+      serviceId: value,
+      serviceName: selected?.name ?? current.serviceName,
+    }))
+  }
+
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSaving(true)
@@ -67,9 +84,11 @@ export function BarberServicePricesManager({
     setError('')
 
     const requestBody = {
+      serviceId: form.serviceId || null,
       serviceName: form.serviceName,
       price: Number.parseFloat(form.price),
       durationMinutes: Number.parseInt(form.durationMinutes, 10),
+      isActive: form.isActive,
     }
 
     const response = await fetch(
@@ -118,6 +137,21 @@ export function BarberServicePricesManager({
     <div className={styles.formStack}>
       <form className={styles.formGrid} onSubmit={submit}>
         <label className={styles.field}>
+          <span className={styles.metaLabel}>Existing Service</span>
+          <select
+            className={styles.input}
+            value={form.serviceId}
+            onChange={(event) => handleServiceSelection(event.target.value)}
+          >
+            <option value="">Custom service name</option>
+            {services.map((service) => (
+              <option key={service.id} value={service.id}>
+                {service.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className={styles.field}>
           <span className={styles.metaLabel}>Service Name</span>
           <input
             className={styles.input}
@@ -152,6 +186,19 @@ export function BarberServicePricesManager({
             placeholder="30"
             required
           />
+        </label>
+        <label className={styles.field}>
+          <span className={styles.metaLabel}>Status</span>
+          <select
+            className={styles.input}
+            value={form.isActive ? 'active' : 'inactive'}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, isActive: event.target.value === 'active' }))
+            }
+          >
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
         </label>
         <div className={styles.field}>
           <span className={styles.metaLabel}>Action</span>

@@ -20,6 +20,7 @@ import { AdminCreateUserForm } from './AdminCreateUserForm'
 import { AdminModal } from './AdminModal'
 import { AdminUserActions } from './AdminUserActions'
 import { formatDate, formatTimeRange } from '@/lib/date-time'
+import { getSafeImage } from '@/lib/safe-image'
 import styles from '@/app/admin/dashboard/dashboard.module.css'
 
 const TABS = [
@@ -185,7 +186,7 @@ function UserSummaryCard({
   return (
     <article className={styles.recordCard}>
       <div className={styles.personTop}>
-        <img src={user.profileImageUrl} alt={user.fullName} className={styles.avatarImage} />
+        <img src={getSafeImage(user.profileImageUrl)} alt={user.fullName} className={styles.avatarImage} />
         <div>
           <h3 className={styles.cardTitle}>{user.fullName}</h3>
           <p className={styles.cardMeta}>{user.email}</p>
@@ -224,7 +225,7 @@ function BarberSummaryCard({
   return (
     <article className={styles.recordCard}>
       <div className={styles.personTop}>
-        <img src={barber.profileImageUrl} alt={barber.displayName} className={styles.avatarImage} />
+        <img src={getSafeImage(barber.profileImageUrl)} alt={barber.displayName} className={styles.avatarImage} />
         <div>
           <h3 className={styles.cardTitle}>{barber.displayName}</h3>
           <p className={styles.cardMeta}>{barber.specialty}</p>
@@ -808,7 +809,7 @@ export function AdminDashboardTabs({
             </div>
 
             <div className={styles.panelCard}>
-              <p className={styles.eyebrow}>Active Prices</p>
+              <p className={styles.eyebrow}>Barber Prices</p>
               {selectedBarber.servicePrices.length > 0 ? (
                 <div className={styles.inlineActions}>
                   {selectedBarber.servicePrices.map((price) => (

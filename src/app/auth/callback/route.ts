@@ -54,28 +54,28 @@ export async function GET(request: Request) {
     return createLoginRedirect(requestUrl, 'missing-role')
   }
 
-  if (nextPath) {
-    if (role === 'customer') {
-      const profile = await getCustomerProfileCompletionState(user.id)
+  if (role === 'admin' || role === 'barber') {
+    return NextResponse.redirect(new URL(getDefaultDashboardForRole(role), requestUrl.origin))
+  }
 
-      if (!profile.isComplete) {
-        const profileUrl = new URL('/portal/profile/complete', requestUrl.origin)
-        profileUrl.searchParams.set('next', nextPath)
-        return NextResponse.redirect(profileUrl)
-      }
+  if (nextPath) {
+    const profile = await getCustomerProfileCompletionState(user.id)
+
+    if (!profile.isComplete) {
+      const profileUrl = new URL('/portal/profile/complete', requestUrl.origin)
+      profileUrl.searchParams.set('next', nextPath)
+      return NextResponse.redirect(profileUrl)
     }
 
     return NextResponse.redirect(new URL(nextPath, requestUrl.origin))
   }
 
-  if (role === 'customer') {
-    const profile = await getCustomerProfileCompletionState(user.id)
+  const profile = await getCustomerProfileCompletionState(user.id)
 
-    if (!profile.isComplete) {
-      const profileUrl = new URL('/portal/profile/complete', requestUrl.origin)
-      profileUrl.searchParams.set('next', '/portal/dashboard')
-      return NextResponse.redirect(profileUrl)
-    }
+  if (!profile.isComplete) {
+    const profileUrl = new URL('/portal/profile/complete', requestUrl.origin)
+    profileUrl.searchParams.set('next', '/portal/dashboard')
+    return NextResponse.redirect(profileUrl)
   }
 
   return NextResponse.redirect(new URL(getDefaultDashboardForRole(role), requestUrl.origin))

@@ -35,6 +35,12 @@
   flex-wrap: wrap;
 }
 
+.priceHint {
+  margin: 0.65rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .ctaSection {
