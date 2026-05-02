@@ -41,6 +41,7 @@ export interface CreateBarberApplicationInput {
 export interface UpdateBarberProfileInput {
   displayName?: string | null
   cuttingLocation: string
+  mapUrl?: string | null
   instagramUrl?: string | null
   tiktokUrl?: string | null
   facebookUrl?: string | null

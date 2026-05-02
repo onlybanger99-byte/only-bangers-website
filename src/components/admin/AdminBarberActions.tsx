@@ -26,6 +26,40 @@ export function AdminBarberActions({
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
+  const runAction = async (
+    action: 'deactivate' | 'approve_go_live' | 'reject_go_live',
+    successText: string
+  ) => {
+    const rejectionReason =
+      action === 'reject_go_live'
+        ? window.prompt('Add a short rejection reason for this go-live request:') ?? ''
+        : ''
+
+    setLoadingAction(action === 'deactivate' ? 'deactivate' : 'save')
+    setMessage('')
+    setError('')
+
+    const response = await fetch(`/api/admin/barbers/${barber.id}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ action, rejectionReason }),
+    })
+
+    const payload = await response.json().catch(() => null)
+
+    if (!response.ok || !payload?.ok) {
+      setError(payload?.error?.message ?? 'Could not update this barber.')
+      setLoadingAction(null)
+      return
+    }
+
+    setMessage(successText)
+    setLoadingAction(null)
+    router.refresh()
+  }
+
   const saveProfile = async () => {
     setLoadingAction('save')
     setMessage('')
@@ -146,6 +180,26 @@ export function AdminBarberActions({
         >
           {loadingAction === 'save' ? 'Saving...' : 'Edit Barber Profile'}
         </button>
+        {barber.setupStatus === 'pending_review' && !barber.isLive ? (
+          <>
+            <button
+              type="button"
+              className={styles.primaryButton}
+              disabled={loadingAction !== null}
+              onClick={() => runAction('approve_go_live', 'Barber is now live to customers.')}
+            >
+              Approve Go-Live
+            </button>
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              disabled={loadingAction !== null}
+              onClick={() => runAction('reject_go_live', 'Go-live request rejected.')}
+            >
+              Reject Go-Live
+            </button>
+          </>
+        ) : null}
         {barber.activeStatus === 'active' ? (
           <button
             type="button"

@@ -1,6 +1,14 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 
 type AppRole = 'customer' | 'barber' | 'admin'
+type AdminClient = NonNullable<ReturnType<typeof createAdminClient>>
+type CreateUserFailureStep =
+  | 'service_role_validation'
+  | 'supabase.auth.admin.createUser'
+  | 'user_roles.upsert'
+  | 'customer_profiles.upsert'
+  | 'barber_profiles.upsert'
+  | 'rollback.deleteUser'
 
 function normalizeText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
@@ -16,6 +24,17 @@ function isAppRole(value: string): value is AppRole {
 }
 
 function requireAdminClient() {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!serviceRoleKey || !serviceRoleKey.trim()) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY is missing on the server.')
+  }
+
+  if (anonKey && serviceRoleKey.trim() === anonKey.trim()) {
+    throw new Error('Service role key is missing or incorrectly set to anon key.')
+  }
+
   const adminClient = createAdminClient()
 
   if (!adminClient) {
@@ -26,7 +45,7 @@ function requireAdminClient() {
 }
 
 async function saveBarberProfile(
-  adminClient: ReturnType<typeof requireAdminClient>,
+  adminClient: AdminClient,
   userId: string,
   payload: Record<string, unknown>
 ) {
@@ -69,23 +88,92 @@ async function saveBarberProfile(
   return error ? { ok: false as const, error } : { ok: true as const }
 }
 
+async function saveCustomerProfile(
+  adminClient: AdminClient,
+  userId: string,
+  email: string
+) {
+  const fallbackDisplayName = fallbackDisplayNameFromEmail(email)
+  const nameParts = fallbackDisplayName.split(' ').filter(Boolean)
+  const firstName = nameParts[0] ?? 'Only'
+  const lastName = nameParts.slice(1).join(' ') || 'Bangers'
+
+  const { error } = await adminClient.from('customer_profiles').upsert(
+    {
+      user_id: userId,
+      first_name: firstName,
+      last_name: lastName,
+      phone_number: null,
+      profile_photo_url: null,
+      profile_image_url: null,
+      avatar_url: null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id' }
+  )
+
+  return error ? { ok: false as const, error } : { ok: true as const }
+}
+
+async function rollbackCreatedUser(adminClient: AdminClient, userId: string) {
+  const { error } = await adminClient.auth.admin.deleteUser(userId)
+  return error ? { ok: false as const, error } : { ok: true as const }
+}
+
+function createFailure(params: {
+  step: CreateUserFailureStep
+  message: string
+  details: string[]
+  code?: string | null
+  rollbackFailed?: boolean
+  rollbackDetails?: string[]
+}) {
+  return {
+    ok: false as const,
+    step: params.step,
+    message: params.message,
+    details: params.details,
+    code: params.code ?? null,
+    rollbackFailed: params.rollbackFailed ?? false,
+    rollbackDetails: params.rollbackDetails ?? [],
+  }
+}
+
 export async function createManualUser(input: {
   email: string
   password: string
-  role: AppRole
+  role?: AppRole
 }) {
   const email = normalizeText(input.email).toLowerCase()
   const password = normalizeText(input.password)
+  const role = isAppRole(input.role ?? '') ? input.role : 'customer'
 
-  if (!email || !password || !isAppRole(input.role)) {
+  if (!email || !password) {
     return {
       ok: false as const,
-      message: 'Email, password, and role are required.',
-      details: ['Provide a valid email, password, and role.'],
+      message: 'Email and password are required.',
+      details: ['Provide a valid email address and password.'],
     }
   }
 
-  const adminClient = requireAdminClient()
+  let adminClient: AdminClient
+
+  try {
+    adminClient = requireAdminClient()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Supabase admin client is not configured.'
+    console.error('[admin-users.createManualUser] service role validation failed', {
+      step: 'service_role_validation',
+      message,
+    })
+
+    return createFailure({
+      step: 'service_role_validation',
+      message,
+      details: [message],
+    })
+  }
+
   const createdUser = await adminClient.auth.admin.createUser({
     email,
     password,
@@ -93,34 +181,115 @@ export async function createManualUser(input: {
   })
 
   if (createdUser.error || !createdUser.data.user) {
-    return {
-      ok: false as const,
-      message: 'Could not create this user.',
+    console.error('[admin-users.createManualUser] auth create user failed', {
+      step: 'supabase.auth.admin.createUser',
+      email,
+      role,
+      code: createdUser.error?.code ?? null,
+      message: createdUser.error?.message ?? 'User creation failed.',
+    })
+
+    return createFailure({
+      step: 'supabase.auth.admin.createUser',
+      message: createdUser.error?.message ?? 'Could not create this user.',
       details: [createdUser.error?.message ?? 'User creation failed.'],
-    }
+      code: createdUser.error?.code ?? null,
+    })
   }
 
   const userId = createdUser.data.user.id
 
   const { error: roleError } = await adminClient
     .from('user_roles')
-    .upsert({ user_id: userId, role: input.role }, { onConflict: 'user_id' })
+    .upsert({ user_id: userId, role }, { onConflict: 'user_id' })
 
   if (roleError) {
-    return {
-      ok: false as const,
+    const rollback = await rollbackCreatedUser(adminClient, userId)
+    console.error('[admin-users.createManualUser] user role upsert failed', {
+      step: 'user_roles.upsert',
+      userId,
+      email,
+      role,
+      code: roleError.code ?? null,
+      message: roleError.message,
+      rollbackOk: rollback.ok,
+      rollbackMessage: rollback.ok ? null : rollback.error.message,
+    })
+
+    return createFailure({
+      step: 'user_roles.upsert',
       message: 'User was created, but the role could not be assigned.',
-      details: [roleError.message],
-    }
+      details: [
+        roleError.message,
+        rollback.ok ? 'The partially created auth user was rolled back.' : `Rollback failed: ${rollback.error.message}`,
+      ],
+      code: roleError.code ?? null,
+      rollbackFailed: !rollback.ok,
+      rollbackDetails: rollback.ok ? [] : [rollback.error.message],
+    })
   }
 
-  if (input.role === 'barber') {
-    await saveBarberProfile(adminClient, userId, {
+  const customerProfileResult = await saveCustomerProfile(adminClient, userId, email)
+
+  if (!customerProfileResult.ok) {
+    const rollback = await rollbackCreatedUser(adminClient, userId)
+    console.error('[admin-users.createManualUser] customer profile upsert failed', {
+      step: 'customer_profiles.upsert',
+      userId,
+      email,
+      role,
+      code: customerProfileResult.error.code ?? null,
+      message: customerProfileResult.error.message,
+      rollbackOk: rollback.ok,
+      rollbackMessage: rollback.ok ? null : rollback.error.message,
+    })
+
+    return createFailure({
+      step: 'customer_profiles.upsert',
+      message: 'User was created, but the profile row could not be saved.',
+      details: [
+        customerProfileResult.error.message,
+        rollback.ok ? 'The partially created auth user was rolled back.' : `Rollback failed: ${rollback.error.message}`,
+      ],
+      code: customerProfileResult.error.code ?? null,
+      rollbackFailed: !rollback.ok,
+      rollbackDetails: rollback.ok ? [] : [rollback.error.message],
+    })
+  }
+
+  if (role === 'barber') {
+    const barberProfileResult = await saveBarberProfile(adminClient, userId, {
       display_name: fallbackDisplayNameFromEmail(email),
       specialty: 'Only Bangers Team',
       bio: 'New barber profile created by admin.',
       is_active: true,
     })
+
+    if (!barberProfileResult.ok) {
+      const rollback = await rollbackCreatedUser(adminClient, userId)
+      console.error('[admin-users.createManualUser] barber profile upsert failed', {
+        step: 'barber_profiles.upsert',
+        userId,
+        email,
+        role,
+        code: barberProfileResult.error.code ?? null,
+        message: barberProfileResult.error.message,
+        rollbackOk: rollback.ok,
+        rollbackMessage: rollback.ok ? null : rollback.error.message,
+      })
+
+      return createFailure({
+        step: 'barber_profiles.upsert',
+        message: 'User was created, but the barber profile could not be saved.',
+        details: [
+          barberProfileResult.error.message,
+          rollback.ok ? 'The partially created auth user was rolled back.' : `Rollback failed: ${rollback.error.message}`,
+        ],
+        code: barberProfileResult.error.code ?? null,
+        rollbackFailed: !rollback.ok,
+        rollbackDetails: rollback.ok ? [] : [rollback.error.message],
+      })
+    }
   }
 
   return {
@@ -128,7 +297,7 @@ export async function createManualUser(input: {
     data: {
       id: userId,
       email,
-      role: input.role,
+      role,
     },
   }
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { BarberServicePriceSummary } from '@/lib/barber-service-prices/types'
+import { parseDurationToMinutes } from '@/lib/services/duration'
 import styles from '@/app/barber/dashboard/dashboard.module.css'
 
 type ServiceOption = {
@@ -11,21 +12,17 @@ type ServiceOption = {
   description: string
   duration: string
   sortOrder: number
-}
-
-type PriceFormState = {
-  serviceId: string
-  price: string
-  durationMinutes: string
   isActive: boolean
 }
 
-const EMPTY_FORM: PriceFormState = {
-  serviceId: '',
-  price: '',
-  durationMinutes: '30',
-  isActive: true,
-}
+type DraftMap = Record<
+  string,
+  {
+    price: string
+    durationMinutes: string
+    isActive: boolean
+  }
+>
 
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -40,9 +37,8 @@ export function BarberServicePricesManager({
 }) {
   const [prices, setPrices] = useState(initialPrices)
   const [services, setServices] = useState<ServiceOption[]>([])
-  const [form, setForm] = useState<PriceFormState>(EMPTY_FORM)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
+  const [drafts, setDrafts] = useState<DraftMap>({})
+  const [loadingServiceId, setLoadingServiceId] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -64,16 +60,12 @@ export function BarberServicePricesManager({
         return Array.isArray(payload.data) ? (payload.data as ServiceOption[]) : []
       })
       .then((data) => {
-        if (isActive) {
-          const validServices = data.filter((service) => isUuid(service.id))
-
-          if (validServices.length !== data.length) {
-            console.error('[barber-service-prices] Non-UUID services received from API:', data)
-            setError('Approved services are not configured correctly. Please contact support.')
-          }
-
-          setServices(validServices)
+        if (!isActive) {
+          return
         }
+
+        const validServices = data.filter((service) => isUuid(service.id))
+        setServices(validServices)
       })
       .catch((loadError) => {
         console.error('[barber-service-prices] Failed to load service catalog:', loadError)
@@ -87,9 +79,35 @@ export function BarberServicePricesManager({
     }
   }, [])
 
-  const selectedService = useMemo(
-    () => services.find((service) => service.id === form.serviceId) ?? null,
-    [form.serviceId, services]
+  useEffect(() => {
+    const nextDrafts = Object.fromEntries(
+      services.map((service) => {
+        const existing = prices.find((price) => price.serviceId === service.id)
+        return [
+          service.id,
+          {
+            price: existing ? String(existing.price) : '',
+            durationMinutes:
+              existing?.durationMinutes != null
+                ? String(existing.durationMinutes)
+                : String(parseDurationToMinutes(service.duration)),
+            isActive: existing?.isActive ?? true,
+          },
+        ]
+      })
+    )
+
+    setDrafts(nextDrafts)
+  }, [prices, services])
+
+  const pricesByServiceId = useMemo(
+    () =>
+      new Map(
+        prices
+          .filter((price) => typeof price.serviceId === 'string')
+          .map((price) => [price.serviceId as string, price])
+      ),
+    [prices]
   )
 
   async function loadPrices() {
@@ -104,82 +122,36 @@ export function BarberServicePricesManager({
     setPrices(Array.isArray(payload.data) ? payload.data : [])
   }
 
-  const startEditing = (price: BarberServicePriceSummary) => {
-    setEditingId(price.id)
-    setForm({
-      serviceId: price.serviceId ?? '',
-      price: String(price.price),
-      durationMinutes: price.durationMinutes ? String(price.durationMinutes) : '30',
-      isActive: price.isActive,
-    })
+  const saveService = async (service: ServiceOption) => {
+    const draft = drafts[service.id]
+    const existing = pricesByServiceId.get(service.id) ?? null
+
+    if (!draft?.price || Number.parseFloat(draft.price) <= 0) {
+      setError(`Enter a valid price for ${service.name}.`)
+      setMessage('')
+      return
+    }
+
+    setLoadingServiceId(service.id)
     setMessage('')
     setError('')
-  }
-
-  const resetForm = () => {
-    setEditingId(null)
-    setForm(EMPTY_FORM)
-    setError('')
-  }
-
-  const handleServiceSelection = (value: string) => {
-    const existing = prices.find((price) => price.serviceId === value) ?? null
-
-    if (existing) {
-      startEditing(existing)
-      setMessage('Existing service price loaded for editing.')
-      return
-    }
-
-    setEditingId(null)
-    setForm((current) => ({
-      ...current,
-      serviceId: value,
-      isActive: true,
-    }))
-    setMessage('')
-    setError('')
-  }
-
-  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    if (!form.serviceId) {
-      setError('Select an approved service before saving.')
-      return
-    }
-
-    if (!isUuid(form.serviceId)) {
-      setError('The selected service is invalid. Reload the page and try again.')
-      return
-    }
-
-    if (!form.price || Number.parseFloat(form.price) <= 0) {
-      setError('Enter a valid price greater than 0.')
-      return
-    }
-
-    setSaving(true)
-    setMessage('')
-    setError('')
-
-    const requestBody = {
-      serviceId: form.serviceId,
-      price: Number.parseFloat(form.price),
-      durationMinutes: form.durationMinutes ? Number.parseInt(form.durationMinutes, 10) : null,
-      isActive: form.isActive,
-    }
 
     const response = await fetch(
-      editingId ? `/api/barber/service-prices/${editingId}` : '/api/barber/service-prices',
+      existing ? `/api/barber/service-prices/${existing.id}` : '/api/barber/service-prices',
       {
-        method: editingId ? 'PATCH' : 'POST',
+        method: existing ? 'PATCH' : 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          serviceId: service.id,
+          price: Number.parseFloat(draft.price),
+          durationMinutes: Number.parseInt(draft.durationMinutes, 10),
+          isActive: draft.isActive,
+        }),
       }
     )
+
     const payload = await response.json().catch(() => null)
 
     if (!response.ok || !payload?.ok) {
@@ -187,168 +159,193 @@ export function BarberServicePricesManager({
       setError(
         payload?.error?.message
           ? `${payload.error.message}${details ? ` ${details}` : ''}`
-          : 'Could not save this service price.'
+          : `Could not save ${service.name}.`
       )
-      setSaving(false)
+      setLoadingServiceId(null)
       return
     }
 
-    setMessage(editingId ? 'Service price updated successfully.' : 'Service price added successfully.')
-    resetForm()
-    setSaving(false)
+    setMessage(existing ? `${service.name} updated.` : `${service.name} added.`)
+    setLoadingServiceId(null)
     await loadPrices()
   }
 
-  const deactivate = async (id: string) => {
+  const deactivateService = async (priceId: string, serviceName: string) => {
+    setLoadingServiceId(priceId)
     setMessage('')
     setError('')
 
-    const response = await fetch(`/api/barber/service-prices/${id}`, {
+    const response = await fetch(`/api/barber/service-prices/${priceId}`, {
       method: 'DELETE',
     })
     const payload = await response.json().catch(() => null)
 
     if (!response.ok || !payload?.ok) {
-      setError(payload?.error?.message ?? 'Could not remove this service price.')
+      setError(payload?.error?.message ?? `Could not deactivate ${serviceName}.`)
+      setLoadingServiceId(null)
       return
     }
 
-    setMessage('Service price deactivated.')
-    if (editingId === id) {
-      resetForm()
-    }
+    setMessage(`${serviceName} deactivated.`)
+    setLoadingServiceId(null)
     await loadPrices()
   }
 
   return (
     <div className={styles.formStack}>
-      <form className={styles.formGrid} onSubmit={submit}>
-        <div className={styles.fieldFull}>
-          <span className={styles.metaLabel}>Approved Service</span>
-          <div className={styles.selectionGrid}>
-            {services.map((service) => {
-              const isSelected = form.serviceId === service.id
-              return (
-                <button
-                  key={service.id}
-                  type="button"
-                  className={styles.selectionCard}
-                  data-selected={isSelected}
-                  onClick={() => handleServiceSelection(service.id)}
-                >
-                  <span className={styles.selectionTitle}>{service.name}</span>
-                  <span className={styles.selectionDescription}>{service.description}</span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-        <label className={styles.field}>
-          <span className={styles.metaLabel}>Price</span>
-          <input
-            type="number"
-            min="1"
-            step="1"
-            className={styles.input}
-            value={form.price}
-            onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))}
-            placeholder="150"
-            required
-          />
-        </label>
-        <label className={styles.field}>
-          <span className={styles.metaLabel}>Duration Minutes</span>
-          <input
-            type="number"
-            min="5"
-            step="5"
-            className={styles.input}
-            value={form.durationMinutes}
-            onChange={(event) => setForm((current) => ({ ...current, durationMinutes: event.target.value }))}
-            placeholder="30"
-          />
-        </label>
-        <label className={styles.field}>
-          <span className={styles.metaLabel}>Status</span>
-          <div className={styles.toggleGroup}>
-            <button
-              type="button"
-              className={styles.toggleButton}
-              data-active={form.isActive}
-              onClick={() => setForm((current) => ({ ...current, isActive: true }))}
-            >
-              Active
-            </button>
-            <button
-              type="button"
-              className={styles.toggleButton}
-              data-active={!form.isActive}
-              onClick={() => setForm((current) => ({ ...current, isActive: false }))}
-            >
-              Inactive
-            </button>
-          </div>
-        </label>
-        <div className={styles.field}>
-          <span className={styles.metaLabel}>Action</span>
-          <button type="submit" className={styles.primaryButton} disabled={saving}>
-            {saving ? 'Saving...' : editingId ? 'Save Price' : 'Add Service'}
-          </button>
-        </div>
-      </form>
-
-      {selectedService ? (
-        <div className={styles.panelCard}>
-          <p className={styles.eyebrow}>Selected Service</p>
-          <h3 className={styles.cardTitle}>{selectedService.name}</h3>
-          <p className={styles.cardText}>{selectedService.description}</p>
-          <p className={styles.cardSubmeta}>Using service UUID internally for barber-specific pricing.</p>
-        </div>
-      ) : null}
-
-      {editingId ? (
-        <div className={styles.inlineActions}>
-          <button type="button" className={styles.secondaryButton} onClick={resetForm}>
-            Cancel Edit
-          </button>
-        </div>
-      ) : null}
-
-      {message ? <p className={styles.cardSubmeta}>{message}</p> : null}
+      {message ? <p className={styles.successText}>{message}</p> : null}
       {error ? <p className={styles.errorText}>{error}</p> : null}
 
-      {prices.length > 0 ? (
-        <div className={styles.cardGrid}>
-          {prices.map((price) => (
-            <article key={price.id} className={styles.recordCard}>
+      <div className={styles.cardGrid}>
+        {services.map((service) => {
+          const existing = pricesByServiceId.get(service.id) ?? null
+          const durationMinutes = parseDurationToMinutes(service.duration)
+          const draft = drafts[service.id] ?? {
+            price: '',
+            durationMinutes: String(durationMinutes),
+            isActive: true,
+          }
+          const isBusy = loadingServiceId === service.id || loadingServiceId === existing?.id
+
+          return (
+            <article key={service.id} className={styles.recordCard}>
               <div className={styles.recordTop}>
                 <div>
-                  <p className={styles.referenceText}>Service Price</p>
-                  <h3 className={styles.cardTitle}>{price.serviceName}</h3>
-                  <p className={styles.cardMeta}>R{price.price}</p>
+                  <p className={styles.referenceText}>Approved Service</p>
+                  <h3 className={styles.cardTitle}>{service.name}</h3>
+                  <p className={styles.cardText}>{service.description}</p>
                 </div>
                 <div className={styles.badgeCluster}>
+                  <span className={styles.secondaryButton}>{service.duration}</span>
                   <span className={styles.secondaryButton}>
-                    {price.durationMinutes ? `${price.durationMinutes} min` : 'Duration not set'}
+                    {existing?.isActive ? 'Active' : existing ? 'Inactive' : 'Not added'}
                   </span>
-                  <span className={styles.secondaryButton}>{price.isActive ? 'Active' : 'Inactive'}</span>
                 </div>
+              </div>
+
+              <div className={styles.metaGrid}>
+                <div>
+                  <span className={styles.metaLabel}>Duration</span>
+                  <strong className={styles.metaValue}>
+                    {draft.durationMinutes ? `${draft.durationMinutes} min` : `${durationMinutes} min`}
+                  </strong>
+                </div>
+                <div>
+                  <span className={styles.metaLabel}>Current Price</span>
+                  <strong className={styles.metaValue}>{existing ? `R${existing.price}` : 'Not priced yet'}</strong>
+                </div>
+                <div>
+                  <span className={styles.metaLabel}>Status</span>
+                  <strong className={styles.metaValue}>{draft.isActive ? 'Active' : 'Inactive'}</strong>
+                </div>
+              </div>
+
+              <div className={styles.filtersGridCompactWide}>
+                <label className={styles.field}>
+                  <span className={styles.metaLabel}>Price</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    className={styles.input}
+                    value={draft.price}
+                    onChange={(event) =>
+                      setDrafts((current) => ({
+                        ...current,
+                        [service.id]: {
+                          ...current[service.id],
+                          price: event.target.value,
+                        },
+                      }))
+                    }
+                    placeholder="150"
+                  />
+                </label>
+
+                <label className={styles.field}>
+                  <span className={styles.metaLabel}>Duration (min)</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    className={styles.input}
+                    value={draft.durationMinutes}
+                    onChange={(event) =>
+                      setDrafts((current) => ({
+                        ...current,
+                        [service.id]: {
+                          ...current[service.id],
+                          durationMinutes: event.target.value,
+                        },
+                      }))
+                    }
+                    placeholder={String(durationMinutes)}
+                  />
+                </label>
+
+                <label className={styles.field}>
+                  <span className={styles.metaLabel}>Status</span>
+                  <div className={styles.toggleGroup}>
+                    <button
+                      type="button"
+                      className={styles.toggleButton}
+                      data-active={draft.isActive}
+                      onClick={() =>
+                        setDrafts((current) => ({
+                          ...current,
+                          [service.id]: {
+                            ...current[service.id],
+                            isActive: true,
+                          },
+                        }))
+                      }
+                    >
+                      Active
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.toggleButton}
+                      data-active={!draft.isActive}
+                      onClick={() =>
+                        setDrafts((current) => ({
+                          ...current,
+                          [service.id]: {
+                            ...current[service.id],
+                            isActive: false,
+                          },
+                        }))
+                      }
+                    >
+                      Inactive
+                    </button>
+                  </div>
+                </label>
               </div>
 
               <div className={styles.inlineActions}>
-                <button type="button" className={styles.secondaryButton} onClick={() => startEditing(price)}>
-                  Edit
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  disabled={isBusy}
+                  onClick={() => saveService(service)}
+                >
+                  {isBusy ? 'Saving...' : existing ? 'Save Price' : 'Add Service'}
                 </button>
-                <button type="button" className={styles.secondaryButton} onClick={() => deactivate(price.id)}>
-                  Deactivate
-                </button>
+                {existing ? (
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    disabled={isBusy}
+                    onClick={() => deactivateService(existing.id, service.name)}
+                  >
+                    Deactivate
+                  </button>
+                ) : null}
               </div>
             </article>
-          ))}
-        </div>
-      ) : (
-        <p className={styles.cardSubmeta}>No approved services have been priced yet.</p>
-      )}
+          )
+        })}
+      </div>
     </div>
   )
 }

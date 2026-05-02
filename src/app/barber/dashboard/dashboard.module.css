@@ -353,6 +353,14 @@
   margin-bottom: 1rem;
 }
 
+.galleryPreviewImage {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  border-radius: 1rem;
+  margin-bottom: 0.85rem;
+}
+
 @media (max-width: 1180px) {
   .heroCard,
   .statsGrid,

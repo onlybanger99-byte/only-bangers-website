@@ -2,9 +2,14 @@ import { getCustomerProfileCompletionState } from '@/lib/customer-profiles/servi
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { ensureUniqueBarberSlug } from '@/lib/barbers/slug'
+import { getBarberProfileByUserId } from '@/lib/barbers/service'
+import { buildBarberSetupChecklist } from '@/lib/barbers/setup'
+import { listBarberServicePricesForOwner } from '@/lib/barber-service-prices/service'
 import {
   copyApplicationAvailabilityToBarber,
   listApplicationAvailabilitySlots,
+  listBarberAvailabilitySlots,
   replaceApplicationAvailabilitySlots,
 } from '@/lib/barber-availability/service'
 import type {
@@ -74,15 +79,6 @@ function getStatusOrder(status: BarberApplicationStatus) {
   }
 }
 
-function ensureLinks(input: CreateBarberApplicationInput | UpdateBarberProfileInput) {
-  return [
-    normalizeNullableText(input.instagramUrl),
-    normalizeNullableText(input.tiktokUrl),
-    normalizeNullableText(input.facebookUrl),
-    normalizeNullableText(input.portfolioUrl),
-  ].filter(Boolean)
-}
-
 function validateAvailability(input: Pick<CreateBarberApplicationInput, 'availabilitySlots'>) {
   const details: string[] = []
 
@@ -125,10 +121,6 @@ function validateInput(input: CreateBarberApplicationInput | UpdateBarberProfile
 
   if (!normalizeText(input.bio)) {
     details.push('Short barber bio is required.')
-  }
-
-  if (ensureLinks(input).length === 0) {
-    details.push('Add at least one social profile or portfolio link.')
   }
 
   if ('availabilitySlots' in input) {
@@ -462,6 +454,11 @@ export async function approveBarberApplication(applicationId: string, reviewerId
     applicantUserId: application.user_id,
     status: application.status,
   })
+  const { data: existingBarberProfile } = await supabase
+    .from('barber_profiles')
+    .select('id, slug, setup_status, is_live')
+    .eq('user_id', application.user_id)
+    .maybeSingle()
   const { data: customerProfile } = await supabase
     .from('customer_profiles')
     .select('*')
@@ -478,8 +475,22 @@ export async function approveBarberApplication(applicationId: string, reviewerId
     normalizeNullableText(customerProfile?.profile_image_url) ??
     normalizeNullableText(customerProfile?.profile_photo_url) ??
     normalizeNullableText(customerProfile?.avatar_url)
+  const slug =
+    normalizeNullableText(existingBarberProfile?.slug) ??
+    (await ensureUniqueBarberSlug({
+      displayName: fallbackDisplayName,
+      fullName: fallbackDisplayName,
+      excludeProfileId: typeof existingBarberProfile?.id === 'string' ? existingBarberProfile.id : null,
+    }))
+  const nextSetupStatus =
+    normalizeText(existingBarberProfile?.setup_status) === 'pending_review' ||
+    normalizeText(existingBarberProfile?.setup_status) === 'live'
+      ? normalizeText(existingBarberProfile?.setup_status)
+      : 'draft'
 
   const profilePayload = {
+    slug,
+    full_name: fallbackDisplayName,
     display_name: fallbackDisplayName,
     phone: normalizeNullableText(application.phone),
     specialty: 'Only Bangers Team',
@@ -497,6 +508,9 @@ export async function approveBarberApplication(applicationId: string, reviewerId
     available_start_time: null,
     available_end_time: null,
     is_active: true,
+    is_live: typeof existingBarberProfile?.is_live === 'boolean' ? existingBarberProfile.is_live : false,
+    setup_status: nextSetupStatus,
+    go_live_rejection_reason: null,
   }
 
   logApprovalStep('saving_profile', {
@@ -662,7 +676,10 @@ export async function updateApprovedBarberProfile(userId: string, input: UpdateB
   const supabase = await createClient()
   const payload = {
     display_name: normalizeText(input.displayName) || 'Only Bangers Barber',
+    full_name: normalizeText(input.displayName) || 'Only Bangers Barber',
     cutting_location: normalizeText(input.cuttingLocation),
+    location: normalizeText(input.cuttingLocation),
+    map_url: normalizeNullableText(input.mapUrl),
     instagram_url: normalizeNullableText(input.instagramUrl),
     tiktok_url: normalizeNullableText(input.tiktokUrl),
     facebook_url: normalizeNullableText(input.facebookUrl),
@@ -685,6 +702,115 @@ export async function updateApprovedBarberProfile(userId: string, input: UpdateB
       ok: false as const,
       code: 'DATABASE_ERROR',
       message: 'We could not update your barber profile.',
+      details: [error.message],
+    }
+  }
+
+  return { ok: true as const }
+}
+
+export async function submitBarberGoLiveRequest(userId: string) {
+  const profile = await getBarberProfileByUserId(userId)
+  const [pricesResult, availabilityResult] = await Promise.all([
+    listBarberServicePricesForOwner(userId),
+    listBarberAvailabilitySlots(userId),
+  ])
+
+  const checklist = buildBarberSetupChecklist({
+    profile,
+    servicePrices: pricesResult.ok ? pricesResult.data : [],
+    availabilitySlots: availabilityResult.ok ? availabilityResult.data : [],
+  })
+
+  if (!profile?.id) {
+    return {
+      ok: false as const,
+      message: 'Your barber profile is not active yet.',
+      details: ['Approval is required before you can request go-live.'],
+    }
+  }
+
+  if (!checklist.readyForGoLive) {
+    return {
+      ok: false as const,
+      message: 'Finish your setup before requesting go-live.',
+      details: checklist.items.filter((item) => !item.completed).map((item) => item.detail),
+    }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('barber_profiles')
+    .update({
+      setup_status: 'pending_review',
+      go_live_requested_at: new Date().toISOString(),
+      go_live_rejection_reason: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', profile.id)
+    .eq('user_id', userId)
+
+  if (error) {
+    console.error('[barber-applications] Failed to submit go-live request', error)
+    return {
+      ok: false as const,
+      message: 'We could not submit your go-live request.',
+      details: [error.message],
+    }
+  }
+
+  return { ok: true as const }
+}
+
+export async function reviewBarberGoLiveRequest(input: {
+  userId: string
+  action: 'approve_go_live' | 'reject_go_live' | 'deactivate'
+  rejectionReason?: string | null
+}) {
+  const adminClient = createAdminClient()
+
+  if (!adminClient) {
+    return {
+      ok: false as const,
+      message: 'Supabase service role is not configured for barber management.',
+      details: ['Set SUPABASE_SERVICE_ROLE_KEY before reviewing go-live requests.'],
+    }
+  }
+
+  const updates: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+    go_live_reviewed_at: new Date().toISOString(),
+  }
+
+  if (input.action === 'approve_go_live') {
+    updates.is_active = true
+    updates.is_live = true
+    updates.setup_status = 'live'
+    updates.go_live_rejection_reason = null
+  }
+
+  if (input.action === 'reject_go_live') {
+    updates.is_live = false
+    updates.setup_status = 'draft'
+    updates.go_live_rejection_reason = normalizeText(input.rejectionReason) || 'Go-live request rejected.'
+  }
+
+  if (input.action === 'deactivate') {
+    updates.is_active = false
+    updates.is_live = false
+    updates.setup_status = 'draft'
+  }
+
+  const { error } = await adminClient
+    .from('barber_profiles')
+    .update(updates)
+    .eq('user_id', input.userId)
+
+  if (error) {
+    console.error('[barber-applications] Failed to review go-live request', error)
+    return {
+      ok: false as const,
+      message: 'We could not update this barber go-live status.',
       details: [error.message],
     }
   }

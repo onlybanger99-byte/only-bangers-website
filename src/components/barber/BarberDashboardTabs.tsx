@@ -8,6 +8,7 @@ import { DashboardTabs } from '@/components/dashboard/DashboardTabs'
 import { EmptyState } from '@/components/dashboard/EmptyState'
 import { StatusBadge } from '@/components/dashboard/StatusBadge'
 import { AvailabilitySlotManager } from './AvailabilitySlotManager'
+import { BarberGalleryManager } from './BarberGalleryManager'
 import { BarberProfileEditor } from './BarberProfileEditor'
 import { BarberServicePricesManager } from './BarberServicePricesManager'
 import { getSafeImage } from '@/lib/safe-image'
@@ -16,7 +17,7 @@ import styles from '@/app/barber/dashboard/dashboard.module.css'
 const TABS = [
   { id: 'today', label: 'Today' },
   { id: 'upcoming', label: 'Upcoming' },
-  { id: 'services', label: 'Services & Prices' },
+  { id: 'services', label: 'Services, Prices & Availability' },
   { id: 'profile', label: 'Profile' },
 ] as const
 
@@ -237,7 +238,7 @@ export function BarberDashboardTabs({
                 <div>
                   <span className={styles.metaLabel}>Location</span>
                   <strong className={styles.metaValue}>
-                    {dashboard.operator.cuttingLocation ?? 'Location not set'}
+                    {dashboard.operator.cuttingLocation ?? dashboard.operator.location ?? 'Location not set'}
                   </strong>
                 </div>
                 <div>
@@ -247,9 +248,9 @@ export function BarberDashboardTabs({
                   </strong>
                 </div>
                 <div>
-                  <span className={styles.metaLabel}>Booking Flow</span>
+                  <span className={styles.metaLabel}>Go-Live Status</span>
                   <strong className={styles.metaValue}>
-                    Customers only see the slots you publish
+                    {dashboard.operator.isLive ? 'Live to customers' : dashboard.operator.setupStatus.replace(/_/g, ' ')}
                   </strong>
                 </div>
               </div>
@@ -309,14 +310,48 @@ export function BarberDashboardTabs({
           <section className={styles.tabPanel}>
             <article className={styles.recordCard}>
               <div>
-                <p className={styles.eyebrow}>Services & Prices</p>
-                <h3 className={styles.cardTitle}>Manage your bookable services</h3>
+                <p className={styles.eyebrow}>Services, Prices & Availability</p>
+                <h3 className={styles.cardTitle}>Finish setup, then request go-live</h3>
                 <p className={styles.cardText}>
-                  Customers only see the services and prices you publish here.
+                  Customers only see the services, pricing, and slots you publish once admin approves go-live.
                 </p>
               </div>
 
+              <div className={styles.cardGrid}>
+                {dashboard.setupChecklist.items.map((item) => (
+                  <article key={item.id} className={styles.summaryCard}>
+                    <div className={styles.recordTop}>
+                      <strong className={styles.cardTitle}>{item.label}</strong>
+                      <span className={styles.secondaryButton}>{item.completed ? 'Done' : 'Needed'}</span>
+                    </div>
+                    <p className={styles.cardSubmeta}>{item.detail}</p>
+                  </article>
+                ))}
+              </div>
+
               <BarberServicePricesManager initialPrices={dashboard.servicePrices} />
+
+              <div className={styles.formStack}>
+                <div>
+                  <p className={styles.eyebrow}>Availability</p>
+                  <h3 className={styles.cardTitle}>Edit availability slots</h3>
+                  <p className={styles.cardText}>
+                    Add exact dates and time ranges that customers can book.
+                  </p>
+                </div>
+                <AvailabilitySlotManager />
+              </div>
+
+              <div className={styles.formStack}>
+                <div>
+                  <p className={styles.eyebrow}>Work Gallery</p>
+                  <h3 className={styles.cardTitle}>Show customers your recent work</h3>
+                  <p className={styles.cardText}>
+                    Add a few strong examples to improve your public barber page before go-live.
+                  </p>
+                </div>
+                <BarberGalleryManager initialImages={dashboard.galleryImages} />
+              </div>
             </article>
           </section>
         ) : null}

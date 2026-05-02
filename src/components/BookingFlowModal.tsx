@@ -22,6 +22,7 @@ interface BookingFlowModalProps {
   }
   isOpen: boolean
   onClose: () => void
+  preferredBarberUserId?: string | null
 }
 
 interface BarberOffer {
@@ -59,6 +60,7 @@ export default function BookingFlowModal({
   service,
   isOpen,
   onClose,
+  preferredBarberUserId = null,
 }: BookingFlowModalProps) {
   const router = useRouter()
   const [step, setStep] = useState<Step>('barber')
@@ -125,6 +127,15 @@ export default function BookingFlowModal({
         }
 
         setOffers(data)
+
+        if (preferredBarberUserId) {
+          const preferred = data.find((offer) => offer.barberUserId === preferredBarberUserId)
+
+          if (preferred) {
+            setSelectedOffer(preferred)
+            setStep('date')
+          }
+        }
       })
       .catch((error) => {
         console.error('[booking-flow] Failed to load barber offers:', error)
@@ -143,7 +154,7 @@ export default function BookingFlowModal({
     return () => {
       isActive = false
     }
-  }, [isOpen, service.id, service.name])
+  }, [isOpen, preferredBarberUserId, service.id, service.name])
 
   useEffect(() => {
     if (!isOpen || offers.length === 0) {

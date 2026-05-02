@@ -52,18 +52,55 @@ export interface AdminUsersSection {
   errorMessage?: string
 }
 
+export interface AdminServiceRow {
+  id: string
+  name: string
+  slug: string
+  description: string
+  duration: string
+  sortOrder: number
+  isActive: boolean
+  barberCount: number
+  minPriceLabel: string
+}
+
+export interface AdminServicesSection {
+  items: AdminServiceRow[]
+  errorMessage?: string
+}
+
+export interface AdminProfileSummary {
+  userId: string
+  email: string
+  fullName: string
+  firstName: string
+  lastName: string
+  phoneNumber: string
+  profileImageUrl: string
+  profileComplete: boolean
+}
+
 export interface AdminBarberRow {
   id: string
+  slug: string | null
   displayName: string
+  fullName: string | null
   specialty: string
   profileImageUrl: string
   bio: string
+  location: string
   cuttingLocation: string
+  mapUrl: string | null
   instagramUrl: string | null
   tiktokUrl: string | null
   facebookUrl: string | null
   portfolioUrl: string | null
   activeStatus: 'active' | 'inactive'
+  isLive: boolean
+  setupStatus: string
+  goLiveRequestedAt: string | null
+  goLiveReviewedAt: string | null
+  goLiveRejectionReason: string | null
   profileComplete: boolean
   totalBookings: number
   upcomingBookings: number
@@ -113,13 +150,17 @@ export interface AdminAttentionSummary {
   customerProfileGaps: number
   barberProfileGaps: number
   pendingBarberApplications: number
+  pendingGoLiveRequests: number
+  incompleteBarbers: number
 }
 
 export interface AdminDashboardViewModel {
   headerMessage: string
+  currentAdmin: AdminProfileSummary
   metrics: AdminMetric[]
   attention: AdminAttentionSummary
   bookings: AdminBookingsSection
+  services: AdminServicesSection
   users: AdminUsersSection
   barbers: AdminBarbersSection
   barberApplications: {

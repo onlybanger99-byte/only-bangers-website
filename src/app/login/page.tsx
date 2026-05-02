@@ -9,7 +9,7 @@ import type { AppRole } from "@/lib/auth/roles";
 import { getDefaultDashboardForRole, normalizeRole } from "@/lib/auth/roles";
 import styles from "./login.module.css";
 
-type AuthMode = "login" | "signup";
+type AuthMode = "login" | "create";
 
 function getFriendlyErrorMessage(errorCode: string | null) {
   switch (errorCode) {
@@ -32,7 +32,6 @@ function LoginPageContent() {
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [authMessage, setAuthMessage] = useState("");
@@ -49,29 +48,26 @@ function LoginPageContent() {
   };
 
   const getPostLoginPath = async (role: AppRole) => {
-    if (role === "admin" || role === "barber") {
-      return getDefaultDashboardForRole(role);
+    const defaultDashboard = getDefaultDashboardForRole(role)
+    const resumePath =
+      role === "customer"
+        ? nextPath ||
+          (readBookingDraft() ? "/services?resumeBooking=1" : null) ||
+          defaultDashboard
+        : defaultDashboard
+
+    const response = await fetch("/api/profile");
+    const payload = await response.json();
+
+    if (!response.ok) {
+      console.error("[login] Failed to resolve profile completeness:", payload?.error);
+      return resumePath;
     }
 
-    const resumePath =
-      nextPath ||
-      (readBookingDraft() ? "/services?resumeBooking=1" : null) ||
-      getDefaultDashboardForRole(role);
+    const isComplete = Boolean(payload?.data?.completionState?.isComplete);
 
-    if (role === "customer") {
-      const response = await fetch("/api/profile");
-      const payload = await response.json();
-
-      if (!response.ok) {
-        console.error("[login] Failed to resolve profile completeness:", payload?.error);
-        return resumePath;
-      }
-
-      const isComplete = Boolean(payload?.data?.completionState?.isComplete);
-
-      if (!isComplete) {
-        return `/portal/profile/complete?next=${encodeURIComponent(resumePath)}`;
-      }
+    if (!isComplete) {
+      return `/portal/profile/complete?next=${encodeURIComponent(resumePath)}&setup=1`;
     }
 
     return resumePath;
@@ -205,72 +201,9 @@ function LoginPageContent() {
     router.refresh();
   };
 
-  const createCustomerAccount = async () => {
-    if (!email || !password || !confirmPassword) {
-      setAuthMessage("Email, password, and confirm password are required.");
-      return;
-    }
-
-    if (password.length < 6) {
-      setAuthMessage("Your password must be at least 6 characters long.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setAuthMessage("Password and confirm password must match.");
-      return;
-    }
-
-    resetFeedback();
-    setLoading(true);
-
-    const registerResponse = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email,
-        password,
-        confirmPassword,
-      }),
-    });
-
-    const registerPayload = await registerResponse.json().catch(() => null);
-
-    if (!registerResponse.ok || !registerPayload?.ok) {
-      setAuthMessage(registerPayload?.error?.message ?? "We could not create your account.");
-      setLoading(false);
-      return;
-    }
-
-    const loginResult = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (loginResult.error) {
-      setAuthMessage(loginResult.error.message || "Your account was created, but sign-in failed.");
-      setLoading(false);
-      return;
-    }
-
-    setLoading(false);
-    router.replace(
-      `/portal/profile/complete?next=${encodeURIComponent(nextPath || "/portal/dashboard")}`
-    );
-    router.refresh();
-  };
-
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
-    if (mode === "login") {
-      await signInWithPassword();
-      return;
-    }
-
-    await createCustomerAccount();
+    await signInWithPassword();
   };
 
   return (
@@ -280,11 +213,11 @@ function LoginPageContent() {
           <div className={styles.heroBlock}>
             <p className={styles.eyebrow}>Only Bangers Access</p>
             <h1 className={styles.loginTitle}>
-              {mode === "signup" ? "Create your account" : "Sign in"}
+              {mode === "create" ? "Create your account" : "Sign in"}
             </h1>
             <p className={styles.loginSubtitle}>
-              {mode === "signup"
-                ? "Join the platform, complete your customer profile, and start booking approved barbers."
+              {mode === "create"
+                ? "Use Google or Facebook to create your account. Email and password is only for logging in."
                 : "Use your email and password to get back to your role-based dashboard and active bookings."}
             </p>
           </div>
@@ -304,9 +237,9 @@ function LoginPageContent() {
             <button
               type="button"
               className={styles.modeButton}
-              data-active={mode === "signup"}
+              data-active={mode === "create"}
               onClick={() => {
-                setMode("signup");
+                setMode("create");
                 resetFeedback();
               }}
             >
@@ -326,73 +259,49 @@ function LoginPageContent() {
             </div>
           ) : null}
 
-          <form className={styles.formStack} onSubmit={handleSubmit}>
-            <label className={styles.field}>
-              <span>Email</span>
-              <input
-                type="email"
-                placeholder="your@email.com"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                className={styles.input}
-                required
-              />
-            </label>
-
-            <label className={styles.field}>
-              <span>Password</span>
-              <input
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                className={styles.input}
-                required
-              />
-            </label>
-
-            {mode === "signup" ? (
+          {mode === "login" ? (
+            <form className={styles.formStack} onSubmit={handleSubmit}>
               <label className={styles.field}>
-                <span>Confirm password</span>
+                <span>Email</span>
                 <input
-                  type="password"
-                  placeholder="Confirm your password"
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  type="email"
+                  placeholder="your@email.com"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
                   className={styles.input}
                   required
                 />
               </label>
-            ) : null}
 
-            <div className={styles.actionRow}>
-              <button type="submit" disabled={loading} className={styles.primaryButton}>
-                {loading
-                  ? mode === "signup"
-                    ? "Creating account..."
-                    : "Logging in..."
-                  : mode === "signup"
-                    ? "Create account"
-                    : "Login"}
-              </button>
+              <label className={styles.field}>
+                <span>Password</span>
+                <input
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className={styles.input}
+                  required
+                />
+              </label>
 
-              {mode !== "login" ? (
-                <button
-                  type="button"
-                  className={styles.secondaryButton}
-                  onClick={() => {
-                    setMode("login");
-                    resetFeedback();
-                  }}
-                >
-                  Back to login
+              <div className={styles.actionRow}>
+                <button type="submit" disabled={loading} className={styles.primaryButton}>
+                  {loading ? "Logging in..." : "Login"}
                 </button>
-              ) : null}
+              </div>
+            </form>
+          ) : (
+            <div className={styles.createAccountPanel}>
+              <p className={styles.createAccountText}>
+                Use Google or Facebook to create your account. Once you sign in for the first time,
+                Only Bangers will create your default customer role and profile automatically.
+              </p>
             </div>
-          </form>
+          )}
 
           <div className={styles.divider}>
-            <span>Or continue with</span>
+            <span>{mode === "create" ? "Create with" : "Or continue with"}</span>
           </div>
 
           <div className={styles.oauthSection}>
@@ -408,7 +317,7 @@ function LoginPageContent() {
                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
               </svg>
-              Continue with Google
+              {mode === "create" ? "Create with Google" : "Continue with Google"}
             </button>
             <button
               onClick={signInWithFacebook}
@@ -419,7 +328,7 @@ function LoginPageContent() {
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
               </svg>
-              Continue with Facebook
+              {mode === "create" ? "Create with Facebook" : "Continue with Facebook"}
             </button>
           </div>
         </div>

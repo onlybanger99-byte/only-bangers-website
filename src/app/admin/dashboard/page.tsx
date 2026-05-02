@@ -11,16 +11,16 @@ export const dynamic = 'force-dynamic'
 type AdminTabId =
   | 'overview'
   | 'bookings'
-  | 'users'
   | 'barbers'
-  | 'barber-applications'
+  | 'users'
+  | 'services'
 
 const VALID_TABS = new Set<AdminTabId>([
   'overview',
   'bookings',
-  'users',
   'barbers',
-  'barber-applications',
+  'users',
+  'services',
 ] as const)
 
 export default async function AdminDashboardPage({
@@ -61,6 +61,8 @@ export default async function AdminDashboardPage({
   }
 
   const dashboard = await getAdminDashboardViewModel({
+    userId: user.id,
+    email: user.email,
     bookingQuery: current.booking_q,
     bookingStatus: current.booking_status,
     bookingSort:

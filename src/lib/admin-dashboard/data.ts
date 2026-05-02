@@ -2,8 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { listBarberApplicationsForAdmin } from '@/lib/barber-applications/service'
 import { listBarberServicePricesForOwner } from '@/lib/barber-service-prices/service'
+import { listPublicServicePriceSummaries } from '@/lib/barber-service-prices/service'
 import type { BarberApplicationSummary } from '@/lib/barber-applications/types'
-import { getCustomerProfilesByUserIds } from '@/lib/customer-profiles/service'
+import { getCustomerProfile, getCustomerProfilesByUserIds } from '@/lib/customer-profiles/service'
 import { normalizeRole } from '@/lib/auth/roles'
 import type { BookingStatus, PaymentStatus } from '@/lib/bookings/types'
 import { formatDate, formatDateTime } from '@/lib/date-time'
@@ -16,11 +17,17 @@ import type {
   AdminBookingsSection,
   AdminDashboardViewModel,
   AdminMetric,
+  AdminProfileSummary,
+  AdminServiceRow,
+  AdminServicesSection,
   AdminUserRow,
   AdminUsersSection,
 } from './types'
+import { getFallbackServices, listAllServices } from '@/lib/services/service'
 
 type AdminDashboardParams = {
+  userId: string
+  email: string
   bookingQuery?: string
   bookingStatus?: string
   bookingSort?: 'starts_at' | 'created_at' | 'status'
@@ -409,6 +416,75 @@ async function getUsersSection(barberRows: AdminBarberRow[]): Promise<AdminUsers
   }
 }
 
+async function getCurrentAdminProfile(params: {
+  userId: string
+  email: string
+}): Promise<AdminProfileSummary> {
+  const profile = await getCustomerProfile(params.userId)
+  const fallbackFirstName =
+    params.email
+      .split('@')[0]
+      ?.replace(/[._-]+/g, ' ')
+      .replace(/\b\w/g, (character) => character.toUpperCase()) ?? 'Admin'
+
+  return {
+    userId: params.userId,
+    email: params.email,
+    fullName: profile?.fullName || fallbackFirstName,
+    firstName: profile?.firstName || fallbackFirstName,
+    lastName: profile?.lastName || '',
+    phoneNumber: profile?.phoneNumber || '',
+    profileImageUrl: profile?.profileImageUrl || '/images/header-bg.png',
+    profileComplete: profile?.isComplete ?? false,
+  }
+}
+
+async function getServicesSection(): Promise<AdminServicesSection> {
+  const [servicesResult, pricingSummaryResult] = await Promise.all([
+    listAllServices(),
+    listPublicServicePriceSummaries(),
+  ])
+
+  if (!servicesResult.ok) {
+    return {
+      items: [],
+      errorMessage: servicesResult.message,
+    }
+  }
+
+  const summaries = pricingSummaryResult.ok ? pricingSummaryResult.data : []
+  const summaryMap = new Map(
+    summaries
+      .filter((item) => typeof item.serviceId === 'string')
+      .map((item) => [item.serviceId as string, item])
+  )
+
+  const services = (servicesResult.data.length > 0 ? servicesResult.data : getFallbackServices()).map(
+    (service) => {
+      const summary = summaryMap.get(service.id)
+      return {
+        id: service.id,
+        name: service.name,
+        slug: service.slug,
+        description: service.description,
+        duration: service.duration,
+        sortOrder: service.sortOrder,
+        isActive: service.isActive,
+        barberCount: summary?.barberCount ?? 0,
+        minPriceLabel:
+          summary?.minPrice != null
+            ? toCurrency(summary.minPrice)
+            : 'No active barber pricing yet',
+      } satisfies AdminServiceRow
+    }
+  )
+
+  return {
+    items: services,
+    errorMessage: pricingSummaryResult.ok ? undefined : pricingSummaryResult.message,
+  }
+}
+
 async function getBarbersSection(): Promise<AdminBarbersSection> {
   const roles = await getUserIdsForRoles()
 
@@ -482,14 +558,21 @@ async function getBarbersSection(): Promise<AdminBarbersSection> {
           null
       )
       const specialty = resolveFirstText(profile ?? {}, 'specialty') || 'Specialty not set'
+      const setupStatus = resolveFirstText(profile ?? {}, 'setup_status') || 'draft'
+      const isLive = typeof profile?.is_live === 'boolean' ? profile.is_live : false
+      const location = resolveFirstText(profile ?? {}, 'location') || resolveFirstText(profile ?? {}, 'cutting_location') || ''
 
       return {
         id: userId,
+        slug: resolveFirstText(profile ?? {}, 'slug') || null,
         displayName,
+        fullName: resolveFirstText(profile ?? {}, 'full_name') || null,
         specialty,
         profileImageUrl,
         bio: resolveFirstText(profile ?? {}, 'bio') || 'Bio not set',
+        location,
         cuttingLocation: resolveFirstText(profile ?? {}, 'cutting_location') || '',
+        mapUrl: resolveFirstText(profile ?? {}, 'map_url') || null,
         instagramUrl: resolveFirstText(profile ?? {}, 'instagram_url') || null,
         tiktokUrl: resolveFirstText(profile ?? {}, 'tiktok_url') || null,
         facebookUrl: resolveFirstText(profile ?? {}, 'facebook_url') || null,
@@ -498,12 +581,17 @@ async function getBarbersSection(): Promise<AdminBarbersSection> {
           profile && typeof profile.is_active === 'boolean'
             ? (profile.is_active === false ? 'inactive' : 'active')
             : 'inactive',
+        isLive,
+        setupStatus,
+        goLiveRequestedAt: resolveFirstText(profile ?? {}, 'go_live_requested_at') || null,
+        goLiveReviewedAt: resolveFirstText(profile ?? {}, 'go_live_reviewed_at') || null,
+        goLiveRejectionReason: resolveFirstText(profile ?? {}, 'go_live_rejection_reason') || null,
         profileComplete: Boolean(
           displayName &&
             specialty &&
-            profileImageUrl &&
-            displayName !== fallbackName &&
-            profileImageUrl !== '/images/header-bg.png'
+            resolveFirstText(profile ?? {}, 'bio') &&
+            location &&
+            resolveFirstText(profile ?? {}, 'slug')
         ),
         totalBookings: stats.total,
         upcomingBookings: stats.upcoming,
@@ -545,15 +633,20 @@ async function mapBarberApplicationRows(
 }
 
 export async function getAdminDashboardViewModel(
-  params: AdminDashboardParams = {}
+  params: AdminDashboardParams
 ): Promise<AdminDashboardViewModel> {
   const barberApplicationsResult = await listBarberApplicationsForAdmin()
   const barbers = await getBarbersSection()
-  const [bookings, users, customerProfilesCount, metricsBase] = await Promise.all([
+  const [bookings, services, users, customerProfilesCount, metricsBase, currentAdmin] = await Promise.all([
     getBookingsSection(params),
+    getServicesSection(),
     getUsersSection(barbers.items),
     countTable('customer_profiles'),
     Promise.resolve(barbers.items.filter((item) => !item.profileComplete).length),
+    getCurrentAdminProfile({
+      userId: params.userId,
+      email: params.email,
+    }),
   ])
 
   const metrics = await getMetrics(metricsBase)
@@ -577,10 +670,13 @@ export async function getAdminDashboardViewModel(
   const pendingBarberApplications = barberApplications.filter(
     (application) => application.status === 'pending'
   ).length
+  const pendingGoLiveRequests = barbers.items.filter((item) => item.setupStatus === 'pending_review' && !item.isLive).length
+  const incompleteBarbers = barbers.items.filter((item) => !item.profileComplete || item.setupStatus === 'draft').length
 
   return {
     headerMessage:
-      'Review payments first, keep bookings moving, and watch for missing role or profile setup before it becomes an operational issue.',
+      'Start with the actions that unblock bookings, barber approvals, and service pricing first.',
+    currentAdmin,
     metrics,
     attention: {
       pendingPayments,
@@ -589,8 +685,11 @@ export async function getAdminDashboardViewModel(
         customerProfilesCount.error ? customerProfileGaps : customerProfileGaps,
       barberProfileGaps: metricsBase,
       pendingBarberApplications,
+      pendingGoLiveRequests,
+      incompleteBarbers,
     },
     bookings,
+    services,
     users,
     barbers,
     barberApplications: {

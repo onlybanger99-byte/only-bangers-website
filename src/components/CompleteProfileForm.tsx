@@ -116,9 +116,15 @@ export function CompleteProfileForm({
 
   return (
     <form onSubmit={handleSubmit} className={styles.formCard}>
+      {requirePasswordSetup ? (
+        <p className={styles.cardSubmeta}>
+          Set your password so you can log in with email and password later.
+        </p>
+      ) : null}
+
       <div className={styles.formGrid}>
         <label className={styles.field}>
-          <span>Name</span>
+          <span>Full name</span>
           <input
             value={formData.fullName}
             onChange={(event) =>
@@ -156,6 +162,7 @@ export function CompleteProfileForm({
               <span>Password</span>
               <input
                 type="password"
+                minLength={6}
                 value={formData.password}
                 onChange={(event) =>
                   setFormData((current) => ({ ...current, password: event.target.value }))
@@ -168,6 +175,7 @@ export function CompleteProfileForm({
               <span>Confirm password</span>
               <input
                 type="password"
+                minLength={6}
                 value={formData.confirmPassword}
                 onChange={(event) =>
                   setFormData((current) => ({ ...current, confirmPassword: event.target.value }))

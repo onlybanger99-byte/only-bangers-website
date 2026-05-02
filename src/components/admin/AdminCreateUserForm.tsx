@@ -14,14 +14,16 @@ export function AdminCreateUserForm() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [errorDetails, setErrorDetails] = useState<string[]>([])
 
   const createUser = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setLoading(true)
     setMessage('')
     setError('')
+    setErrorDetails([])
 
-    const response = await fetch('/api/admin/users', {
+    const response = await fetch('/api/admin/users/create', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -36,7 +38,17 @@ export function AdminCreateUserForm() {
     const payload = await response.json().catch(() => null)
 
     if (!response.ok || !payload?.ok) {
-      setError(payload?.error?.message ?? 'Could not create this user.')
+      const details = Array.isArray(payload?.error?.details)
+        ? payload.error.details.filter((detail: unknown): detail is string => typeof detail === 'string' && detail.trim().length > 0)
+        : []
+      const message =
+        payload?.error?.message ??
+        payload?.message ??
+        payload?.error ??
+        'Could not create this user.'
+
+      setError(message)
+      setErrorDetails(details)
       setLoading(false)
       return
     }
@@ -76,7 +88,18 @@ export function AdminCreateUserForm() {
         {loading ? 'Creating...' : 'Add User'}
       </button>
       {message ? <p className={styles.successText}>{message}</p> : null}
-      {error ? <p className={styles.errorText}>{error}</p> : null}
+      {error ? (
+        <div className={styles.errorText}>
+          <p>{error}</p>
+          {errorDetails.length > 0 ? (
+            <ul>
+              {errorDetails.map((detail) => (
+                <li key={detail}>{detail}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
     </form>
   )
 }

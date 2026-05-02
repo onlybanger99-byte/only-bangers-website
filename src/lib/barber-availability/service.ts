@@ -114,6 +114,24 @@ export async function listBarberAvailabilitySlots(userId: string) {
   }
 }
 
+export async function listAvailabilitySlotsByBarberProfileId(barberProfileId: string) {
+  const supabase = await getPrivilegedSupabase()
+  const { data, error } = await supabase
+    .from('barber_availability_slots')
+    .select('*')
+    .eq('barber_profile_id', barberProfileId)
+    .eq('is_active', true)
+    .order('available_date', { ascending: true })
+    .order('start_time', { ascending: true })
+
+  if (error && error.code !== '42P01' && error.code !== 'PGRST205') {
+    console.error('[barber-availability] Failed to load availability by barber profile id', error)
+    return [] as AvailabilitySlotSummary[]
+  }
+
+  return ((data ?? []) as AvailabilitySlotRecord[]).map(toSummary)
+}
+
 export async function listApplicationAvailabilitySlots(applicationId: string) {
   const supabase = await createClient()
   const { data, error } = await supabase

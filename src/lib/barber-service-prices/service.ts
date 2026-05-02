@@ -1,5 +1,10 @@
 import { isSafeImageSource } from '@/lib/safe-image'
-import { getActiveServiceById, isUuid, listActiveServices } from '@/lib/services/service'
+import { parseDurationToMinutes } from '@/lib/services/duration'
+import {
+  getActiveServiceById,
+  isUuid,
+  listActiveServices,
+} from '@/lib/services/service'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import type {
@@ -118,6 +123,7 @@ async function getPublicProfilesMap(barberProfileIds: string[]) {
     .select('*')
     .in('id', barberProfileIds)
     .eq('is_active', true)
+    .eq('is_live', true)
 
   if (error && error.code !== '42P01' && error.code !== 'PGRST205') {
     console.error('[barber-service-prices] Failed to load public barber profiles', error)
@@ -176,10 +182,10 @@ async function getFilteredPriceRows(options?: {
 async function validateInput(input: BarberServicePriceInput) {
   const serviceId = normalizeText(input.serviceId)
   const price = normalizeNumber(input.price)
-  const durationMinutes =
-    input.durationMinutes == null ? null : normalizeNumber(input.durationMinutes)
   const details: string[] = []
   const service = await getActiveServiceById(serviceId)
+  const requestedDuration = normalizeNumber(input.durationMinutes)
+  const fallbackDurationMinutes = service ? parseDurationToMinutes(service.duration) : null
 
   if (!serviceId || !isUuid(serviceId)) {
     details.push('Select a valid approved service UUID.')
@@ -193,8 +199,8 @@ async function validateInput(input: BarberServicePriceInput) {
     details.push('Price must be a valid number greater than 0.')
   }
 
-  if (durationMinutes != null && durationMinutes <= 0) {
-    details.push('Duration must be greater than zero.')
+  if (requestedDuration != null && requestedDuration <= 0) {
+    details.push('Duration must be a valid number greater than 0.')
   }
 
   return {
@@ -205,7 +211,12 @@ async function validateInput(input: BarberServicePriceInput) {
           service_id: service.id,
           service_name: service.name,
           price: price ?? 0,
-          duration_minutes: durationMinutes == null ? null : Math.round(durationMinutes),
+          duration_minutes:
+            requestedDuration != null
+              ? Math.round(requestedDuration)
+              : fallbackDurationMinutes == null
+                ? null
+                : Math.round(fallbackDurationMinutes),
         }
       : null,
   }

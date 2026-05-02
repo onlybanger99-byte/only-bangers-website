@@ -1,7 +1,10 @@
 import { barbers } from '@/data/barbers'
 import { getLatestBarberApplicationForUser } from '@/lib/barber-applications/service'
+import { listBarberAvailabilitySlots } from '@/lib/barber-availability/service'
+import { listGalleryImagesForOwner } from '@/lib/barber-gallery/service'
 import { listBarberServicePricesForOwner } from '@/lib/barber-service-prices/service'
 import { getBarberProfileByUserId } from '@/lib/barbers/service'
+import { buildBarberSetupChecklist } from '@/lib/barbers/setup'
 import { listBookings } from '@/lib/bookings/service'
 import { getCustomerProfilesByUserIds } from '@/lib/customer-profiles/service'
 import { formatDate, formatDateTime, formatTime } from '@/lib/date-time'
@@ -39,10 +42,15 @@ async function buildOperatorProfile(identity: BarberDashboardIdentity): Promise<
   if (liveProfile) {
     return {
       displayName: liveProfile.displayName,
+      slug: liveProfile.slug,
       specialty: liveProfile.specialty,
       image: liveProfile.profileImageUrl ?? null,
       bio: liveProfile.bio,
+      location: liveProfile.location,
       cuttingLocation: liveProfile.cuttingLocation,
+      latitude: liveProfile.latitude,
+      longitude: liveProfile.longitude,
+      mapUrl: liveProfile.mapUrl,
       instagramUrl: liveProfile.instagramUrl,
       tiktokUrl: liveProfile.tiktokUrl,
       facebookUrl: liveProfile.facebookUrl,
@@ -51,6 +59,8 @@ async function buildOperatorProfile(identity: BarberDashboardIdentity): Promise<
       availableStartTime: liveProfile.availableStartTime,
       availableEndTime: liveProfile.availableEndTime,
       activeStatus: liveProfile.isActive ? 'active' : 'inactive',
+      isLive: liveProfile.isLive,
+      setupStatus: liveProfile.setupStatus,
       editProfileHref: '/barber/dashboard',
     }
   }
@@ -64,12 +74,17 @@ async function buildOperatorProfile(identity: BarberDashboardIdentity): Promise<
 
   return {
     displayName: matched.name,
+    slug: null,
     specialty: matched.specialty,
     image: matched.image ?? null,
     bio:
       latestApplication?.bio ||
       'Your public barber profile can be completed once profile management is connected.',
+    location: latestApplication?.cuttingLocation ?? null,
     cuttingLocation: latestApplication?.cuttingLocation ?? null,
+    latitude: null,
+    longitude: null,
+    mapUrl: null,
     instagramUrl: latestApplication?.instagramUrl ?? null,
     tiktokUrl: latestApplication?.tiktokUrl ?? null,
     facebookUrl: latestApplication?.facebookUrl ?? null,
@@ -78,6 +93,8 @@ async function buildOperatorProfile(identity: BarberDashboardIdentity): Promise<
     availableStartTime: latestApplication?.availableStartTime ?? null,
     availableEndTime: latestApplication?.availableEndTime ?? null,
     activeStatus: 'inactive',
+    isLive: false,
+    setupStatus: 'draft',
     editProfileHref: '/barber/dashboard',
   }
 }
@@ -179,10 +196,23 @@ export async function getBarberDashboardViewModel(
   identity: BarberDashboardIdentity
 ): Promise<BarberDashboardViewModel> {
   const operator = await buildOperatorProfile(identity)
-  const [liveAppointments, servicePricesResult] = await Promise.all([
+  const [liveAppointments, servicePricesResult, availabilityResult] = await Promise.all([
     getLiveAppointments(identity),
     listBarberServicePricesForOwner(identity.userId),
+    listBarberAvailabilitySlots(identity.userId),
   ])
+  const galleryResult = operator.slug
+    ? await getBarberProfileByUserId(identity.userId)
+    : await getBarberProfileByUserId(identity.userId)
+  const galleryImagesResult =
+    galleryResult?.id ? await listGalleryImagesForOwner(galleryResult.id) : { ok: true as const, data: [] }
+  const servicePrices = servicePricesResult.ok ? servicePricesResult.data : []
+  const availabilitySlots = availabilityResult.ok ? availabilityResult.data : []
+  const setupChecklist = buildBarberSetupChecklist({
+    profile: galleryResult,
+    servicePrices,
+    availabilitySlots,
+  })
 
   return {
     dataSource:
@@ -194,7 +224,10 @@ export async function getBarberDashboardViewModel(
     readinessMessage:
       'Confirmed and paid bookings appear in your working schedule. Pending-payment holds stay separate until admin verification is complete.',
     operator,
-    servicePrices: servicePricesResult.ok ? servicePricesResult.data : [],
+    servicePrices,
+    availabilitySlots,
+    galleryImages: galleryImagesResult.ok ? galleryImagesResult.data : [],
+    setupChecklist,
     today: liveAppointments.today,
     upcoming: liveAppointments.upcoming,
     awaitingPayment: liveAppointments.awaitingPayment,

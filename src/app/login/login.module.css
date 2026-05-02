@@ -73,6 +73,19 @@
   gap: 1rem;
 }
 
+.createAccountPanel {
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 1rem;
+}
+
+.createAccountText {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
 .field {
   display: grid;
   gap: 0.45rem;

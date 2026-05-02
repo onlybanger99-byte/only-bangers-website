@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { sanitizeNextPath } from '@/lib/auth/next-path'
 import { getDefaultDashboardForRole, normalizeRole } from '@/lib/auth/roles'
+import { ensureUserBootstrap } from '@/lib/auth/bootstrap-user'
 import { getCustomerProfileCompletionState } from '@/lib/customer-profiles/service'
 
 function createLoginRedirect(requestUrl: URL, reason: string) {
@@ -37,6 +38,16 @@ export async function GET(request: Request) {
     return createLoginRedirect(requestUrl, 'session-missing')
   }
 
+  const bootstrapResult = await ensureUserBootstrap({
+    id: user.id,
+    email: user.email,
+    user_metadata: user.user_metadata,
+  })
+
+  if (!bootstrapResult.ok) {
+    console.warn('[auth/callback] User bootstrap fallback did not complete cleanly:', bootstrapResult.message)
+  }
+
   const { data, error: roleError } = await supabase
     .from('user_roles')
     .select('role')
@@ -54,29 +65,16 @@ export async function GET(request: Request) {
     return createLoginRedirect(requestUrl, 'missing-role')
   }
 
-  if (role === 'admin' || role === 'barber') {
-    return NextResponse.redirect(new URL(getDefaultDashboardForRole(role), requestUrl.origin))
-  }
-
-  if (nextPath) {
-    const profile = await getCustomerProfileCompletionState(user.id)
-
-    if (!profile.isComplete) {
-      const profileUrl = new URL('/portal/profile/complete', requestUrl.origin)
-      profileUrl.searchParams.set('next', nextPath)
-      return NextResponse.redirect(profileUrl)
-    }
-
-    return NextResponse.redirect(new URL(nextPath, requestUrl.origin))
-  }
-
   const profile = await getCustomerProfileCompletionState(user.id)
+  const defaultDashboard = getDefaultDashboardForRole(role)
+  const resolvedNextPath = role === 'customer' && nextPath ? nextPath : defaultDashboard
 
   if (!profile.isComplete) {
     const profileUrl = new URL('/portal/profile/complete', requestUrl.origin)
-    profileUrl.searchParams.set('next', '/portal/dashboard')
+    profileUrl.searchParams.set('next', resolvedNextPath)
+    profileUrl.searchParams.set('setup', '1')
     return NextResponse.redirect(profileUrl)
   }
 
-  return NextResponse.redirect(new URL(getDefaultDashboardForRole(role), requestUrl.origin))
+  return NextResponse.redirect(new URL(resolvedNextPath, requestUrl.origin))
 }

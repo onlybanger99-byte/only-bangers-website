@@ -11,7 +11,19 @@ export async function GET(request: NextRequest) {
     return authError
   }
 
-  const dashboard = await getAdminDashboardViewModel()
+  const { user } = await getUserRole()
+
+  if (!user?.email) {
+    return Response.json(
+      { ok: false, error: { code: 'UNAUTHORIZED', message: 'You must be signed in.' } },
+      { status: 401 }
+    )
+  }
+
+  const dashboard = await getAdminDashboardViewModel({
+    userId: user.id,
+    email: user.email,
+  })
 
   return Response.json({
     ok: true,

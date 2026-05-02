@@ -15,20 +15,17 @@ export default async function CompleteProfilePage({
 }) {
   const resolvedSearchParams = await searchParams
   const requestedNextPath = sanitizeNextPath(resolvedSearchParams.next)
-  const requirePasswordSetup = resolvedSearchParams.setup === '1'
-  const nextPath =
-    requestedNextPath && !requestedNextPath.startsWith('/portal/profile/complete')
-      ? requestedNextPath
-      : '/portal/dashboard'
   const { user, role } = await getUserRole()
 
   if (!user) {
-    redirect(`/login?next=${encodeURIComponent(nextPath)}`)
+    redirect(`/login?next=${encodeURIComponent(requestedNextPath ?? '/portal/dashboard')}`)
   }
-
-  if (role && role !== 'customer') {
-    redirect(getDefaultDashboardForRole(role))
-  }
+  const resolvedRole = role ?? 'customer'
+  const defaultDashboard = getDefaultDashboardForRole(resolvedRole)
+  const nextPath =
+    resolvedRole === 'customer' && requestedNextPath && !requestedNextPath.startsWith('/portal/profile/complete')
+      ? requestedNextPath
+      : defaultDashboard
 
   const profile = await getCustomerProfile(user.id)
 
@@ -43,7 +40,7 @@ export default async function CompleteProfilePage({
           <p className={styles.eyebrow}>Complete your profile</p>
           <h1 className={styles.title}>We need a few more details before you can continue</h1>
           <p className={styles.subtitle}>
-            Add your name and phone number so your dashboard and booking flow can continue
+            Add your name, phone number, and a password so your dashboard and booking flow can continue
             without interruption.
           </p>
         </div>
@@ -51,7 +48,7 @@ export default async function CompleteProfilePage({
         <CompleteProfileForm
           nextPath={nextPath}
           initialProfile={profile}
-          requirePasswordSetup={requirePasswordSetup}
+          requirePasswordSetup={true}
         />
       </div>
     </div>

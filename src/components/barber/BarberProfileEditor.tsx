@@ -14,6 +14,7 @@ export function BarberProfileEditor({
   const [form, setForm] = useState({
     displayName: profile.displayName,
     cuttingLocation: profile.cuttingLocation ?? '',
+    mapUrl: profile.mapUrl ?? '',
     instagramUrl: profile.instagramUrl ?? '',
     tiktokUrl: profile.tiktokUrl ?? '',
     facebookUrl: profile.facebookUrl ?? '',
@@ -23,6 +24,8 @@ export function BarberProfileEditor({
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+
+  const [requestingGoLive, setRequestingGoLive] = useState(false)
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -73,6 +76,15 @@ export function BarberProfileEditor({
           />
         </label>
         <label className={styles.field}>
+          <span className={styles.metaLabel}>Map URL</span>
+          <input
+            className={styles.input}
+            value={form.mapUrl}
+            onChange={(event) => setForm((current) => ({ ...current, mapUrl: event.target.value }))}
+            placeholder="https://maps.google.com/..."
+          />
+        </label>
+        <label className={styles.field}>
           <span className={styles.metaLabel}>Instagram</span>
           <input
             className={styles.input}
@@ -120,6 +132,38 @@ export function BarberProfileEditor({
       <div className={styles.inlineActions}>
         <button type="submit" className={styles.primaryButton} disabled={saving}>
           {saving ? 'Saving...' : 'Save Profile'}
+        </button>
+        <button
+          type="button"
+          className={styles.secondaryButton}
+          disabled={requestingGoLive}
+          onClick={async () => {
+            setRequestingGoLive(true)
+            setMessage('')
+            setError('')
+
+            const response = await fetch('/api/barber/profile', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ action: 'request_go_live' }),
+            })
+            const payload = await response.json().catch(() => null)
+
+            if (!response.ok || !payload?.ok) {
+              const details = Array.isArray(payload?.error?.details) ? payload.error.details.join(' ') : ''
+              setError(payload?.error?.message ? `${payload.error.message} ${details}`.trim() : 'Could not submit go-live request.')
+              setRequestingGoLive(false)
+              return
+            }
+
+            setMessage('Go-live request submitted for admin review.')
+            setRequestingGoLive(false)
+            router.refresh()
+          }}
+        >
+          {requestingGoLive ? 'Submitting...' : 'Submit Go-Live Request'}
         </button>
       </div>
 

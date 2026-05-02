@@ -18,6 +18,8 @@ import { AdminBarberApplicationActions } from './AdminBarberApplicationActions'
 import { AdminBookingActions } from './AdminBookingActions'
 import { AdminCreateUserForm } from './AdminCreateUserForm'
 import { AdminModal } from './AdminModal'
+import { AdminProfileSettings } from './AdminProfileSettings'
+import { AdminServiceCatalogManager } from './AdminServiceCatalogManager'
 import { AdminUserActions } from './AdminUserActions'
 import { formatDate, formatTimeRange } from '@/lib/date-time'
 import { getSafeImage } from '@/lib/safe-image'
@@ -25,10 +27,10 @@ import styles from '@/app/admin/dashboard/dashboard.module.css'
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
-  { id: 'barber-applications', label: 'Barber Applications' },
   { id: 'bookings', label: 'Bookings' },
-  { id: 'users', label: 'Users' },
   { id: 'barbers', label: 'Barbers' },
+  { id: 'users', label: 'Users' },
+  { id: 'services', label: 'Services' },
 ] as const
 
 const USER_GROUPS = [
@@ -151,15 +153,13 @@ function BookingCard({
   )
 }
 
-function AttentionCard({
+function QuickActionCard({
   title,
-  count,
   detail,
   actionLabel,
   onClick,
 }: {
   title: string
-  count: number
   detail: string
   actionLabel: string
   onClick: () => void
@@ -167,9 +167,8 @@ function AttentionCard({
   return (
     <article className={styles.metricStrip}>
       <p className={styles.eyebrow}>{title}</p>
-      <p className={styles.metricValue}>{count}</p>
       <p className={styles.cardText}>{detail}</p>
-      <button type="button" className={styles.secondaryButton} onClick={onClick}>
+      <button type="button" className={styles.primaryButton} onClick={onClick}>
         {actionLabel}
       </button>
     </article>
@@ -209,7 +208,7 @@ function UserSummaryCard({
       </div>
 
       <button type="button" className={styles.primaryButton} onClick={onManage}>
-        Manage
+        Manage User
       </button>
     </article>
   )
@@ -248,7 +247,7 @@ function BarberSummaryCard({
       </div>
 
       <button type="button" className={styles.primaryButton} onClick={onManage}>
-        Manage
+        Manage Barber
       </button>
     </article>
   )
@@ -292,7 +291,7 @@ function BarberApplicationSummaryCard({
       </div>
 
       <button type="button" className={styles.primaryButton} onClick={onViewDetails}>
-        View Details
+        Review Application
       </button>
     </article>
   )
@@ -353,6 +352,12 @@ export function AdminDashboardTabs({
     barbers: dashboard.users.barbers,
     admins: dashboard.users.admins,
   } satisfies Record<UserGroupId, AdminUserRow[]>
+  const barberGroups = {
+    setupIncomplete: dashboard.barbers.items.filter((barber) => barber.setupStatus === 'draft'),
+    goLivePending: dashboard.barbers.items.filter((barber) => barber.setupStatus === 'pending_review' && !barber.isLive),
+    live: dashboard.barbers.items.filter((barber) => barber.activeStatus === 'active' && barber.isLive),
+    deactivated: dashboard.barbers.items.filter((barber) => barber.activeStatus === 'inactive'),
+  }
 
   return (
     <>
@@ -360,7 +365,7 @@ export function AdminDashboardTabs({
         <article className={styles.heroCard}>
           <div className={styles.heroCopy}>
             <p className={styles.eyebrow}>Admin Management</p>
-            <h2 className={styles.heroTitle}>Keep approvals, bookings, and role access moving.</h2>
+            <h2 className={styles.heroTitle}>Take the next action, then move on.</h2>
             <p className={styles.heroText}>{dashboard.headerMessage}</p>
           </div>
 
@@ -391,142 +396,59 @@ export function AdminDashboardTabs({
             <article className={styles.panelCard}>
               <div className={styles.sectionHeader}>
                 <div>
-                  <p className={styles.eyebrow}>Needs Attention</p>
-                  <h2 className={styles.sectionTitle}>Summary first, details when you need them</h2>
+                  <p className={styles.eyebrow}>Quick Actions</p>
+                  <h2 className={styles.sectionTitle}>Start where operations are blocked</h2>
                 </div>
               </div>
 
               <div className={styles.statsGridCompact}>
-                <AttentionCard
+                <QuickActionCard
                   title="Pending barber applications"
-                  count={dashboard.attention.pendingBarberApplications}
-                  detail="Review new barber requests and promote approved applicants."
-                  actionLabel="Open Applications"
-                  onClick={() => setActiveTab('barber-applications')}
+                  detail={`${dashboard.attention.pendingBarberApplications} application${dashboard.attention.pendingBarberApplications === 1 ? '' : 's'} waiting for review.`}
+                  actionLabel="Open Barbers"
+                  onClick={() => setActiveTab('barbers')}
                 />
-                <AttentionCard
-                  title="Pending payments"
-                  count={paymentsQueue.length}
-                  detail="Confirm manual WhatsApp payments so bookings reach the barber."
+                <QuickActionCard
+                  title="Pending go-live requests"
+                  detail={`${dashboard.attention.pendingGoLiveRequests} barber${dashboard.attention.pendingGoLiveRequests === 1 ? '' : 's'} waiting to go live.`}
+                  actionLabel="Review Go-Live"
+                  onClick={() => setActiveTab('barbers')}
+                />
+                <QuickActionCard
+                  title="Pending payment confirmations"
+                  detail={`${paymentsQueue.length} booking${paymentsQueue.length === 1 ? '' : 's'} still need payment confirmation.`}
                   actionLabel="Open Bookings"
                   onClick={() => setActiveTab('bookings')}
                 />
-                <AttentionCard
+                <QuickActionCard
                   title="Booking issues"
-                  count={dashboard.attention.problemBookings.length}
-                  detail="Expired, cancelled, or failed-payment bookings that need admin awareness."
-                  actionLabel="Review Bookings"
+                  detail={`${dashboard.attention.problemBookings.length} booking${dashboard.attention.problemBookings.length === 1 ? '' : 's'} need admin attention.`}
+                  actionLabel="Open Bookings"
                   onClick={() => setActiveTab('bookings')}
+                />
+                <QuickActionCard
+                  title="Incomplete barber setup"
+                  detail={`${dashboard.attention.incompleteBarbers} barber${dashboard.attention.incompleteBarbers === 1 ? '' : 's'} still need setup work before go-live.`}
+                  actionLabel="Review Barbers"
+                  onClick={() => setActiveTab('barbers')}
+                />
+                <QuickActionCard
+                  title="Manage users"
+                  detail="Review customers, barber accounts, and admin role assignments."
+                  actionLabel="Open Users"
+                  onClick={() => {
+                    setActiveUserGroup('customers')
+                    setActiveTab('users')
+                  }}
+                />
+                <QuickActionCard
+                  title="Manage services"
+                  detail="Adjust service descriptions, status, and sort order in the approved catalog."
+                  actionLabel="Open Services"
+                  onClick={() => setActiveTab('services')}
                 />
               </div>
             </article>
-
-            <div className={styles.twoColumnGrid}>
-              <article className={styles.panelCard}>
-                <div className={styles.sectionHeader}>
-                  <div>
-                    <p className={styles.eyebrow}>Applications Queue</p>
-                    <h3 className={styles.sectionTitle}>Next barber requests</h3>
-                  </div>
-                  <button type="button" className={styles.secondaryButton} onClick={() => setActiveTab('barber-applications')}>
-                    View All
-                  </button>
-                </div>
-
-                {pendingApplications.length > 0 ? (
-                  <div className={styles.stackList}>
-                    {pendingApplications.slice(0, 3).map((application) => (
-                      <div key={application.id} className={styles.summaryCard}>
-                        <div className={styles.recordTop}>
-                          <div>
-                            <h4 className={styles.cardTitle}>{application.applicantName}</h4>
-                            <p className={styles.cardSubmeta}>{application.applicantEmail}</p>
-                          </div>
-                          <StatusBadge value={application.status} />
-                        </div>
-                        <p className={styles.cardSubmeta}>{application.cuttingLocation}</p>
-                        <button
-                          type="button"
-                          className={styles.primaryButton}
-                          onClick={() => {
-                            setSelectedApplication(application)
-                            setActiveTab('barber-applications')
-                          }}
-                        >
-                          View Details
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyState
-                    title="No pending applications"
-                    description="New barber applications will appear here when customers apply."
-                  />
-                )}
-              </article>
-
-              <article className={styles.panelCard}>
-                <div className={styles.sectionHeader}>
-                  <div>
-                    <p className={styles.eyebrow}>Payments Queue</p>
-                    <h3 className={styles.sectionTitle}>Manual confirmations waiting</h3>
-                  </div>
-                  <button type="button" className={styles.secondaryButton} onClick={() => setActiveTab('bookings')}>
-                    Review Bookings
-                  </button>
-                </div>
-
-                {paymentsQueue.length > 0 ? (
-                  <div className={styles.stackList}>
-                    {paymentsQueue.slice(0, 3).map((booking) => (
-                      <div key={booking.id} className={styles.summaryCard}>
-                        <div className={styles.recordTop}>
-                          <div>
-                            <h4 className={styles.cardTitle}>{booking.customerName}</h4>
-                            <p className={styles.cardSubmeta}>{booking.serviceName}</p>
-                          </div>
-                          <StatusBadge value={booking.paymentStatus} />
-                        </div>
-                        <p className={styles.cardSubmeta}>{booking.startsAtLabel}</p>
-                        <p className={styles.cardSubmeta}>{booking.amountDueLabel}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyState
-                    title="No pending payments"
-                    description="There are no unpaid bookings waiting for admin confirmation."
-                  />
-                )}
-              </article>
-            </div>
-          </section>
-        ) : null}
-
-        {activeTab === 'barber-applications' ? (
-          <section className={styles.tabPanel}>
-            {dashboard.barberApplications.errorMessage ? (
-              <EmptyState
-                title="Applications unavailable"
-                description={dashboard.barberApplications.errorMessage}
-              />
-            ) : dashboard.barberApplications.items.length > 0 ? (
-              <div className={styles.cardGrid}>
-                {dashboard.barberApplications.items.map((application) => (
-                  <BarberApplicationSummaryCard
-                    key={application.id}
-                    application={application}
-                    onViewDetails={() => setSelectedApplication(application)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                title="No barber applications"
-                description="New customer applications to become barbers will appear here."
-              />
-            )}
           </section>
         ) : null}
 
@@ -535,8 +457,8 @@ export function AdminDashboardTabs({
             <article className={styles.panelCard}>
               <div className={styles.sectionHeader}>
                 <div>
-                  <p className={styles.eyebrow}>Payments</p>
-                  <h2 className={styles.sectionTitle}>Pending payment confirmations</h2>
+                  <p className={styles.eyebrow}>Pending Orders</p>
+                  <h2 className={styles.sectionTitle}>Bookings waiting for payment confirmation</h2>
                 </div>
               </div>
 
@@ -547,18 +469,15 @@ export function AdminDashboardTabs({
                   ))}
                 </div>
               ) : (
-                <EmptyState
-                  title="No pending payments"
-                  description="There are no unpaid or pending-payment bookings waiting for admin action."
-                />
+                <EmptyState title="No pending orders" description="There are no unpaid or pending-payment bookings waiting for admin action." />
               )}
             </article>
 
             <article className={styles.panelCard}>
               <div className={styles.sectionHeader}>
                 <div>
-                  <p className={styles.eyebrow}>Bookings</p>
-                  <h2 className={styles.sectionTitle}>Booking management</h2>
+                  <p className={styles.eyebrow}>All Bookings</p>
+                  <h2 className={styles.sectionTitle}>Manage the full booking queue</h2>
                 </div>
               </div>
 
@@ -607,13 +526,129 @@ export function AdminDashboardTabs({
           </section>
         ) : null}
 
+        {activeTab === 'barbers' ? (
+          <section className={styles.tabPanel}>
+            <article className={styles.panelCard}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <p className={styles.eyebrow}>Pending Barber Applications</p>
+                  <h2 className={styles.sectionTitle}>Review onboarding requests</h2>
+                </div>
+              </div>
+
+              {pendingApplications.length > 0 ? (
+                <div className={styles.cardGrid}>
+                  {pendingApplications.map((application) => (
+                    <BarberApplicationSummaryCard
+                      key={application.id}
+                      application={application}
+                      onViewDetails={() => setSelectedApplication(application)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState title="No pending barber applications" description="New barber applications will appear here when customers apply." />
+              )}
+            </article>
+
+            <article className={styles.panelCard}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <p className={styles.eyebrow}>Go-Live Pending</p>
+                  <h2 className={styles.sectionTitle}>Barbers waiting to go live</h2>
+                </div>
+              </div>
+              {barberGroups.goLivePending.length > 0 ? (
+                <div className={styles.cardGrid}>
+                  {barberGroups.goLivePending.map((barber) => (
+                    <BarberSummaryCard key={barber.id} barber={barber} onManage={() => setSelectedBarber(barber)} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState title="No go-live requests" description="Barbers who finish setup and request go-live will appear here." />
+              )}
+            </article>
+
+            <article className={styles.panelCard}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <p className={styles.eyebrow}>Setup Incomplete</p>
+                  <h2 className={styles.sectionTitle}>Barbers still missing setup requirements</h2>
+                </div>
+              </div>
+              {barberGroups.setupIncomplete.length > 0 ? (
+                <div className={styles.cardGrid}>
+                  {barberGroups.setupIncomplete.map((barber) => (
+                    <BarberSummaryCard key={barber.id} barber={barber} onManage={() => setSelectedBarber(barber)} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState title="No setup gaps" description="Every approved barber profile currently looks ready for review." />
+              )}
+            </article>
+
+            <article className={styles.panelCard}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <p className={styles.eyebrow}>Live Barbers</p>
+                  <h2 className={styles.sectionTitle}>Public-facing barber profiles</h2>
+                </div>
+              </div>
+              {barberGroups.live.length > 0 ? (
+                <div className={styles.cardGrid}>
+                  {barberGroups.live.map((barber) => (
+                    <BarberSummaryCard key={barber.id} barber={barber} onManage={() => setSelectedBarber(barber)} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState title="No live barbers" description="Approved and live barber profiles will appear here." />
+              )}
+            </article>
+
+            {barberGroups.deactivated.length > 0 ? (
+              <article className={styles.panelCard}>
+                <div className={styles.sectionHeader}>
+                  <div>
+                    <p className={styles.eyebrow}>Deactivated Barbers</p>
+                    <h2 className={styles.sectionTitle}>Hidden from customers</h2>
+                  </div>
+                </div>
+                <div className={styles.cardGrid}>
+                  {barberGroups.deactivated.map((barber) => (
+                    <BarberSummaryCard key={barber.id} barber={barber} onManage={() => setSelectedBarber(barber)} />
+                  ))}
+                </div>
+              </article>
+            ) : null}
+          </section>
+        ) : null}
+
+        {activeTab === 'services' ? (
+          <section className={styles.tabPanel}>
+            <article className={styles.panelCard}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <p className={styles.eyebrow}>Approved Services</p>
+                  <h2 className={styles.sectionTitle}>Manage the fixed service catalog</h2>
+                </div>
+              </div>
+
+              {dashboard.services.errorMessage ? (
+                <EmptyState title="Services unavailable" description={dashboard.services.errorMessage} />
+              ) : (
+                <AdminServiceCatalogManager services={dashboard.services.items} />
+              )}
+            </article>
+          </section>
+        ) : null}
+
         {activeTab === 'users' ? (
           <section className={styles.tabPanel}>
             <article className={styles.panelCard}>
               <div className={styles.sectionHeader}>
                 <div>
                   <p className={styles.eyebrow}>User Management</p>
-                  <h2 className={styles.sectionTitle}>Add a user manually</h2>
+                  <h2 className={styles.sectionTitle}>Create and manage access</h2>
                 </div>
               </div>
               <AdminCreateUserForm />
@@ -634,10 +669,17 @@ export function AdminDashboardTabs({
             </div>
 
             {!dashboard.users.enabled ? (
-              <EmptyState
-                title="Users unavailable"
-                description={dashboard.users.errorMessage ?? 'User data is not available right now.'}
-              />
+              <EmptyState title="Users unavailable" description={dashboard.users.errorMessage ?? 'User data is not available right now.'} />
+            ) : activeUserGroup === 'barbers' ? (
+              dashboard.barbers.items.length > 0 ? (
+                <div className={styles.cardGrid}>
+                  {dashboard.barbers.items.map((barber) => (
+                    <BarberSummaryCard key={barber.id} barber={barber} onManage={() => setSelectedBarber(barber)} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState title="No barber profiles found" description="No barber records are available right now." />
+              )
             ) : usersByGroup[activeUserGroup].length > 0 ? (
               <div className={styles.cardGrid}>
                 {usersByGroup[activeUserGroup].map((user) => (
@@ -645,30 +687,33 @@ export function AdminDashboardTabs({
                 ))}
               </div>
             ) : (
-              <EmptyState
-                title="No users in this group"
-                description="No users matched this role group."
-              />
+              <EmptyState title="No users in this group" description="No users matched this role group." />
             )}
-          </section>
-        ) : null}
 
-        {activeTab === 'barbers' ? (
-          <section className={styles.tabPanel}>
-            {!dashboard.barbers.enabled ? (
-              <EmptyState
-                title="Barbers unavailable"
-                description={dashboard.barbers.errorMessage ?? 'Barber data is not available right now.'}
-              />
-            ) : dashboard.barbers.items.length > 0 ? (
-              <div className={styles.cardGrid}>
-                {dashboard.barbers.items.map((barber) => (
-                  <BarberSummaryCard key={barber.id} barber={barber} onManage={() => setSelectedBarber(barber)} />
-                ))}
+            <article className={styles.panelCard}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <p className={styles.eyebrow}>Admin Profile</p>
+                  <h2 className={styles.sectionTitle}>Edit your admin profile</h2>
+                </div>
               </div>
-            ) : (
-              <EmptyState title="No barbers found" description="No barber records are available." />
-            )}
+
+              <div className={styles.recordCard}>
+                <div className={styles.personTop}>
+                  <img
+                    src={getSafeImage(dashboard.currentAdmin.profileImageUrl)}
+                    alt={dashboard.currentAdmin.fullName}
+                    className={styles.avatarImage}
+                  />
+                  <div>
+                    <h3 className={styles.cardTitle}>{dashboard.currentAdmin.fullName}</h3>
+                    <p className={styles.cardMeta}>{dashboard.currentAdmin.email}</p>
+                  </div>
+                </div>
+
+                <AdminProfileSettings profile={dashboard.currentAdmin} />
+              </div>
+            </article>
           </section>
         ) : null}
       </div>
@@ -701,28 +746,10 @@ export function AdminDashboardTabs({
             <div className={styles.panelCard}>
               <p className={styles.eyebrow}>Socials</p>
               <div className={styles.inlineActions}>
-                <ExternalLinkPill
-                  href={toExternalHref('instagram', selectedApplication.instagramUrl ?? '')}
-                  label="Instagram"
-                />
-                <ExternalLinkPill
-                  href={toExternalHref('tiktok', selectedApplication.tiktokUrl ?? '')}
-                  label="TikTok"
-                />
-                <ExternalLinkPill
-                  href={toExternalHref('facebook', selectedApplication.facebookUrl ?? '')}
-                  label="Facebook"
-                />
-                <ExternalLinkPill
-                  href={toExternalHref('portfolio', selectedApplication.portfolioUrl ?? '')}
-                  label="Portfolio"
-                />
-                {!selectedApplication.instagramUrl &&
-                !selectedApplication.tiktokUrl &&
-                !selectedApplication.facebookUrl &&
-                !selectedApplication.portfolioUrl ? (
-                  <p className={styles.cardSubmeta}>No social or portfolio links were supplied.</p>
-                ) : null}
+                <ExternalLinkPill href={toExternalHref('instagram', selectedApplication.instagramUrl ?? '')} label="Instagram" />
+                <ExternalLinkPill href={toExternalHref('tiktok', selectedApplication.tiktokUrl ?? '')} label="TikTok" />
+                <ExternalLinkPill href={toExternalHref('facebook', selectedApplication.facebookUrl ?? '')} label="Facebook" />
+                <ExternalLinkPill href={toExternalHref('portfolio', selectedApplication.portfolioUrl ?? '')} label="Portfolio" />
               </div>
             </div>
 
@@ -740,13 +767,6 @@ export function AdminDashboardTabs({
                 <p className={styles.cardSubmeta}>No availability slots were submitted with this application.</p>
               )}
             </div>
-
-            {selectedApplication.rejectionReason ? (
-              <div className={styles.panelCard}>
-                <p className={styles.eyebrow}>Rejection Reason</p>
-                <p className={styles.cardText}>{selectedApplication.rejectionReason}</p>
-              </div>
-            ) : null}
 
             {selectedApplication.status === 'pending' ? (
               <div className={styles.modalActionPanel}>
@@ -776,11 +796,7 @@ export function AdminDashboardTabs({
             />
 
             <div className={styles.modalActionPanel}>
-              <AdminUserActions
-                userId={selectedUser.id}
-                currentRole={selectedUser.role}
-                editable={selectedUser.editable}
-              />
+              <AdminUserActions userId={selectedUser.id} currentRole={selectedUser.role} editable={selectedUser.editable} />
             </div>
           </div>
         ) : null}
