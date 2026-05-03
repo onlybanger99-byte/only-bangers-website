@@ -19,6 +19,7 @@ import { AdminBookingActions } from './AdminBookingActions'
 import { AdminCreateUserForm } from './AdminCreateUserForm'
 import { AdminModal } from './AdminModal'
 import { AdminProfileSettings } from './AdminProfileSettings'
+import { AdminProductManager } from './AdminProductManager'
 import { AdminServiceCatalogManager } from './AdminServiceCatalogManager'
 import { AdminUserActions } from './AdminUserActions'
 import { formatDate, formatTimeRange } from '@/lib/date-time'
@@ -30,6 +31,7 @@ const TABS = [
   { id: 'bookings', label: 'Bookings' },
   { id: 'barbers', label: 'Barbers' },
   { id: 'users', label: 'Users' },
+  { id: 'products', label: 'Products' },
   { id: 'services', label: 'Services' },
 ] as const
 
@@ -447,6 +449,12 @@ export function AdminDashboardTabs({
                   actionLabel="Open Services"
                   onClick={() => setActiveTab('services')}
                 />
+                <QuickActionCard
+                  title="Manage products"
+                  detail="Create, edit, and deactivate grooming products shown on the public products page."
+                  actionLabel="Open Products"
+                  onClick={() => setActiveTab('products')}
+                />
               </div>
             </article>
           </section>
@@ -623,6 +631,25 @@ export function AdminDashboardTabs({
           </section>
         ) : null}
 
+        {activeTab === 'products' ? (
+          <section className={styles.tabPanel}>
+            <article className={styles.panelCard}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <p className={styles.eyebrow}>Products</p>
+                  <h2 className={styles.sectionTitle}>Manage public grooming products</h2>
+                </div>
+              </div>
+
+              {dashboard.products.errorMessage ? (
+                <EmptyState title="Products unavailable" description={dashboard.products.errorMessage} />
+              ) : (
+                <AdminProductManager products={dashboard.products.items} />
+              )}
+            </article>
+          </section>
+        ) : null}
+
         {activeTab === 'services' ? (
           <section className={styles.tabPanel}>
             <article className={styles.panelCard}>
@@ -670,16 +697,6 @@ export function AdminDashboardTabs({
 
             {!dashboard.users.enabled ? (
               <EmptyState title="Users unavailable" description={dashboard.users.errorMessage ?? 'User data is not available right now.'} />
-            ) : activeUserGroup === 'barbers' ? (
-              dashboard.barbers.items.length > 0 ? (
-                <div className={styles.cardGrid}>
-                  {dashboard.barbers.items.map((barber) => (
-                    <BarberSummaryCard key={barber.id} barber={barber} onManage={() => setSelectedBarber(barber)} />
-                  ))}
-                </div>
-              ) : (
-                <EmptyState title="No barber profiles found" description="No barber records are available right now." />
-              )
             ) : usersByGroup[activeUserGroup].length > 0 ? (
               <div className={styles.cardGrid}>
                 {usersByGroup[activeUserGroup].map((user) => (
@@ -796,7 +813,17 @@ export function AdminDashboardTabs({
             />
 
             <div className={styles.modalActionPanel}>
-              <AdminUserActions userId={selectedUser.id} currentRole={selectedUser.role} editable={selectedUser.editable} />
+              <AdminUserActions
+                userId={selectedUser.id}
+                currentRole={selectedUser.role}
+                currentEmail={selectedUser.email}
+                displayName={selectedUser.displayName}
+                firstName={selectedUser.firstName}
+                lastName={selectedUser.lastName}
+                phoneNumber={selectedUser.phoneNumber}
+                accountStatus={selectedUser.accountStatus}
+                editable={selectedUser.editable}
+              />
             </div>
           </div>
         ) : null}
@@ -813,9 +840,13 @@ export function AdminDashboardTabs({
             <DetailStack
               items={[
                 { label: 'Status', value: selectedBarber.activeStatus },
+                { label: 'Full name', value: selectedBarber.fullName || 'Not set' },
+                { label: 'Phone', value: selectedBarber.phone || 'Not set' },
+                { label: 'Setup', value: selectedBarber.setupStatus },
+                { label: 'Live', value: selectedBarber.isLive ? 'Yes' : 'No' },
                 { label: 'Upcoming bookings', value: String(selectedBarber.upcomingBookings) },
                 { label: 'Total bookings', value: String(selectedBarber.totalBookings) },
-                { label: 'Location', value: selectedBarber.cuttingLocation || 'Not set' },
+                { label: 'Location', value: selectedBarber.cuttingLocation || selectedBarber.location || 'Not set' },
               ]}
             />
 

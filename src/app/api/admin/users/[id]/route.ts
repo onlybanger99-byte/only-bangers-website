@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { getUserRole } from '@/lib/auth/get-user-role'
 import { requireRole } from '@/lib/auth/require-role'
-import { changeUserRole, deleteUserAccount } from '@/lib/admin-users/service'
+import { deleteUserAccount, updateUserAccountAsAdmin } from '@/lib/admin-users/service'
 
 export async function PATCH(
   request: NextRequest,
@@ -31,9 +31,14 @@ export async function PATCH(
   }
 
   const body = await request.json()
-  const result = await changeUserRole({
+  const result = await updateUserAccountAsAdmin({
     userId: id,
+    email: body.email,
+    displayName: body.displayName,
+    fullName: body.fullName,
+    phoneNumber: body.phoneNumber,
     role: body.role,
+    accountStatus: body.accountStatus,
   })
 
   if (!result.ok) {

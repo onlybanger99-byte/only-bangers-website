@@ -33,6 +33,9 @@ export interface AdminBookingsSection {
 
 export interface AdminUserRow {
   id: string
+  displayName: string
+  firstName: string
+  lastName: string
   fullName: string
   email: string
   phoneNumber: string
@@ -69,6 +72,24 @@ export interface AdminServicesSection {
   errorMessage?: string
 }
 
+export interface AdminProductRow {
+  id: string
+  name: string
+  slug: string
+  description: string
+  priceLabel: string
+  price: number
+  imageUrl: string | null
+  category: string
+  stockQuantity: number
+  isActive: boolean
+}
+
+export interface AdminProductsSection {
+  items: AdminProductRow[]
+  errorMessage?: string
+}
+
 export interface AdminProfileSummary {
   userId: string
   email: string
@@ -85,8 +106,10 @@ export interface AdminBarberRow {
   slug: string | null
   displayName: string
   fullName: string | null
+  phone: string | null
   specialty: string
   profileImageUrl: string
+  avatarUrl: string | null
   bio: string
   location: string
   cuttingLocation: string
@@ -161,6 +184,7 @@ export interface AdminDashboardViewModel {
   attention: AdminAttentionSummary
   bookings: AdminBookingsSection
   services: AdminServicesSection
+  products: AdminProductsSection
   users: AdminUsersSection
   barbers: AdminBarbersSection
   barberApplications: {

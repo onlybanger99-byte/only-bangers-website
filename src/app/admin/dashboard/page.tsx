@@ -13,6 +13,7 @@ type AdminTabId =
   | 'bookings'
   | 'barbers'
   | 'users'
+  | 'products'
   | 'services'
 
 const VALID_TABS = new Set<AdminTabId>([
@@ -20,6 +21,7 @@ const VALID_TABS = new Set<AdminTabId>([
   'bookings',
   'barbers',
   'users',
+  'products',
   'services',
 ] as const)
 

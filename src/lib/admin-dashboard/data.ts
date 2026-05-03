@@ -18,12 +18,15 @@ import type {
   AdminDashboardViewModel,
   AdminMetric,
   AdminProfileSummary,
+  AdminProductRow,
+  AdminProductsSection,
   AdminServiceRow,
   AdminServicesSection,
   AdminUserRow,
   AdminUsersSection,
 } from './types'
 import { getFallbackServices, listAllServices } from '@/lib/services/service'
+import { listAllProductsForAdmin } from '@/lib/products/service'
 
 type AdminDashboardParams = {
   userId: string
@@ -357,6 +360,9 @@ async function getUsersSection(barberRows: AdminBarberRow[]): Promise<AdminUsers
 
     return {
       id: userId,
+      displayName: profile?.fullName ?? 'Profile incomplete',
+      firstName: profile?.firstName ?? '',
+      lastName: profile?.lastName ?? '',
       fullName: profile?.fullName ?? 'Profile incomplete',
       email: authUser?.email ?? 'Email unavailable',
       phoneNumber: profile?.phoneNumber ?? 'Phone unavailable',
@@ -372,18 +378,20 @@ async function getUsersSection(barberRows: AdminBarberRow[]): Promise<AdminUsers
   const barbers = roles.barbers.map((userId) => {
     const row = barberRows.find((item) => item.id === userId)
     const authUser = authUsers.get(userId)
+    const fullName = row?.fullName || row?.displayName || 'Barber profile missing'
+    const isSuspended = row?.activeStatus === 'inactive'
 
     return {
       id: userId,
-      fullName: row?.displayName ?? 'Barber profile missing',
+      displayName: row?.displayName ?? fullName,
+      firstName: fullName.split(' ')[0] ?? '',
+      lastName: fullName.split(' ').slice(1).join(' '),
+      fullName,
       email: authUser?.email ?? 'Email unavailable',
-      phoneNumber: 'Managed in barber profile',
+      phoneNumber: row?.phone ?? 'Not set',
       profileImageUrl: row?.profileImageUrl ?? '/images/header-bg.png',
       role: 'barber',
-      accountStatus:
-        row?.activeStatus === 'inactive'
-          ? 'pending'
-          : row?.activeStatus ?? 'pending',
+      accountStatus: isSuspended ? 'suspended' : row?.profileComplete ? 'active' : 'pending',
       createdAtLabel: formatDate(authUser?.createdAt),
       profileComplete: row?.profileComplete ?? false,
       editable: true,
@@ -396,6 +404,9 @@ async function getUsersSection(barberRows: AdminBarberRow[]): Promise<AdminUsers
 
     return {
       id: userId,
+      displayName: authUser?.email?.split('@')[0] ?? 'Admin user',
+      firstName: authUser?.email?.split('@')[0] ?? 'Admin',
+      lastName: '',
       fullName: authUser?.email?.split('@')[0] ?? 'Admin user',
       email: authUser?.email ?? 'Email unavailable',
       phoneNumber: 'Not shared',
@@ -485,6 +496,32 @@ async function getServicesSection(): Promise<AdminServicesSection> {
   }
 }
 
+async function getProductsSection(): Promise<AdminProductsSection> {
+  const productsResult = await listAllProductsForAdmin()
+
+  if (!productsResult.ok) {
+    return {
+      items: [],
+      errorMessage: productsResult.message,
+    }
+  }
+
+  return {
+    items: productsResult.data.map((product) => ({
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      description: product.description,
+      priceLabel: toCurrency(product.price),
+      price: product.price,
+      imageUrl: product.imageUrl,
+      category: product.category || 'Uncategorized',
+      stockQuantity: product.stockQuantity,
+      isActive: product.isActive,
+    } satisfies AdminProductRow)),
+  }
+}
+
 async function getBarbersSection(): Promise<AdminBarbersSection> {
   const roles = await getUserIdsForRoles()
 
@@ -567,8 +604,10 @@ async function getBarbersSection(): Promise<AdminBarbersSection> {
         slug: resolveFirstText(profile ?? {}, 'slug') || null,
         displayName,
         fullName: resolveFirstText(profile ?? {}, 'full_name') || null,
+        phone: resolveFirstText(profile ?? {}, 'phone') || null,
         specialty,
         profileImageUrl,
+        avatarUrl: resolveFirstText(profile ?? {}, 'avatar_url', 'profile_image_url') || null,
         bio: resolveFirstText(profile ?? {}, 'bio') || 'Bio not set',
         location,
         cuttingLocation: resolveFirstText(profile ?? {}, 'cutting_location') || '',
@@ -637,9 +676,10 @@ export async function getAdminDashboardViewModel(
 ): Promise<AdminDashboardViewModel> {
   const barberApplicationsResult = await listBarberApplicationsForAdmin()
   const barbers = await getBarbersSection()
-  const [bookings, services, users, customerProfilesCount, metricsBase, currentAdmin] = await Promise.all([
+  const [bookings, services, products, users, customerProfilesCount, metricsBase, currentAdmin] = await Promise.all([
     getBookingsSection(params),
     getServicesSection(),
+    getProductsSection(),
     getUsersSection(barbers.items),
     countTable('customer_profiles'),
     Promise.resolve(barbers.items.filter((item) => !item.profileComplete).length),
@@ -690,6 +730,7 @@ export async function getAdminDashboardViewModel(
     },
     bookings,
     services,
+    products,
     users,
     barbers,
     barberApplications: {

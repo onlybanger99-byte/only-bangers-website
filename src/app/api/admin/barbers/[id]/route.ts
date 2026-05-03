@@ -18,15 +18,45 @@ export async function PATCH(
   const result = await updateBarberProfileAsAdmin({
     userId: id,
     displayName: body.displayName,
+    fullName: body.fullName,
+    phone: body.phone,
     specialty: body.specialty,
     bio: body.bio,
+    location: body.location,
     cuttingLocation: body.cuttingLocation,
+    avatarUrl: body.avatarUrl,
+    profileImageUrl: body.profileImageUrl,
     instagramUrl: body.instagramUrl,
     tiktokUrl: body.tiktokUrl,
     facebookUrl: body.facebookUrl,
     portfolioUrl: body.portfolioUrl,
+    setupStatus: body.setupStatus,
     isActive: body.isActive !== false,
+    isLive: body.isLive === true,
   })
+
+  if (!result.ok) {
+    return Response.json(
+      { ok: false, error: { code: 'DATABASE_ERROR', message: result.message, details: result.details } },
+      { status: 400 }
+    )
+  }
+
+  return Response.json({ ok: true })
+}
+
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  const authError = await requireRole(request, ['admin'])
+
+  if (authError) {
+    return authError
+  }
+
+  const { id } = await context.params
+  const result = await deactivateBarberProfile(id)
 
   if (!result.ok) {
     return Response.json(

@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { ensureUniqueBarberSlug } from '@/lib/barbers/slug'
 
 type AppRole = 'customer' | 'barber' | 'admin'
 type AdminClient = NonNullable<ReturnType<typeof createAdminClient>>
@@ -21,6 +22,24 @@ function fallbackDisplayNameFromEmail(email: string) {
 
 function isAppRole(value: string): value is AppRole {
   return value === 'customer' || value === 'barber' || value === 'admin'
+}
+
+function splitFullName(fullName: string) {
+  const normalized = normalizeText(fullName)
+
+  if (!normalized) {
+    return {
+      firstName: '',
+      lastName: '',
+    }
+  }
+
+  const [firstName, ...rest] = normalized.split(/\s+/)
+
+  return {
+    firstName,
+    lastName: rest.join(' '),
+  }
 }
 
 function requireAdminClient() {
@@ -113,6 +132,71 @@ async function saveCustomerProfile(
   )
 
   return error ? { ok: false as const, error } : { ok: true as const }
+}
+
+async function saveCustomerProfileFromInput(
+  adminClient: AdminClient,
+  userId: string,
+  input: {
+    fullName?: string | null
+    phoneNumber?: string | null
+    profileImageUrl?: string | null
+  }
+) {
+  const { firstName, lastName } = splitFullName(input.fullName ?? '')
+  const { error } = await adminClient.from('customer_profiles').upsert(
+    {
+      user_id: userId,
+      first_name: firstName || null,
+      last_name: lastName || null,
+      phone_number: normalizeText(input.phoneNumber) || null,
+      profile_photo_url: normalizeText(input.profileImageUrl) || null,
+      profile_image_url: normalizeText(input.profileImageUrl) || null,
+      avatar_url: normalizeText(input.profileImageUrl) || null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id' }
+  )
+
+  return error ? { ok: false as const, error } : { ok: true as const }
+}
+
+async function getBarberProfileRecord(adminClient: AdminClient, userId: string) {
+  const { data, error } = await adminClient
+    .from('barber_profiles')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (error && error.code !== 'PGRST116' && error.code !== '42P01' && error.code !== 'PGRST205') {
+    return {
+      ok: false as const,
+      error,
+      data: null,
+    }
+  }
+
+  return {
+    ok: true as const,
+    data: (data ?? null) as Record<string, unknown> | null,
+  }
+}
+
+async function getUserAccount(adminClient: AdminClient, userId: string) {
+  const result = await adminClient.auth.admin.getUserById(userId)
+
+  if (result.error || !result.data.user) {
+    return {
+      ok: false as const,
+      message: 'Could not load this auth user.',
+      details: [result.error?.message ?? 'User not found in Supabase Auth.'],
+    }
+  }
+
+  return {
+    ok: true as const,
+    data: result.data.user,
+  }
 }
 
 async function rollbackCreatedUser(adminClient: AdminClient, userId: string) {
@@ -347,6 +431,116 @@ export async function changeUserRole(input: {
   return { ok: true as const }
 }
 
+export async function updateUserAccountAsAdmin(input: {
+  userId: string
+  email: string
+  displayName: string
+  fullName: string
+  phoneNumber: string
+  role: AppRole
+  accountStatus: 'active' | 'suspended' | 'pending'
+}) {
+  if (!input.userId || !isAppRole(input.role)) {
+    return {
+      ok: false as const,
+      message: 'User id and a valid role are required.',
+      details: ['Select a user and role before saving.'],
+    }
+  }
+
+  const adminClient = requireAdminClient()
+  const accountResult = await getUserAccount(adminClient, input.userId)
+
+  if (!accountResult.ok) {
+    return accountResult
+  }
+
+  const normalizedEmail = normalizeText(input.email).toLowerCase()
+  const normalizedDisplayName = normalizeText(input.displayName)
+  const normalizedFullName = normalizeText(input.fullName)
+  const normalizedPhone = normalizeText(input.phoneNumber)
+  const banDuration = input.accountStatus === 'suspended' ? '876000h' : 'none'
+  const authUpdate = await adminClient.auth.admin.updateUserById(input.userId, {
+    email: normalizedEmail || accountResult.data.email,
+    user_metadata: {
+      ...(accountResult.data.user_metadata ?? {}),
+      full_name: normalizedFullName || normalizedDisplayName || accountResult.data.user_metadata?.full_name || null,
+      display_name: normalizedDisplayName || null,
+      phone: normalizedPhone || null,
+    },
+    ban_duration: banDuration,
+  })
+
+  if (authUpdate.error) {
+    return {
+      ok: false as const,
+      message: 'Could not update this auth account.',
+      details: [authUpdate.error.message],
+    }
+  }
+
+  const roleResult = await changeUserRole({
+    userId: input.userId,
+    role: input.role,
+  })
+
+  if (!roleResult.ok) {
+    return roleResult
+  }
+
+  const customerProfileResult = await saveCustomerProfileFromInput(adminClient, input.userId, {
+    fullName: normalizedFullName || normalizedDisplayName,
+    phoneNumber: normalizedPhone,
+    profileImageUrl: null,
+  })
+
+  if (!customerProfileResult.ok) {
+    return {
+      ok: false as const,
+      message: 'Auth user updated, but the customer profile could not be saved.',
+      details: [customerProfileResult.error.message],
+    }
+  }
+
+  if (input.role === 'barber') {
+    const barberRecord = await getBarberProfileRecord(adminClient, input.userId)
+
+    if (!barberRecord.ok) {
+      return {
+        ok: false as const,
+        message: 'Auth user updated, but the barber profile could not be loaded.',
+        details: [barberRecord.error.message],
+      }
+    }
+
+    const slug = await ensureUniqueBarberSlug({
+      displayName: normalizedDisplayName || normalizedFullName || accountResult.data.email || '',
+      fullName: normalizedFullName || normalizedDisplayName || accountResult.data.email || '',
+      excludeProfileId: typeof barberRecord.data?.id === 'string' ? barberRecord.data.id : null,
+    })
+
+    const barberProfileResult = await saveBarberProfile(adminClient, input.userId, {
+      slug,
+      display_name: normalizedDisplayName || normalizedFullName || fallbackDisplayNameFromEmail(accountResult.data.email ?? 'barber'),
+      full_name: normalizedFullName || normalizedDisplayName || null,
+      phone: normalizedPhone || null,
+      is_active: input.accountStatus !== 'suspended',
+      is_live: input.accountStatus === 'suspended' ? false : barberRecord.data?.is_live ?? false,
+      updated_at: new Date().toISOString(),
+    })
+
+    if (!barberProfileResult.ok) {
+      return {
+        ok: false as const,
+        message: 'Auth user updated, but the barber profile could not be saved.',
+        details: [barberProfileResult.error.message],
+      }
+    }
+  }
+
+  return { ok: true as const }
+}
+
 export async function deleteUserAccount(userId: string) {
   if (!userId) {
     return {
@@ -382,19 +576,29 @@ export async function deleteUserAccount(userId: string) {
 export async function updateBarberProfileAsAdmin(input: {
   userId: string
   displayName: string
+  fullName?: string | null
+  phone?: string | null
   specialty: string
   bio: string
+  location?: string | null
   cuttingLocation: string
+  avatarUrl?: string | null
+  profileImageUrl?: string | null
   instagramUrl?: string | null
   tiktokUrl?: string | null
   facebookUrl?: string | null
   portfolioUrl?: string | null
+  setupStatus?: string | null
   isActive: boolean
+  isLive?: boolean
 }) {
   const adminClient = requireAdminClient()
   const displayName = normalizeText(input.displayName)
+  const fullName = normalizeText(input.fullName)
+  const phone = normalizeText(input.phone)
   const specialty = normalizeText(input.specialty)
   const bio = normalizeText(input.bio)
+  const location = normalizeText(input.location)
   const cuttingLocation = normalizeText(input.cuttingLocation)
 
   if (!input.userId || !displayName || !specialty || !bio) {
@@ -405,16 +609,40 @@ export async function updateBarberProfileAsAdmin(input: {
     }
   }
 
+  const profileRecord = await getBarberProfileRecord(adminClient, input.userId)
+
+  if (!profileRecord.ok) {
+    return {
+      ok: false as const,
+      message: 'Could not load this barber profile.',
+      details: [profileRecord.error.message],
+    }
+  }
+
+  const slug = await ensureUniqueBarberSlug({
+    displayName,
+    fullName: fullName || displayName,
+    excludeProfileId: typeof profileRecord.data?.id === 'string' ? profileRecord.data.id : null,
+  })
+
   const profileResult = await saveBarberProfile(adminClient, input.userId, {
+      slug,
       display_name: displayName,
+      full_name: fullName || displayName,
+      phone: phone || null,
       specialty,
       bio,
+      location: location || cuttingLocation || null,
       cutting_location: cuttingLocation || null,
+      avatar_url: normalizeText(input.avatarUrl) || null,
+      profile_image_url: normalizeText(input.profileImageUrl) || normalizeText(input.avatarUrl) || null,
       instagram_url: normalizeText(input.instagramUrl) || null,
       tiktok_url: normalizeText(input.tiktokUrl) || null,
       facebook_url: normalizeText(input.facebookUrl) || null,
       portfolio_url: normalizeText(input.portfolioUrl) || null,
+      setup_status: normalizeText(input.setupStatus) || 'draft',
       is_active: input.isActive,
+      is_live: input.isActive ? input.isLive === true : false,
     })
 
   if (!profileResult.ok) {
@@ -431,6 +659,20 @@ export async function updateBarberProfileAsAdmin(input: {
       .upsert({ user_id: input.userId, role: 'barber' }, { onConflict: 'user_id' })
   }
 
+  const customerProfileResult = await saveCustomerProfileFromInput(adminClient, input.userId, {
+    fullName: fullName || displayName,
+    phoneNumber: phone || null,
+    profileImageUrl: normalizeText(input.profileImageUrl) || normalizeText(input.avatarUrl) || null,
+  })
+
+  if (!customerProfileResult.ok) {
+    return {
+      ok: false as const,
+      message: 'Barber profile was updated, but the linked customer profile could not be saved.',
+      details: [customerProfileResult.error.message],
+    }
+  }
+
   return { ok: true as const }
 }
 
@@ -438,7 +680,12 @@ export async function deactivateBarberProfile(userId: string) {
   const adminClient = requireAdminClient()
   const { error } = await adminClient
     .from('barber_profiles')
-    .update({ is_active: false, updated_at: new Date().toISOString() })
+    .update({
+      is_active: false,
+      is_live: false,
+      setup_status: 'deactivated',
+      updated_at: new Date().toISOString(),
+    })
     .eq('user_id', userId)
 
   if (error) {
@@ -446,6 +693,62 @@ export async function deactivateBarberProfile(userId: string) {
       ok: false as const,
       message: 'Could not deactivate this barber.',
       details: [error.message],
+    }
+  }
+
+  return { ok: true as const }
+}
+
+export async function activateBarberProfile(userId: string) {
+  const adminClient = requireAdminClient()
+  const { error } = await adminClient
+    .from('barber_profiles')
+    .update({
+      is_active: true,
+      setup_status: 'draft',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId)
+
+  if (error) {
+    return {
+      ok: false as const,
+      message: 'Could not activate this barber profile.',
+      details: [error.message],
+    }
+  }
+
+  await adminClient
+    .from('user_roles')
+    .upsert({ user_id: userId, role: 'barber' }, { onConflict: 'user_id' })
+
+  return { ok: true as const }
+}
+
+export async function resendAccountSetupEmail(input: {
+  userId: string
+  redirectTo: string
+}) {
+  const adminClient = requireAdminClient()
+  const accountResult = await getUserAccount(adminClient, input.userId)
+
+  if (!accountResult.ok || !accountResult.data.email) {
+    return {
+      ok: false as const,
+      message: 'Could not find a valid email address for this user.',
+      details: accountResult.ok ? ['The selected auth user does not have an email address.'] : accountResult.details,
+    }
+  }
+
+  const sendResult = await adminClient.auth.resetPasswordForEmail(accountResult.data.email, {
+    redirectTo: input.redirectTo,
+  })
+
+  if (sendResult.error) {
+    return {
+      ok: false as const,
+      message: 'Could not send an account setup email.',
+      details: [sendResult.error.message, 'Check Supabase email provider and redirect URL configuration.'],
     }
   }
 
