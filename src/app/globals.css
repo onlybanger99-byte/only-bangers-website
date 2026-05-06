@@ -57,10 +57,14 @@ img, video {
 /* Page Background (shared) */
 .page-background {
   min-height: 100vh;
-  background-image: url('/images/Page background.png');
+  background-image: var(
+    --page-background-image,
+    radial-gradient(circle at top left, rgba(212, 175, 55, 0.12), transparent 28%),
+    radial-gradient(circle at top right, rgba(212, 175, 55, 0.08), transparent 22%),
+    linear-gradient(180deg, #090909 0%, #050505 100%)
+  );
   background-size: cover;
   background-position: top center;
-  background-attachment: fixed;
   background-repeat: no-repeat;
   position: relative;
   padding: 0 1rem 2rem;
@@ -92,13 +96,14 @@ img, video {
 .main-content {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 1rem 2rem;
+  padding: 1.25rem 1rem 2rem;
+  width: min(100%, calc(100% - 1rem));
 }
 
 /* Page Headers */
 .page-header {
   text-align: center;
-  margin-bottom: 3rem;
+  margin-bottom: 1.5rem;
 }
 
 .page-title {
@@ -159,7 +164,7 @@ img, video {
 }
 
 .card-content {
-  padding: 1.5rem;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -206,13 +211,15 @@ img, video {
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
-  justify-content: center;
+  align-items: center;
   margin-top: 0.5rem;
 }
 
 .card-button {
-  flex: 1;
-  padding: 0.75rem 1.5rem;
+  flex: 1 1 11rem;
+  min-height: 48px;
+  max-height: 56px;
+  padding: 0.75rem 1rem;
   background: var(--premium-gold);
   color: #1a1a1a;
   border: none;
@@ -225,11 +232,22 @@ img, video {
   font-size: 0.875rem;
   min-width: 140px;
   box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+@media (max-width: 760px) {
+  .card-button {
+    min-height: 48px;
+    max-height: 54px;
+    padding: 0.7rem 0.95rem;
+    font-size: 0.9rem;
+  }
 }
 
 .card-button:hover {
   background: var(--premium-gold-hover);
-  transform: scale(1.05);
+  transform: translateY(-1px);
   box-shadow: 0 8px 25px rgba(212, 175, 55, 0.4);
 }
 
@@ -242,15 +260,15 @@ img, video {
 
 .card-button.secondary:hover {
   background: rgba(212, 175, 55, 0.1);
-  transform: scale(1.05);
+  transform: translateY(-1px);
 }
 
 /* Grids */
 .services-grid, .products-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 2rem;
-  margin-bottom: 4rem;
+  gap: 1rem;
+  margin-bottom: 2rem;
 }
 
 /* CTA Sections */
@@ -295,7 +313,8 @@ img, video {
 }
 
 .filter-btn {
-  padding: 0.5rem 1.5rem;
+  min-height: 2.95rem;
+  padding: 0.72rem 1rem;
   background: transparent;
   color: var(--text-secondary);
   border: 1px solid var(--premium-border);
@@ -541,12 +560,14 @@ img, video {
 
 .whatsapp-checkout-btn {
   width: 100%;
-  padding: 1rem 2rem;
+  min-height: 48px;
+  max-height: 56px;
+  padding: 0.75rem 1rem;
   background: #25D366;
   color: white;
   border: none;
   border-radius: 9999px;
-  font-size: 1.125rem;
+  font-size: 0.95rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -555,11 +576,22 @@ img, video {
   justify-content: center;
   gap: 0.75rem;
   margin-bottom: 1.5rem;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+@media (max-width: 760px) {
+  .whatsapp-checkout-btn {
+    min-height: 48px;
+    max-height: 54px;
+    padding: 0.7rem 0.95rem;
+    font-size: 0.9rem;
+  }
 }
 
 .whatsapp-checkout-btn:hover {
   background: #1DA851;
-  transform: scale(1.02);
+  transform: translateY(-1px);
 }
 
 .continue-shopping {
@@ -616,7 +648,9 @@ img, video {
 }
 
 .browse-btn {
-  padding: 1rem 2rem;
+  min-height: 48px;
+  max-height: 56px;
+  padding: 0.75rem 1.15rem;
   background: var(--premium-gold);
   color: #1a1a1a;
   border: none;
@@ -626,6 +660,17 @@ img, video {
   transition: all 0.3s ease;
   text-decoration: none;
   min-width: 180px;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+@media (max-width: 760px) {
+  .browse-btn {
+    min-height: 48px;
+    max-height: 54px;
+    padding: 0.7rem 1rem;
+    font-size: 0.9rem;
+  }
 }
 
 .browse-btn:hover {
@@ -645,8 +690,15 @@ img, video {
 
 /* Responsive */
 @media (max-width: 768px) {
+  .page-background {
+    padding: 0 0.5rem 1rem;
+  }
   .page-title {
     font-size: 2.5rem;
+  }
+  .main-content {
+    padding: 1rem 0 1.5rem;
+    width: min(100%, calc(100% - 1rem));
   }
   .services-grid, .products-grid {
     grid-template-columns: 1fr;
@@ -664,10 +716,16 @@ img, video {
   }
   .card-actions {
     flex-direction: column;
+    align-items: stretch;
   }
   .cta-buttons {
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
+  }
+  .card-button,
+  .modal-btn {
+    width: 100%;
+    min-width: 0;
   }
 }
 /* Add these at the end of globals.css */
@@ -775,13 +833,38 @@ img, video {
   margin-top: 1.5rem;
 }
 
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
 .modal-btn {
-  padding: 0.75rem 1.5rem;
+  min-height: 48px;
+  max-height: 56px;
+  padding: 0.75rem 1rem;
   border-radius: 9999px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.3s ease;
   border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-sizing: border-box;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 760px) {
+  .modal-btn {
+    min-height: 48px;
+    max-height: 54px;
+    padding: 0.7rem 0.95rem;
+    font-size: 0.85rem;
+  }
 }
 
 .modal-btn.primary {
@@ -791,7 +874,7 @@ img, video {
 
 .modal-btn.primary:hover {
   background: var(--premium-gold-hover);
-  transform: scale(1.05);
+  transform: translateY(-1px);
 }
 
 .modal-btn.secondary {
@@ -802,7 +885,7 @@ img, video {
 
 .modal-btn.secondary:hover {
   background: rgba(212, 175, 55, 0.1);
-  transform: scale(1.05);
+  transform: translateY(-1px);
 }
 
 /* Form styles inside modal */
@@ -857,7 +940,7 @@ img, video {
 
 .barber-card {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 1rem;
   padding: 1rem;
   background: rgba(255, 255, 255, 0.05);
@@ -901,10 +984,11 @@ img, video {
 }
 
 .calendar-nav-btn {
-  padding: 0.5rem 1rem;
+  min-height: 3rem;
+  padding: 0.75rem 1rem;
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid var(--premium-border);
-  border-radius: 0.5rem;
+  border-radius: 999px;
   color: white;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -936,6 +1020,7 @@ img, video {
 }
 
 .calendar-day {
+  appearance: none;
   text-align: center;
   padding: 0.5rem;
   border-radius: 0.5rem;
@@ -1019,7 +1104,8 @@ img, video {
 }
 
 .time-slot {
-  padding: 0.75rem 1.5rem;
+  min-height: 3rem;
+  padding: 0.75rem 1rem;
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid var(--premium-border);
   border-radius: 9999px;
@@ -1031,7 +1117,12 @@ img, video {
 .time-slot:hover {
   background: var(--premium-gold);
   color: black;
-  transform: scale(1.05);
+  transform: translateY(-1px);
+}
+
+.calendar-day.available {
+  border-color: rgba(212, 175, 55, 0.26);
+  box-shadow: inset 0 0 0 1px rgba(212, 175, 55, 0.08);
 }
 
 .time-slot.selected {
@@ -1066,4 +1157,35 @@ img, video {
   font-size: 2rem;
   margin-bottom: 1rem;
   color: var(--premium-gold);
+}
+
+@media (max-width: 640px) {
+  .modal-header,
+  .modal-footer,
+  .calendar-nav {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .modal-body {
+    padding: 1rem;
+  }
+
+  .calendar-grid {
+    gap: 0.35rem;
+  }
+
+  .calendar-day {
+    min-height: 3.25rem;
+    padding: 0.45rem;
+  }
+
+  .time-slots {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .barber-card {
+    flex-direction: column;
+  }
 }

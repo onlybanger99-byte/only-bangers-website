@@ -1,6 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { SitePageBackground } from '@/components/site/SitePageBackground'
+import { useSiteContent } from '@/hooks/useSiteContent'
+import { getSiteContentImage, getSiteContentValue, getSiteContentVideo, getSiteImage } from '@/lib/site-content/public'
+import { getSafeImage } from '@/lib/safe-image'
 import styles from './page.module.css'
 
 type OfferKey = 'one-time' | 'committed' | 'loyal'
@@ -10,21 +14,21 @@ const PROOF_TILES = [
     eyebrow: '01',
     title: 'Precision in Every Detail',
     text: 'Every cut is shaped with clean lines, careful finishing, and the kind of consistency clients come back for.',
-    image: '/images/feature-fade.jpg',
+    imageKey: 'home_section_1_image',
     alt: 'Clean skin fade haircut with sharp detailing',
   },
   {
     eyebrow: '02',
     title: 'Premium Grooming Standards',
     text: 'From beard work to final presentation, the experience is built around quality that feels elevated from start to finish.',
-    image: '/images/feature-beard.jpg',
+    imageKey: 'home_section_2_image',
     alt: 'Premium beard grooming and haircut service',
   },
   {
     eyebrow: '03',
     title: 'Style That Holds Up',
     text: 'Modern cuts, polished finishes, and a tailored approach that keeps your look fresh beyond the chair.',
-    image: '/images/feature-glowup.jpg',
+    imageKey: 'home_section_3_image',
     alt: 'Styled haircut with polished premium finish',
   },
 ] as const
@@ -105,6 +109,7 @@ export default function HomePage() {
   const [activeOffer, setActiveOffer] = useState<OfferKey>('committed')
   const [activeProof, setActiveProof] = useState(0)
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
+  const { contentMap } = useSiteContent()
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -129,7 +134,16 @@ export default function HomePage() {
     return () => window.clearInterval(timer)
   }, [prefersReducedMotion])
 
-  const activeProofTile = PROOF_TILES[activeProof]
+  const proofTiles = PROOF_TILES.map((tile) => ({
+    ...tile,
+    image: getSiteContentImage(contentMap, tile.imageKey, '') || getSafeImage(null),
+  }))
+  const currentProofTile = proofTiles[activeProof]
+  const heroImage =
+    getSiteImage(contentMap, ['site_banner_image', 'home_hero_image']) || getSafeImage(null)
+  const heroVideo = getSiteContentVideo(contentMap, 'home_hero_video')
+  const ctaImage = getSiteImage(contentMap, 'home_section_7_image')
+  const instagramUrl = getSiteContentValue(contentMap, 'footer_instagram_url', 'https://www.instagram.com/only_bangers99')
 
   const showPreviousProof = () => {
     setActiveProof((current) => (current - 1 + PROOF_TILES.length) % PROOF_TILES.length)
@@ -140,7 +154,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="page-background">
+    <SitePageBackground backgroundKeys={['global_page_background', 'site_background_image', 'home_background_image']}>
       <main className={`main-content ${styles.page}`}>
       <section className={styles.heroSection}>
         <div className={styles.heroContent}>
@@ -170,14 +184,20 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className={styles.heroImageFrame}>
-            <div className={styles.heroImage}>
-              <img
-                src="/images/feature-fade.jpg"
-                alt="Premium haircut service at Only Bangers"
-              />
+            <div className={styles.heroImageFrame}>
+              <div className={styles.heroImage}>
+                {heroVideo ? (
+                  <video autoPlay muted loop playsInline>
+                    <source src={heroVideo} />
+                  </video>
+                ) : (
+                  <img
+                    src={heroImage}
+                    alt="Premium haircut service at Only Bangers"
+                  />
+                )}
+              </div>
             </div>
-          </div>
         </div>
       </section>
 
@@ -196,7 +216,7 @@ export default function HomePage() {
               className={styles.proofSlides}
               aria-live={prefersReducedMotion ? 'polite' : 'off'}
             >
-              {PROOF_TILES.map((tile, index) => {
+                {proofTiles.map((tile, index) => {
                 const isActive = index === activeProof
 
                 return (
@@ -216,10 +236,10 @@ export default function HomePage() {
 
             <div className={styles.proofStageContent}>
               <span className={styles.proofEyebrow}>
-                {activeProofTile.eyebrow} / PROOF OF WORK
+                {currentProofTile.eyebrow} / PROOF OF WORK
               </span>
-              <h3 className={styles.proofStageTitle}>{activeProofTile.title}</h3>
-              <p className={styles.proofStageText}>{activeProofTile.text}</p>
+              <h3 className={styles.proofStageTitle}>{currentProofTile.title}</h3>
+              <p className={styles.proofStageText}>{currentProofTile.text}</p>
 
               <div className={styles.proofControls}>
                 <button
@@ -232,7 +252,7 @@ export default function HomePage() {
                 </button>
 
                 <div className={styles.proofIndicators} aria-label="Proof slides">
-                  {PROOF_TILES.map((tile, index) => (
+                  {proofTiles.map((tile, index) => (
                     <button
                       key={tile.title}
                       type="button"
@@ -259,7 +279,7 @@ export default function HomePage() {
           </div>
 
           <div className={styles.proofRail}>
-            {PROOF_TILES.map((tile, index) => {
+            {proofTiles.map((tile, index) => {
               const isActive = index === activeProof
 
               return (
@@ -295,9 +315,9 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className={styles.offerGrid}>
-          {OFFER_CARDS.map((card) => (
-            <button
+          <div className={styles.offerGrid}>
+            {OFFER_CARDS.map((card) => (
+              <button
               key={card.key}
               type="button"
               onClick={() => setActiveOffer(card.key)}
@@ -305,9 +325,9 @@ export default function HomePage() {
                 activeOffer === card.key ? styles.offerCardActive : ''
               }`}
               data-active={activeOffer === card.key}
-            >
-              <span className={styles.offerBadge}>{card.label}</span>
-              <h3 className={styles.offerTitle}>{card.title}</h3>
+              >
+                <span className={styles.offerBadge}>{card.label}</span>
+                <h3 className={styles.offerTitle}>{card.title}</h3>
 
               <ul className={styles.offerList}>
                 {card.points.map((point) => (
@@ -338,9 +358,7 @@ export default function HomePage() {
           </ul>
 
           <a
-            href="https://calendly.com/onlybangers"
-            target="_blank"
-            rel="noopener noreferrer"
+            href="/barbers"
             className={styles.primaryButton}
           >
             {OFFER_DETAILS[activeOffer].cta}
@@ -391,7 +409,18 @@ export default function HomePage() {
         </div>
       </section>
 
-        <section className={styles.ctaSection}>
+        <section
+          className={styles.ctaSection}
+          style={
+            ctaImage
+              ? {
+                  backgroundImage: `linear-gradient(rgba(10, 10, 10, 0.84), rgba(10, 10, 10, 0.9)), url('${ctaImage}')`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }
+              : undefined
+          }
+        >
           <h2 className={styles.ctaTitle}>Ready to Experience the Difference?</h2>
           <p className={styles.ctaSubtitle}>
             Book your appointment and discover why clients trust Only Bangers for
@@ -404,7 +433,7 @@ export default function HomePage() {
             </a>
 
             <a
-              href="https://www.instagram.com/only_bangers99"
+              href={instagramUrl}
               target="_blank"
               rel="noopener noreferrer"
               className={styles.secondaryButton}
@@ -414,6 +443,6 @@ export default function HomePage() {
           </div>
         </section>
       </main>
-    </div>
+    </SitePageBackground>
   )
 }

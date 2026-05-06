@@ -1,11 +1,18 @@
 'use client'
 
 import Link from 'next/link'
+import { SitePageBackground } from '@/components/site/SitePageBackground'
+import { useSiteContent } from '@/hooks/useSiteContent'
+import { getSiteImage } from '@/lib/site-content/public'
+import { getSafeImageUrl } from '@/lib/safe-image'
 import styles from './about.module.css'
 
 export default function AboutPage() {
+  const { contentMap } = useSiteContent()
+  const founderImage = getSiteImage(contentMap, 'about_founder_image')
+
   return (
-    <div className="page-background">
+    <SitePageBackground backgroundKeys={['global_page_background', 'site_background_image']}>
       <div className="main-content">
         <div className="page-header">
           <h1 className="page-title">About Only Bangers</h1>
@@ -91,14 +98,14 @@ export default function AboutPage() {
           {/* Founder Section */}
           <section className={styles.founderSection}>
             <div className={styles.founderImage}>
-              <img
-                src="/images/antonio-prince.jpg"
-                alt="Antonio Prince - Founder of Only Bangers"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement
-                  target.src = '/images/header-bg.png'
-                }}
-              />
+              {getSafeImageUrl(founderImage) ? (
+                <img
+                  src={founderImage ?? ''}
+                  alt="Antonio Prince - Founder of Only Bangers"
+                />
+              ) : (
+                <div className={styles.founderImageFallback}>AP</div>
+              )}
             </div>
             <h3 className={styles.founderName}>Antonio Prince</h3>
             <p className={styles.founderTitle}>
@@ -121,6 +128,6 @@ export default function AboutPage() {
           </section>
         </div>
       </div>
-    </div>
+    </SitePageBackground>
   )
 }

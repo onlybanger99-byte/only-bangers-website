@@ -2,9 +2,13 @@ import type { AppRole } from '@/lib/auth/roles'
 
 export const BOOKING_STATUSES = [
   'pending_payment',
+  'payment_pending',
+  'awaiting_confirmation',
+  'paid',
   'confirmed',
   'cancelled',
   'completed',
+  'rejected',
   'expired',
 ] as const
 
@@ -12,6 +16,7 @@ export type BookingStatus = (typeof BOOKING_STATUSES)[number]
 
 export const PAYMENT_STATUSES = [
   'unpaid',
+  'pending',
   'paid',
   'cancelled',
   'refunded',
@@ -40,6 +45,7 @@ export interface BookingRecord {
   service_name: string
   service_id: string | null
   starts_at: string
+  ends_at: string | null
   status: BookingStatus
   payment_status: PaymentStatus
   notes: string | null
@@ -75,6 +81,7 @@ export interface CreateBookingInput {
   serviceId?: string
   serviceName?: string
   startsAt: string
+  endsAt?: string | null
   notes?: string | null
 }
 
@@ -83,6 +90,7 @@ export interface UpdateBookingInput {
   serviceId?: string
   serviceName?: string
   startsAt?: string
+  endsAt?: string | null
   status?: BookingStatus
   paymentStatus?: PaymentStatus
   notes?: string | null
@@ -97,6 +105,8 @@ export interface UpdateBookingInput {
 export interface BookingAvailability {
   barberId: string
   date: string
+  servicePriceId?: string
+  durationMinutes?: number
   slots: Array<{
     id: string
     available_date: string
@@ -112,6 +122,13 @@ export interface BookingAvailability {
   availableSlots: string[]
   bookedSlots: string[]
   temporarilyReservedSlots: string[]
+  availableTimes?: Array<{
+    startTime: string
+    endTime: string
+    startsAt: string
+    endsAt: string
+  }>
+  message?: string
 }
 
 export interface ConfirmPaymentInput {

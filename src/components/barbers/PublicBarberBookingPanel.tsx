@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import BookingFlowModal from '@/components/BookingFlowModal'
+import { getSafeImage } from '@/lib/safe-image'
 
 type ServiceCard = {
   id: string
@@ -51,7 +52,7 @@ export function PublicBarberBookingPanel({
             name: selectedService.name,
             description: selectedService.description,
             duration: selectedService.durationLabel,
-            image: '/images/header-bg.png',
+            image: getSafeImage(null),
             price: selectedService.price,
           }}
           preferredBarberUserId={barberUserId}

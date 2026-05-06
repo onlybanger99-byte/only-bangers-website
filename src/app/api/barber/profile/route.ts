@@ -22,12 +22,20 @@ export async function PUT(request: NextRequest) {
   const body = await request.json()
   const result = await updateApprovedBarberProfile(user.id, {
     displayName: body.displayName,
+    fullName: body.fullName,
+    phone: body.phone,
+    location: body.location,
     cuttingLocation: body.cuttingLocation,
     instagramUrl: body.instagramUrl,
     tiktokUrl: body.tiktokUrl,
     facebookUrl: body.facebookUrl,
     portfolioUrl: body.portfolioUrl,
     mapUrl: body.mapUrl,
+    latitude: typeof body.latitude === 'number' ? body.latitude : null,
+    longitude: typeof body.longitude === 'number' ? body.longitude : null,
+    avatarUrl: body.avatarUrl,
+    profileImageUrl: body.profileImageUrl,
+    coverImageUrl: body.coverImageUrl,
     bio: body.bio,
   })
 

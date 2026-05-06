@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import BookingFlowModal from '@/components/BookingFlowModal'
+import { SitePageBackground } from '@/components/site/SitePageBackground'
 import { readBookingDraft } from '@/lib/bookings/draft'
+import { useSiteContent } from '@/hooks/useSiteContent'
+import { getServiceImage, getSiteContentImage, getSiteContentValue } from '@/lib/site-content/public'
+import { getSafeImage, getSafeImageUrl } from '@/lib/safe-image'
 import styles from './services.module.css'
 
 type ServiceCard = {
@@ -13,6 +17,8 @@ type ServiceCard = {
   duration: string
   price: number
   image: string
+  imageUrl: string | null
+  backgroundImageUrl: string | null
   priceLabel: string
 }
 
@@ -28,6 +34,8 @@ type ServiceOption = {
   name: string
   description: string
   duration: string
+  imageUrl?: string | null
+  backgroundImageUrl?: string | null
 }
 
 function isUuid(value: string) {
@@ -48,6 +56,11 @@ export default function ServicesPage() {
   const [selectedService, setSelectedService] = useState<ServiceCard | null>(null)
   const [showBookingModal, setShowBookingModal] = useState(false)
   const [serviceCards, setServiceCards] = useState<ServiceCard[]>([])
+  const { contentMap } = useSiteContent()
+
+  const servicesBackground = getSiteContentImage(contentMap, 'services_background_image', '') || getSafeImage(null)
+  const whatsappUrl = getSiteContentValue(contentMap, 'footer_whatsapp_url', 'https://wa.me/27699864730')
+  const businessPhone = getSiteContentValue(contentMap, 'business_phone', '+27 661591976')
 
   useEffect(() => {
     let isActive = true
@@ -81,7 +94,16 @@ export default function ServicesPage() {
             description: service.description,
             duration: service.duration,
             price: 0,
-            image: '/images/header-bg.png',
+            imageUrl: getServiceImage(contentMap, {
+              slug: service.slug,
+              imageUrl: service.imageUrl,
+            }),
+            image:
+              getServiceImage(contentMap, {
+                slug: service.slug,
+                imageUrl: service.imageUrl,
+              }) || getSafeImage(null),
+            backgroundImageUrl: getSafeImageUrl(service.backgroundImageUrl) ?? null,
             priceLabel: getPriceDisplayLabel(byService.get(service.id)?.minPrice ?? null),
           }))
         )
@@ -93,7 +115,7 @@ export default function ServicesPage() {
     return () => {
       isActive = false
     }
-  }, [])
+  }, [contentMap])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -125,9 +147,9 @@ export default function ServicesPage() {
   }
 
   return (
-    <div className="page-background">
+    <SitePageBackground backgroundKeys={['global_page_background', 'services_background_image', 'site_background_image']}>
       <div className="main-content">
-        <div className="page-header">
+        <div className="page-header" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url('${servicesBackground}')`, backgroundSize: 'cover', backgroundPosition: 'center', borderRadius: '1.25rem', padding: '1.5rem' }}>
           <h1 className="page-title">Our Services</h1>
           <p className="page-subtitle">Choose one of our approved cuts, then pick the barber and price that work for you.</p>
         </div>
@@ -136,11 +158,20 @@ export default function ServicesPage() {
           {serviceCards.map((service) => (
             <div key={service.id} className="service-card">
               <div className="image-container-card">
-                <div className="image-placeholder">
-                  <svg fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" />
-                  </svg>
-                </div>
+                {service.imageUrl ? (
+                  <img src={service.imageUrl} alt={service.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <div
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      backgroundImage: `url('${getSafeImage(null)}')`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                    }}
+                    aria-label={`${service.name} fallback`}
+                  />
+                )}
               </div>
 
               <div className="card-content">
@@ -178,7 +209,7 @@ export default function ServicesPage() {
           <p>Contact us for personalized recommendations</p>
           <div className={styles.ctaButtons}>
             <a
-              href="https://wa.me/27699864730"
+              href={whatsappUrl}
               className="card-button"
               target="_blank"
               rel="noopener noreferrer"
@@ -187,9 +218,9 @@ export default function ServicesPage() {
               WhatsApp Consultation
             </a>
             <a
-              href="tel:+27699864730"
+              href={`tel:${businessPhone.replace(/\s+/g, '')}`}
               className="card-button secondary"
-              aria-label="Call us at +27 69 986 4730"
+              aria-label={`Call us at ${businessPhone}`}
             >
               Call Us Now
             </a>
@@ -207,6 +238,6 @@ export default function ServicesPage() {
           }}
         />
       ) : null}
-    </div>
+    </SitePageBackground>
   )
 }

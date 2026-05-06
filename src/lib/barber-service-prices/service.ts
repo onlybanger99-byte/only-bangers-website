@@ -1,4 +1,5 @@
 import { isSafeImageSource } from '@/lib/safe-image'
+import { getBarberAvailabilityStatusSummary } from '@/lib/bookings/availability'
 import { parseDurationToMinutes } from '@/lib/services/duration'
 import {
   getActiveServiceById,
@@ -271,6 +272,11 @@ export async function listPublicBarbersForService(filter: {
   serviceId?: string | null
 }) {
   const serviceId = normalizeText(filter.serviceId)
+  const supabase = await getSupabase()
+  const [allProfilesResult, allPricesResult] = await Promise.all([
+    supabase.from('barber_profiles').select('id, is_active, is_live'),
+    supabase.from('barber_service_prices').select('id, service_id, is_active'),
+  ])
 
   if (!serviceId) {
     return {
@@ -282,11 +288,29 @@ export async function listPublicBarbersForService(filter: {
   const service = await getActiveServiceById(serviceId)
 
   if (!service) {
+    console.info('[barber-service-prices] no active service found for public service query', {
+      requestedServiceId: serviceId,
+    })
     return {
       ok: true as const,
       data: [] as PublicBarberServicePriceSummary[],
     }
   }
+
+  const totalProfiles = Array.isArray(allProfilesResult.data) ? allProfilesResult.data.length : 0
+  const activeProfiles = Array.isArray(allProfilesResult.data)
+    ? allProfilesResult.data.filter((row) => row.is_active === true).length
+    : 0
+  const liveProfiles = Array.isArray(allProfilesResult.data)
+    ? allProfilesResult.data.filter((row) => row.is_live === true).length
+    : 0
+  const activeLiveProfiles = Array.isArray(allProfilesResult.data)
+    ? allProfilesResult.data.filter((row) => row.is_active === true && row.is_live === true).length
+    : 0
+  const totalPriceRows = Array.isArray(allPricesResult.data) ? allPricesResult.data.length : 0
+  const activePriceRows = Array.isArray(allPricesResult.data)
+    ? allPricesResult.data.filter((row) => row.is_active === true).length
+    : 0
 
   const result = await getFilteredPriceRows({ serviceId: service.id, onlyActive: true })
 
@@ -302,37 +326,60 @@ export async function listPublicBarbersForService(filter: {
     Array.from(new Set(result.data.map((row) => row.barber_profile_id)))
   )
 
+  const matchedBarbers = (await Promise.all(
+    result.data.map(async (row) => {
+      const profile = profileMap.get(row.barber_profile_id)
+
+      if (!profile || typeof profile.user_id !== 'string') {
+        return null
+      }
+
+      const { location, cuttingLocation } = resolveLocation(profile)
+      const availabilitySummary = await getBarberAvailabilityStatusSummary({
+        barberId: profile.user_id,
+        servicePriceId: row.id,
+      })
+
+      return {
+        ...toSummary(row),
+        barberProfileId: row.barber_profile_id,
+        barberUserId: profile.user_id,
+        barberName: resolveDisplayName(profile),
+        location,
+        cuttingLocation,
+        bio: resolveBio(profile),
+        profileImageUrl: resolveProfileImage(profile),
+        barberIsActive: Boolean(profile.is_active),
+        availabilityStatus: availabilitySummary.availabilityStatus,
+        nextAvailableSlot: availabilitySummary.nextAvailableSlot,
+      } satisfies PublicBarberServicePriceSummary
+    })
+  ))
+    .filter((row): row is PublicBarberServicePriceSummary => row !== null)
+    .sort((left, right) => {
+      if (left.price !== right.price) {
+        return left.price - right.price
+      }
+
+      return left.barberName.localeCompare(right.barberName)
+    })
+
+  console.info('[barber-service-prices] public barber offers for service', {
+    requestedServiceId: serviceId,
+    resolvedServiceId: service.id,
+    resolvedServiceName: service.name,
+    totalBarberProfiles: totalProfiles,
+    activeBarberProfiles: activeProfiles,
+    liveBarberProfiles: liveProfiles,
+    activeAndLiveBarberProfiles: activeLiveProfiles,
+    totalServicePriceRows: totalPriceRows,
+    activeServicePriceRows: activePriceRows,
+    matchedBarbers: matchedBarbers.length,
+  })
+
   return {
     ok: true as const,
-    data: result.data
-      .map((row) => {
-        const profile = profileMap.get(row.barber_profile_id)
-
-        if (!profile || typeof profile.user_id !== 'string') {
-          return null
-        }
-
-        const { location, cuttingLocation } = resolveLocation(profile)
-
-        return {
-          ...toSummary(row),
-          barberUserId: profile.user_id,
-          barberName: resolveDisplayName(profile),
-          location,
-          cuttingLocation,
-          bio: resolveBio(profile),
-          profileImageUrl: resolveProfileImage(profile),
-          barberIsActive: Boolean(profile.is_active),
-        } satisfies PublicBarberServicePriceSummary
-      })
-      .filter((row): row is PublicBarberServicePriceSummary => row !== null)
-      .sort((left, right) => {
-        if (left.price !== right.price) {
-          return left.price - right.price
-        }
-
-        return left.barberName.localeCompare(right.barberName)
-      }),
+    data: matchedBarbers,
   }
 }
 
@@ -347,10 +394,13 @@ export async function listPublicServicePriceSummaries() {
     }
   }
 
+  const profileMap = await getPublicProfilesMap(
+    Array.from(new Set(result.data.map((row) => row.barber_profile_id)))
+  )
   const grouped = new Map<string, PublicServicePriceSummary>()
 
   for (const row of result.data) {
-    if (!row.service_id) {
+    if (!row.service_id || !profileMap.has(row.barber_profile_id)) {
       continue
     }
 
@@ -383,6 +433,12 @@ export async function listPublicServicePriceSummaries() {
       maxPrice: summary?.maxPrice ?? null,
       barberCount: summary?.barberCount ?? 0,
     } satisfies PublicServicePriceSummary
+  })
+
+  console.info('[barber-service-prices] public service summary counts', {
+    totalActivePriceRows: result.data.length,
+    liveBookablePriceRows: result.data.filter((row) => profileMap.has(row.barber_profile_id)).length,
+    servicesRepresented: grouped.size,
   })
 
   return {

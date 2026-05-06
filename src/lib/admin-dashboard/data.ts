@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { listBarberApplicationsForAdmin } from '@/lib/barber-applications/service'
 import { listBarberServicePricesForOwner } from '@/lib/barber-service-prices/service'
 import { listPublicServicePriceSummaries } from '@/lib/barber-service-prices/service'
+import { listBarberAvailabilitySlots } from '@/lib/barber-availability/service'
 import type { BarberApplicationSummary } from '@/lib/barber-applications/types'
 import { getCustomerProfile, getCustomerProfilesByUserIds } from '@/lib/customer-profiles/service'
 import { normalizeRole } from '@/lib/auth/roles'
@@ -17,6 +18,8 @@ import type {
   AdminBookingsSection,
   AdminDashboardViewModel,
   AdminMetric,
+  AdminOverviewSection,
+  AdminPendingActionItem,
   AdminProfileSummary,
   AdminProductRow,
   AdminProductsSection,
@@ -27,6 +30,8 @@ import type {
 } from './types'
 import { getFallbackServices, listAllServices } from '@/lib/services/service'
 import { listAllProductsForAdmin } from '@/lib/products/service'
+import { getServiceMediaKey, listActiveSiteContent, listSiteContentAdmin } from '@/lib/site-content/service'
+import { listPendingContactMessages } from '@/lib/contact-messages/service'
 
 type AdminDashboardParams = {
   userId: string
@@ -61,12 +66,54 @@ function toCurrency(amount: number) {
   }).format(amount)
 }
 
+function toNumber(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+
+  return 0
+}
+
+function isRecentDate(value: string | null | undefined, days = 30) {
+  if (!value) {
+    return false
+  }
+
+  const parsed = new Date(value)
+
+  if (Number.isNaN(parsed.getTime())) {
+    return false
+  }
+
+  const threshold = new Date()
+  threshold.setDate(threshold.getDate() - days)
+
+  return parsed >= threshold
+}
+
+function getSiteAssetValue(
+  contentMap: Record<string, { imageUrl: string | null; value: string | null } | undefined>,
+  key: string
+) {
+  const item = contentMap[key]
+  return item?.imageUrl || item?.value || null
+}
+
 function parseBookingStatus(value?: string): BookingStatus | null {
   switch (value) {
     case 'pending_payment':
+    case 'payment_pending':
+    case 'awaiting_confirmation':
+    case 'paid':
     case 'confirmed':
     case 'completed':
     case 'cancelled':
+    case 'rejected':
     case 'expired':
       return value
     default:
@@ -217,7 +264,9 @@ async function mapBookingRows(rows: Array<Record<string, unknown>>): Promise<Adm
           resolveFirstText(row, 'service_name', 'service', 'service_title') || 'Service not specified',
         barberName:
           resolveFirstText(row, 'barber_name', 'barber_display_name') || 'Barber not assigned',
+        startsAt: typeof row.starts_at === 'string' ? row.starts_at : '',
         startsAtLabel: formatDateTime(typeof row.starts_at === 'string' ? row.starts_at : null),
+        createdAt: typeof row.created_at === 'string' ? row.created_at : '',
         createdAtLabel: formatDateTime(typeof row.created_at === 'string' ? row.created_at : null),
         status: normalizeAdminBookingStatus(
           parseBookingStatus(typeof row.status === 'string' ? row.status : undefined),
@@ -226,7 +275,8 @@ async function mapBookingRows(rows: Array<Record<string, unknown>>): Promise<Adm
         paymentStatus: parsePaymentStatus(
           typeof row.payment_status === 'string' ? row.payment_status : undefined
         ),
-        amountDueLabel: toCurrency(typeof row.amount_due === 'number' ? row.amount_due : 0),
+        amountDueValue: toNumber(row.amount_due),
+        amountDueLabel: toCurrency(toNumber(row.amount_due)),
         paymentReference:
           (typeof row.payment_reference === 'string' && row.payment_reference) || 'Not assigned',
         pendingExpiresAtLabel:
@@ -366,9 +416,10 @@ async function getUsersSection(barberRows: AdminBarberRow[]): Promise<AdminUsers
       fullName: profile?.fullName ?? 'Profile incomplete',
       email: authUser?.email ?? 'Email unavailable',
       phoneNumber: profile?.phoneNumber ?? 'Phone unavailable',
-      profileImageUrl: profile?.profileImageUrl ?? '/images/header-bg.png',
+      profileImageUrl: profile?.profileImageUrl ?? getSafeImage(null),
       role: 'customer',
       accountStatus: isSuspended ? 'suspended' : profile?.isComplete ? 'active' : 'pending',
+      createdAt: authUser?.createdAt ?? null,
       createdAtLabel: formatDate(authUser?.createdAt),
       profileComplete: profile?.isComplete ?? false,
       editable: true,
@@ -389,9 +440,10 @@ async function getUsersSection(barberRows: AdminBarberRow[]): Promise<AdminUsers
       fullName,
       email: authUser?.email ?? 'Email unavailable',
       phoneNumber: row?.phone ?? 'Not set',
-      profileImageUrl: row?.profileImageUrl ?? '/images/header-bg.png',
+      profileImageUrl: row?.profileImageUrl ?? getSafeImage(null),
       role: 'barber',
       accountStatus: isSuspended ? 'suspended' : row?.profileComplete ? 'active' : 'pending',
+      createdAt: authUser?.createdAt ?? null,
       createdAtLabel: formatDate(authUser?.createdAt),
       profileComplete: row?.profileComplete ?? false,
       editable: true,
@@ -410,9 +462,10 @@ async function getUsersSection(barberRows: AdminBarberRow[]): Promise<AdminUsers
       fullName: authUser?.email?.split('@')[0] ?? 'Admin user',
       email: authUser?.email ?? 'Email unavailable',
       phoneNumber: 'Not shared',
-      profileImageUrl: '/images/header-bg.png',
+      profileImageUrl: getSafeImage(null),
       role: 'admin',
       accountStatus: isSuspended ? 'suspended' : 'active',
+      createdAt: authUser?.createdAt ?? null,
       createdAtLabel: formatDate(authUser?.createdAt),
       profileComplete: true,
       editable: true,
@@ -445,15 +498,16 @@ async function getCurrentAdminProfile(params: {
     firstName: profile?.firstName || fallbackFirstName,
     lastName: profile?.lastName || '',
     phoneNumber: profile?.phoneNumber || '',
-    profileImageUrl: profile?.profileImageUrl || '/images/header-bg.png',
+    profileImageUrl: profile?.profileImageUrl || getSafeImage(null),
     profileComplete: profile?.isComplete ?? false,
   }
 }
 
 async function getServicesSection(): Promise<AdminServicesSection> {
-  const [servicesResult, pricingSummaryResult] = await Promise.all([
+  const [servicesResult, pricingSummaryResult, siteContentResult] = await Promise.all([
     listAllServices(),
     listPublicServicePriceSummaries(),
+    listSiteContentAdmin(),
   ])
 
   if (!servicesResult.ok) {
@@ -470,9 +524,16 @@ async function getServicesSection(): Promise<AdminServicesSection> {
       .map((item) => [item.serviceId as string, item])
   )
 
+  const mediaMap = new Map(
+    (siteContentResult.ok ? siteContentResult.items : [])
+      .filter((item) => item.type === 'service_media')
+      .map((item) => [String(item.metadata.serviceSlug ?? ''), item])
+  )
+
   const services = (servicesResult.data.length > 0 ? servicesResult.data : getFallbackServices()).map(
     (service) => {
       const summary = summaryMap.get(service.id)
+      const media = mediaMap.get(service.slug)
       return {
         id: service.id,
         name: service.name,
@@ -486,6 +547,10 @@ async function getServicesSection(): Promise<AdminServicesSection> {
           summary?.minPrice != null
             ? toCurrency(summary.minPrice)
             : 'No active barber pricing yet',
+        imageUrl: service.imageUrl,
+        backgroundImageUrl: service.backgroundImageUrl,
+        mediaStoragePath: service.mediaStoragePath,
+        mediaImageUrl: media?.imageUrl ?? null,
       } satisfies AdminServiceRow
     }
   )
@@ -583,7 +648,10 @@ async function getBarbersSection(): Promise<AdminBarbersSection> {
       const profile = profileMap.get(userId)
       const authUser = authUsers.get(userId)
       const stats = bookingMap.get(userId) ?? { total: 0, upcoming: 0, completed: 0 }
-      const servicePricesResult = await listBarberServicePricesForOwner(userId)
+      const [servicePricesResult, availabilityResult] = await Promise.all([
+        listBarberServicePricesForOwner(userId),
+        listBarberAvailabilitySlots(userId),
+      ])
       const fallbackName =
         authUser?.email
           ?.split('@')[0]
@@ -598,6 +666,20 @@ async function getBarbersSection(): Promise<AdminBarbersSection> {
       const setupStatus = resolveFirstText(profile ?? {}, 'setup_status') || 'draft'
       const isLive = typeof profile?.is_live === 'boolean' ? profile.is_live : false
       const location = resolveFirstText(profile ?? {}, 'location') || resolveFirstText(profile ?? {}, 'cutting_location') || ''
+      const servicePrices = servicePricesResult.ok ? servicePricesResult.data : []
+      const availabilitySlots = availabilityResult.ok ? availabilityResult.data : []
+      const hasLocation = Boolean(location)
+      const hasPrices = servicePrices.some((item) => item.isActive)
+      const hasAvailability = availabilitySlots.length > 0
+      const hasProfileImage = Boolean(
+        resolveFirstText(profile ?? {}, 'profile_image_url', 'profile_photo_url', 'avatar_url')
+      )
+      const issueLabels = [
+        hasLocation ? null : 'Missing location',
+        hasPrices ? null : 'Missing prices',
+        hasAvailability ? null : 'Missing availability',
+        hasProfileImage ? null : 'Missing profile image',
+      ].filter((value): value is string => Boolean(value))
 
       return {
         id: userId,
@@ -635,7 +717,12 @@ async function getBarbersSection(): Promise<AdminBarbersSection> {
         totalBookings: stats.total,
         upcomingBookings: stats.upcoming,
         completedBookings: stats.completed,
-        servicePrices: servicePricesResult.ok ? servicePricesResult.data : [],
+        hasLocation,
+        hasPrices,
+        hasAvailability,
+        hasProfileImage,
+        issueLabels,
+        servicePrices,
       } satisfies AdminBarberRow
     })
   const resolvedItems = await Promise.all(items)
@@ -676,7 +763,7 @@ export async function getAdminDashboardViewModel(
 ): Promise<AdminDashboardViewModel> {
   const barberApplicationsResult = await listBarberApplicationsForAdmin()
   const barbers = await getBarbersSection()
-  const [bookings, services, products, users, customerProfilesCount, metricsBase, currentAdmin] = await Promise.all([
+  const [bookings, services, products, users, customerProfilesCount, metricsBase, currentAdmin, siteContentResult, activeSiteContentResult, contactMessagesResult] = await Promise.all([
     getBookingsSection(params),
     getServicesSection(),
     getProductsSection(),
@@ -687,7 +774,11 @@ export async function getAdminDashboardViewModel(
       userId: params.userId,
       email: params.email,
     }),
+    listSiteContentAdmin(),
+    listActiveSiteContent(),
+    listPendingContactMessages(),
   ])
+  const pendingContactMessages = contactMessagesResult.ok ? contactMessagesResult.data : []
 
   const metrics = await getMetrics(metricsBase)
   const pendingPayments = bookings.items.filter(
@@ -711,13 +802,376 @@ export async function getAdminDashboardViewModel(
     (application) => application.status === 'pending'
   ).length
   const pendingGoLiveRequests = barbers.items.filter((item) => item.setupStatus === 'pending_review' && !item.isLive).length
-  const incompleteBarbers = barbers.items.filter((item) => !item.profileComplete || item.setupStatus === 'draft').length
+  const incompleteBarbers = barbers.items.filter(
+    (item) => !item.profileComplete || item.setupStatus === 'draft' || item.issueLabels.length > 0
+  ).length
+  const siteContentGroups = siteContentResult.ok ? siteContentResult.groups : []
+  const siteContentItems = siteContentResult.ok ? siteContentResult.items : []
+  const activeSiteContentMap = activeSiteContentResult.ok ? activeSiteContentResult.map : {}
+  const defaultBarberAvatar = getSiteAssetValue(activeSiteContentMap, 'default_barber_avatar')
+  const defaultProductImage = getSiteAssetValue(activeSiteContentMap, 'default_product_image')
+  const siteContentReviewCount = siteContentItems.filter((item) => {
+    if (!item.isActive) {
+      return true
+    }
+
+    if (item.type === 'image' || item.type === 'background' || item.type === 'logo' || item.type === 'service_media') {
+      return !item.imageUrl
+    }
+
+    if (item.type === 'video') {
+      return !item.videoUrl
+    }
+
+    return !item.value
+  }).length
+  const approvedApplications = barberApplications.filter((application) => application.status === 'approved')
+  const rejectedApplications = barberApplications.filter((application) => application.status === 'rejected')
+  const pendingApplications = barberApplications.filter((application) => application.status === 'pending')
+  const goLiveRequests = barbers.items.filter(
+    (item) => item.setupStatus === 'pending_review' && item.activeStatus === 'active' && !item.isLive
+  )
+  const setupIssues = barbers.items.filter(
+    (item) => !item.profileComplete || item.issueLabels.length > 0 || item.setupStatus === 'draft'
+  )
+  const deactivatedBarbers = barbers.items.filter((item) => item.activeStatus === 'inactive')
+  const missingSiteAssets = siteContentItems.filter((item) => {
+    if (!item.isActive) {
+      return true
+    }
+
+    if (['image', 'background', 'logo', 'service_media'].includes(item.type)) {
+      return !item.imageUrl
+    }
+
+    if (item.type === 'video') {
+      return !item.videoUrl
+    }
+
+    return !item.value
+  })
+  const normalizedBarbers = barbers.items.map((item) => ({
+    ...item,
+    profileImageUrl: item.profileImageUrl || getSafeImage(defaultBarberAvatar),
+  }))
+  const normalizedUsers = {
+    ...users,
+    customers: users.customers.map((item) => ({
+      ...item,
+      profileImageUrl: item.profileImageUrl || getSafeImage(defaultBarberAvatar),
+    })),
+    barbers: users.barbers.map((item) => ({
+      ...item,
+      profileImageUrl: item.profileImageUrl || getSafeImage(defaultBarberAvatar),
+    })),
+    admins: users.admins.map((item) => ({
+      ...item,
+      profileImageUrl: item.profileImageUrl || getSafeImage(defaultBarberAvatar),
+    })),
+  }
+  const normalizedCurrentAdmin = {
+    ...currentAdmin,
+    profileImageUrl: currentAdmin.profileImageUrl || getSafeImage(defaultBarberAvatar),
+  }
+  const normalizedProducts = {
+    ...products,
+    items: products.items.map((item) => ({
+      ...item,
+      imageUrl: item.imageUrl || defaultProductImage || null,
+    })),
+  }
+  const overviewActions = [
+    {
+      id: 'overview-applications',
+      title: 'Pending barber applications',
+      count: pendingApplications.length,
+      description: 'Applications waiting for an approval decision.',
+      actionLabel: 'Review',
+      targetTab: 'pending-actions',
+    },
+    {
+      id: 'overview-go-live',
+      title: 'Pending go-live requests',
+      count: goLiveRequests.length,
+      description: 'Approved barbers waiting to be pushed live.',
+      actionLabel: 'Review',
+      targetTab: 'pending-actions',
+    },
+    {
+      id: 'overview-payments',
+      title: 'Pending payment confirmations',
+      count: pendingPayments.length,
+      description: 'Bookings still waiting for payment confirmation.',
+      actionLabel: 'Open Bookings',
+      targetTab: 'bookings',
+    },
+    {
+      id: 'overview-booking-issues',
+      title: 'Unresolved booking issues',
+      count: problemBookings.length,
+      description: 'Cancelled, expired, or failed-payment bookings need review.',
+      actionLabel: 'Open Bookings',
+      targetTab: 'bookings',
+    },
+    {
+      id: 'overview-site-content',
+      title: 'Site content needing review',
+      count: siteContentReviewCount,
+      description: 'Inactive or incomplete brand, media, or social content entries.',
+      actionLabel: 'Manage',
+      targetTab: 'settings',
+    },
+    {
+      id: 'overview-barbers',
+      title: 'Incomplete barber profiles',
+      count: setupIssues.length,
+      description: 'Profiles missing setup requirements before go-live.',
+      actionLabel: 'Review',
+      targetTab: 'barbers',
+    },
+  ] as const
+  const recentSales = bookings.items
+    .filter((item) => item.paymentStatus === 'paid' || item.status === 'confirmed' || item.status === 'completed')
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+    .slice(0, 5)
+  const totalRevenue = bookings.items
+    .filter((item) => item.paymentStatus === 'paid' || item.status === 'confirmed' || item.status === 'completed')
+    .reduce((sum, item) => sum + item.amountDueValue, 0)
+  const pendingRevenue = pendingPayments.reduce((sum, item) => sum + item.amountDueValue, 0)
+  const cancelledOrRejectedCount = bookings.items.filter(
+    (item) => item.status === 'cancelled' || item.status === 'rejected' || item.status === 'expired'
+  ).length
+  const upcomingBookings = bookings.items.filter(
+    (item) => item.status === 'confirmed' && new Date(item.startsAt).getTime() >= Date.now()
+  ).length
+  const liveBarberCount = normalizedBarbers.filter(
+    (item) => item.activeStatus === 'active' && item.isLive
+  ).length
+  const activeProductsCount = normalizedProducts.items.filter((item) => item.isActive).length
+  const inactiveProductsCount = normalizedProducts.items.filter((item) => !item.isActive).length
+  const lowStockProducts = normalizedProducts.items.filter((item) => item.stockQuantity <= 3)
+  const allUsers = [
+    ...normalizedUsers.customers,
+    ...normalizedUsers.barbers,
+    ...normalizedUsers.admins,
+  ]
+  const newUsersCount = allUsers.filter((item) => isRecentDate(item.createdAt)).length
+  const inactiveUsersCount = allUsers.filter((item) => item.accountStatus !== 'active').length
+  const socialLinks = siteContentItems.filter((item) => item.group === 'social-links')
+  const activeSocialLinks = socialLinks.filter((item) => item.isActive && item.value).length
+  const missingSocialLinks = socialLinks.filter((item) => !item.isActive || !item.value).length
+  const overviewSections: AdminOverviewSection[] = [
+    {
+      id: 'sales',
+      title: 'Sales / Revenue',
+      description: 'Track payment flow, confirmed work, and recent revenue signals.',
+      stats: [
+        { id: 'total-revenue', label: 'Total revenue', value: toCurrency(totalRevenue) },
+        { id: 'pending-revenue', label: 'Pending payments', value: toCurrency(pendingRevenue) },
+        { id: 'confirmed-bookings', label: 'Confirmed bookings', value: String(bookings.items.filter((item) => item.status === 'confirmed').length) },
+        { id: 'cancelled-bookings', label: 'Cancelled / rejected', value: String(cancelledOrRejectedCount) },
+      ],
+      rows: recentSales.map((item) => ({
+        id: `sale-${item.id}`,
+        title: item.customerName,
+        summary: `${item.serviceName} · ${item.amountDueLabel}`,
+        status: item.status,
+        actionLabel: 'View',
+        targetTab: 'bookings' as const,
+      })),
+    },
+    {
+      id: 'users',
+      title: 'Users',
+      description: 'See user distribution, new signups, and accounts needing review.',
+      stats: [
+        { id: 'total-customers', label: 'Total customers', value: String(normalizedUsers.customers.length) },
+        { id: 'total-barbers', label: 'Total barbers', value: String(normalizedUsers.barbers.length) },
+        { id: 'total-admins', label: 'Total admins', value: String(normalizedUsers.admins.length) },
+        { id: 'new-users', label: 'New users', value: String(newUsersCount) },
+        { id: 'inactive-users', label: 'Inactive users', value: String(inactiveUsersCount) },
+      ],
+      rows: normalizedUsers.admins.slice(0, 3).map((item) => ({
+        id: `admin-${item.id}`,
+        title: item.fullName,
+        summary: `${item.role} · ${item.email}`,
+        status: item.accountStatus,
+        actionLabel: 'Manage',
+        targetTab: 'users' as const,
+      })),
+    },
+    {
+      id: 'barbers',
+      title: 'Barbers',
+      description: 'Watch live status, setup progress, and approval flow at a glance.',
+      stats: [
+        { id: 'live-barbers', label: 'Live barbers', value: String(liveBarberCount) },
+        { id: 'pending-applications', label: 'Pending applications', value: String(pendingApplications.length) },
+        { id: 'go-live-pending', label: 'Go-live pending', value: String(goLiveRequests.length) },
+        { id: 'setup-incomplete', label: 'Setup incomplete', value: String(setupIssues.length) },
+        { id: 'deactivated-barbers', label: 'Deactivated', value: String(deactivatedBarbers.length) },
+      ],
+      rows: normalizedBarbers.slice(0, 5).map((item) => ({
+        id: `barber-${item.id}`,
+        title: item.displayName,
+        summary: item.issueLabels.length > 0 ? item.issueLabels.join(', ') : item.specialty,
+        status: item.isLive ? 'live' : item.setupStatus,
+        actionLabel: 'Manage',
+        targetTab: 'barbers' as const,
+      })),
+    },
+    {
+      id: 'bookings',
+      title: 'Bookings',
+      description: 'Follow upcoming workload, payment holds, and bookings that need intervention.',
+      stats: [
+        { id: 'upcoming-bookings', label: 'Upcoming bookings', value: String(upcomingBookings) },
+        { id: 'pending-payment-bookings', label: 'Pending payment', value: String(pendingPayments.length) },
+        { id: 'confirmed-bookings-total', label: 'Confirmed', value: String(bookings.items.filter((item) => item.status === 'confirmed').length) },
+        { id: 'booking-issues', label: 'Issues', value: String(problemBookings.length) },
+      ],
+      rows: bookings.items.slice(0, 5).map((item) => ({
+        id: `booking-${item.id}`,
+        title: item.customerName,
+        summary: `${item.serviceName} with ${item.barberName}`,
+        status: item.status,
+        actionLabel: 'View',
+        targetTab: 'bookings' as const,
+      })),
+    },
+    {
+      id: 'products',
+      title: 'Products',
+      description: 'Keep product visibility and stock health under control.',
+      stats: [
+        { id: 'active-products', label: 'Active products', value: String(activeProductsCount) },
+        { id: 'inactive-products', label: 'Inactive products', value: String(inactiveProductsCount) },
+        { id: 'low-stock-products', label: 'Low stock', value: String(lowStockProducts.length) },
+      ],
+      rows: lowStockProducts.slice(0, 5).map((item) => ({
+        id: `product-${item.id}`,
+        title: item.name,
+        summary: `${item.category} · Stock ${item.stockQuantity}`,
+        status: item.isActive ? 'active' : 'inactive',
+        actionLabel: 'Manage',
+        targetTab: 'products' as const,
+      })),
+    },
+    {
+      id: 'site-content',
+      title: 'Site Content',
+      description: 'Track content readiness across uploaded assets and public links.',
+      stats: [
+        { id: 'configured-assets', label: 'Configured assets', value: String(siteContentItems.length - missingSiteAssets.length) },
+        { id: 'missing-assets', label: 'Missing assets', value: String(missingSiteAssets.length) },
+        { id: 'active-social-links', label: 'Active social links', value: String(activeSocialLinks) },
+        { id: 'missing-social-links', label: 'Missing social links', value: String(missingSocialLinks) },
+      ],
+      rows: missingSiteAssets.slice(0, 5).map((item) => ({
+        id: `content-${item.key}`,
+        title: item.label,
+        summary: item.group.replace(/-/g, ' '),
+        status: item.isActive ? 'missing' : 'inactive',
+        actionLabel: 'Manage',
+        targetTab: 'settings' as const,
+      })),
+    },
+  ]
+  const pendingActions: AdminPendingActionItem[] = [
+    ...pendingApplications.slice(0, 3).map((item) => ({
+      id: `application-${item.id}`,
+      title: item.applicantName,
+      type: 'Barber Application',
+      priority: 'high' as const,
+      status: item.status,
+      description: `${item.applicantEmail} · ${item.cuttingLocation}`,
+      createdAtLabel: item.submittedAtLabel,
+      actionLabel: 'Review',
+      targetTab: 'barbers' as const,
+      applicationId: item.id,
+    })),
+    ...goLiveRequests.slice(0, 3).map((item) => ({
+      id: `go-live-${item.id}`,
+      title: item.displayName,
+      type: 'Go-Live Request',
+      priority: 'high' as const,
+      status: item.setupStatus,
+      description: item.cuttingLocation || item.location || 'Location not set',
+      createdAtLabel: item.goLiveRequestedAt ? formatDateTime(item.goLiveRequestedAt) : null,
+      actionLabel: 'Approve',
+      targetTab: 'barbers' as const,
+      barberId: item.id,
+    })),
+    ...pendingPayments.slice(0, 3).map((item) => ({
+      id: `payment-${item.id}`,
+      title: item.customerName,
+      type: 'Payment Confirmation',
+      priority: 'high' as const,
+      status: item.paymentStatus,
+      description: `${item.serviceName} · ${item.amountDueLabel}`,
+      createdAtLabel: item.createdAtLabel,
+      actionLabel: 'Review',
+      targetTab: 'bookings' as const,
+      bookingId: item.id,
+    })),
+    ...problemBookings.slice(0, 3).map((item) => ({
+      id: `issue-${item.id}`,
+      title: item.customerName,
+      type: 'Booking Issue',
+      priority: 'medium' as const,
+      status: item.status,
+      description: `${item.serviceName} · ${item.barberName}`,
+      createdAtLabel: item.createdAtLabel,
+      actionLabel: 'Resolve',
+      targetTab: 'bookings' as const,
+      bookingId: item.id,
+    })),
+    ...setupIssues.slice(0, 3).map((item) => ({
+      id: `setup-${item.id}`,
+      title: item.displayName,
+      type: 'Incomplete Barber Profile',
+      priority: 'medium' as const,
+      status: item.setupStatus,
+      description: item.issueLabels.join(', ') || 'Profile needs review',
+      createdAtLabel: null,
+      actionLabel: 'Manage',
+      targetTab: 'barbers' as const,
+      barberId: item.id,
+    })),
+    ...missingSiteAssets.slice(0, 3).map((item) => ({
+      id: `asset-${item.key}`,
+      title: item.label,
+      type: 'Site Asset',
+      priority: 'low' as const,
+      status: item.isActive ? 'missing' : 'inactive',
+      description: `${item.group.replace(/-/g, ' ')} is not configured`,
+      createdAtLabel: item.updatedAt ? formatDateTime(item.updatedAt) : null,
+      actionLabel: 'Manage',
+      targetTab: 'settings' as const,
+      siteContentKey: item.key,
+    })),
+    ...pendingContactMessages.slice(0, 3).map((item: (typeof pendingContactMessages)[number]) => ({
+      id: `contact-${item.id}`,
+      title: item.userName || item.userEmail,
+      type: 'Contact Message',
+      priority: 'medium' as const,
+      status: item.status,
+      description: `${item.subject || 'General message'} · ${item.userEmail}`,
+      createdAtLabel: item.createdAt ? formatDateTime(item.createdAt) : null,
+      actionLabel: 'Review',
+      targetTab: 'pending-actions' as const,
+      contactMessageId: item.id,
+    })),
+  ]
 
   return {
     headerMessage:
-      'Start with the actions that unblock bookings, barber approvals, and service pricing first.',
-    currentAdmin,
+      'Work from the smallest high-impact queue first, then move into content, users, and catalog updates.',
+    currentAdmin: normalizedCurrentAdmin,
     metrics,
+    pendingActions,
+    overviewActions: [...overviewActions],
+    overviewSections: [...overviewSections],
     attention: {
       pendingPayments,
       problemBookings,
@@ -727,15 +1181,44 @@ export async function getAdminDashboardViewModel(
       pendingBarberApplications,
       pendingGoLiveRequests,
       incompleteBarbers,
+      siteContentNeedingReview: siteContentReviewCount,
+    },
+    requests: {
+      barberApplications: {
+        pending: pendingApplications,
+        approved: approvedApplications,
+        rejected: rejectedApplications,
+      },
+      goLiveRequests,
+      setupIssues,
+      deactivatedBarbers,
+    },
+    siteContent: {
+      groups: siteContentGroups,
+      items: siteContentItems,
+      socialLinks: siteContentItems.filter((item) => item.group === 'social-links'),
+      mediaAssets: siteContentItems.filter(
+        (item) =>
+          item.type === 'image' ||
+          item.type === 'video' ||
+          item.type === 'background' ||
+          item.type === 'logo' ||
+          item.type === 'service_media'
+      ),
+      reviewCount: siteContentReviewCount,
     },
     bookings,
     services,
-    products,
-    users,
-    barbers,
+    products: normalizedProducts,
+    users: normalizedUsers,
+    barbers: {
+      ...barbers,
+      items: normalizedBarbers,
+    },
     barberApplications: {
       items: barberApplications,
       errorMessage: barberApplicationsResult.ok ? undefined : barberApplicationsResult.message,
     },
+    contactMessages: pendingContactMessages,
   }
 }

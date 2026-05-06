@@ -8,11 +8,11 @@
 }
 
 .shell {
-  width: min(1360px, calc(100% - 1.25rem));
+  width: min(1360px, calc(100% - 1rem));
   margin: 0 auto;
   padding: 1.25rem 0 3rem;
   display: grid;
-  gap: 1rem;
+  gap: 0.9rem;
 }
 
 .heroCard,
@@ -25,11 +25,11 @@
 }
 
 .heroCard {
-  border-radius: 1.8rem;
-  padding: 1.4rem;
+  border-radius: 1.4rem;
+  padding: 0.9rem 1rem;
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
-  gap: 1rem;
+  grid-template-columns: 1fr;
+  gap: 0.65rem;
 }
 
 .heroCopy,
@@ -70,8 +70,8 @@
 }
 
 .heroTitle {
-  font-size: clamp(2rem, 4vw, 3.1rem);
-  line-height: 0.98;
+  font-size: clamp(1.5rem, 3vw, 2.3rem);
+  line-height: 1.02;
 }
 
 .heroText,
@@ -103,6 +103,94 @@
 .panelCard {
   border-radius: 1.35rem;
   padding: 1rem;
+}
+
+.tabbedShell {
+  display: grid;
+  gap: 1rem;
+}
+
+.dashboardTopGrid,
+.overviewGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.commandCard {
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  border-radius: 1.25rem;
+  background: linear-gradient(180deg, rgba(17, 17, 17, 0.96), rgba(7, 7, 7, 0.93));
+  box-shadow: var(--shadow-premium);
+  padding: 1rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.commandCardTop,
+.commandStatusBlock,
+.profileActionCard,
+.checklistItemCard {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.commandCardTop {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.commandStatusBlock {
+  border: 1px solid rgba(212, 175, 55, 0.12);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.9rem 1rem;
+}
+
+.compactProfileCard,
+.compactSetupCard,
+.quickActionsCard,
+.compactEmptyCard {
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  border-radius: 1.2rem;
+  background: linear-gradient(180deg, rgba(17, 17, 17, 0.96), rgba(7, 7, 7, 0.93));
+  box-shadow: var(--shadow-premium);
+  padding: 1rem;
+}
+
+.quickActionsCard,
+.compactProfileCard,
+.compactSetupCard,
+.compactEmptyCard,
+.sectionHeadingCompact {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.progressBarTrack {
+  width: 100%;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.progressBarFill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #b88916 0%, #d4af37 55%, #f1d77a 100%);
+}
+
+.compactBookingList {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.compactBookingCard {
+  border: 1px solid rgba(212, 175, 55, 0.12);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.9rem;
 }
 
 .statsGrid,
@@ -212,11 +300,20 @@
   transition: all 0.24s ease;
   cursor: pointer;
   padding: 0.82rem 1.1rem;
-  min-height: 2.9rem;
+  min-height: 3.1rem;
   font-size: 0.9rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   white-space: nowrap;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.toggleButton:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  transform: none;
+  filter: saturate(0.85);
 }
 
 .primaryButton {
@@ -253,6 +350,14 @@
   align-items: center;
 }
 
+.inlineFieldRow {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
 .successText {
   margin: 0;
   color: #a7f3d0;
@@ -267,6 +372,121 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.85rem;
+}
+
+.summaryCard {
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 1rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.serviceCardStack {
+  display: grid;
+  gap: 1rem;
+}
+
+.serviceButtonGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.serviceSummaryCard {
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 1rem;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.serviceSummaryCopy,
+.serviceSummaryActions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.serviceCard {
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  border-radius: 1.1rem;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+
+.serviceCard[data-incomplete='true'] {
+  border-color: rgba(244, 63, 94, 0.22);
+}
+
+.serviceCardHeader {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.serviceCardHeaderCopy,
+.serviceCardHeaderMeta,
+.serviceCardBody,
+.calendarShell,
+.timePickerGroup,
+.galleryCard,
+.modalBodyStack {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.serviceCardHeaderMeta {
+  justify-items: end;
+}
+
+.chevronIcon {
+  color: var(--premium-gold);
+  transition: transform 0.2s ease;
+}
+
+.chevronIcon[data-open='true'] {
+  transform: rotate(180deg);
+}
+
+.serviceCardBody {
+  padding: 0 1rem 1rem;
+}
+
+.reminderModal {
+  width: min(880px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 1.45rem;
+  border: 1px solid rgba(212, 175, 55, 0.18);
+  background: linear-gradient(180deg, rgba(18, 18, 18, 0.98), rgba(8, 8, 8, 0.96));
+  box-shadow: var(--shadow-premium);
+  padding: 1rem;
+}
+
+.reminderList {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.reminderItem {
+  border-radius: 0.95rem;
+  border: 1px solid rgba(212, 175, 55, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.85rem 0.95rem;
+  color: var(--text-primary);
 }
 
 .selectionCard {
@@ -312,7 +532,8 @@
   border: 1px solid rgba(212, 175, 55, 0.18);
   background: rgba(255, 255, 255, 0.03);
   color: var(--text-secondary);
-  padding: 0.85rem 1rem;
+  min-height: 3rem;
+  padding: 0.82rem 1rem;
   font: inherit;
   font-weight: 700;
   cursor: pointer;
@@ -341,16 +562,236 @@
   background: rgba(255, 255, 255, 0.02);
 }
 
-.availabilityModal {
-  max-width: 880px;
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.74);
+  backdrop-filter: blur(10px);
 }
 
-.availabilitySummaryCard {
-  border: 1px solid rgba(212, 175, 55, 0.14);
-  border-radius: 1.1rem;
-  background: rgba(255, 255, 255, 0.02);
+.dashboardModal {
+  width: min(960px, 100%);
+  max-height: 92vh;
+  border-radius: 1.45rem;
+  border: 1px solid rgba(212, 175, 55, 0.18);
+  background: linear-gradient(180deg, rgba(18, 18, 18, 0.98), rgba(8, 8, 8, 0.96));
+  box-shadow: var(--shadow-premium);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.dashboardModal[data-size='wide'] {
+  width: min(1080px, 100%);
+}
+
+.modalHeader {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 1rem 1rem 0;
+}
+
+.modalContent,
+.modalBodyStack {
+  min-height: 0;
+  overflow-y: auto;
   padding: 1rem;
-  margin-bottom: 1rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.modalFooter {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-top: 1px solid rgba(212, 175, 55, 0.12);
+  background: linear-gradient(180deg, rgba(14, 14, 14, 0.96), rgba(8, 8, 8, 0.98));
+}
+
+.modalFooterActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.calendarNav {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.calendarNavButton {
+  min-width: 8.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.82rem 1rem;
+  min-height: 2.9rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.calendarNavTitle {
+  text-align: center;
+  color: var(--text-primary);
+}
+
+.calendarGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.availabilityCalendarGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.calendarHeaderCell {
+  color: var(--premium-gold);
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.calendarSpacer {
+  min-height: 4.5rem;
+}
+
+.availabilityDayCard {
+  min-height: 8.5rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.65rem;
+  display: grid;
+  gap: 0.55rem;
+  align-content: start;
+}
+
+.availabilityDayCard[data-selected='true'] {
+  border-color: rgba(212, 175, 55, 0.7);
+  box-shadow: inset 0 0 0 1px rgba(212, 175, 55, 0.26);
+}
+
+.availabilityDayHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.availabilitySlotList {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.availabilitySlotPill {
+  text-align: left;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(212, 175, 55, 0.18);
+  background: rgba(212, 175, 55, 0.08);
+  color: var(--text-primary);
+  padding: 0.45rem 0.55rem;
+  cursor: pointer;
+}
+
+.calendarDayButton {
+  min-height: 4.7rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-primary);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.calendarDayButton[data-selected='true'] {
+  border-color: rgba(212, 175, 55, 0.7);
+  background: rgba(212, 175, 55, 0.16);
+}
+
+.calendarDayButton[data-has-slots='true'] {
+  box-shadow: inset 0 0 0 1px rgba(212, 175, 55, 0.18);
+}
+
+.calendarDayButton:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.calendarDayNumber {
+  font-weight: 700;
+}
+
+.calendarDayMeta {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.timePickerPanel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.rollerRow {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.rollerColumn {
+  min-width: 7rem;
+  display: grid;
+  gap: 0.4rem;
+  justify-items: center;
+  border-radius: 1rem;
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.75rem;
+}
+
+.rollerButton {
+  width: 100%;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(212, 175, 55, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  padding: 0.55rem;
+  cursor: pointer;
+}
+
+.rollerValue {
+  width: 100%;
+  text-align: center;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--premium-gold);
+  padding: 0.6rem 0;
 }
 
 .galleryPreviewImage {
@@ -361,6 +802,120 @@
   margin-bottom: 0.85rem;
 }
 
+.galleryGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.galleryCard {
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 1rem;
+}
+
+.uploadDropZone {
+  display: grid;
+  gap: 0.45rem;
+  border-radius: 1rem;
+  border: 1px dashed rgba(212, 175, 55, 0.35);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 1.2rem;
+  cursor: pointer;
+}
+
+.hiddenFileInput {
+  display: none;
+}
+
+.profileActionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.profileActionCard {
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 1rem;
+}
+
+.profileActionCopy {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.profileImagesGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.profileUploadPreview,
+.coverUploadPreview {
+  width: 100%;
+  object-fit: cover;
+  border-radius: 1rem;
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.profileUploadPreview {
+  height: 220px;
+}
+
+.coverUploadPreview {
+  height: 180px;
+}
+
+.checklistStack,
+.slotEditorList {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.slotEditorCard,
+.warningBanner {
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.95rem 1rem;
+}
+
+.checklistItemCard {
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.95rem 1rem;
+}
+
+.checklistItemCard[data-complete='true'] {
+  border-color: rgba(16, 185, 129, 0.24);
+}
+
+.checklistItemTop {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+
+.checklistStatusIcon {
+  width: 1.9rem;
+  height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(212, 175, 55, 0.22);
+  color: var(--premium-gold);
+}
+
+:global(body.barber-dashboard-modal-open) {
+  overflow: hidden;
+}
+
 @media (max-width: 1180px) {
   .heroCard,
   .statsGrid,
@@ -368,7 +923,14 @@
   .metaGrid,
   .formGrid,
   .dayGrid,
-  .selectionGrid {
+  .selectionGrid,
+  .galleryGrid,
+  .timePickerPanel,
+  .dashboardTopGrid,
+  .overviewGrid,
+  .profileActionGrid,
+  .profileImagesGrid,
+  .serviceButtonGrid {
     grid-template-columns: 1fr;
   }
 }
@@ -382,16 +944,68 @@
   .heroCard,
   .tabbedShell,
   .recordCard,
-  .panelCard {
+  .panelCard,
+  .dashboardModal {
     padding: 1rem;
   }
 
   .heroCopy,
   .recordTop,
   .personTop,
-  .slotRow {
-    grid-template-columns: 1fr;
+  .slotRow,
+  .modalHeader,
+  .inlineFieldRow {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .commandCardTop {
+    grid-template-columns: 1fr;
+  }
+
+  .calendarNav {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .calendarNavButton {
+    min-width: 0;
+    width: 100%;
+    padding-inline: 0.8rem;
+  }
+
+  .calendarNavButton:last-child {
+    justify-self: end;
+  }
+
+  .calendarGrid {
+    gap: 0.45rem;
+  }
+
+  .availabilityCalendarGrid {
+    gap: 0.45rem;
+  }
+
+  .calendarDayButton {
+    min-height: 4rem;
+    padding: 0.6rem;
+  }
+
+  .availabilityDayCard {
+    min-height: 7rem;
+    padding: 0.5rem;
+  }
+
+  .primaryButton,
+  .secondaryButton,
+  .toggleButton {
+    width: 100%;
+  }
+
+  .inlineActions,
+  .badgeCluster {
+    width: 100%;
   }
 }

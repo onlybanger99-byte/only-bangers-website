@@ -1,4 +1,4 @@
-import { createGalleryImage, listGalleryImagesForOwner } from '@/lib/barber-gallery/service'
+import { listGalleryImagesForOwner, uploadGalleryImage } from '@/lib/barber-gallery/service'
 import { getUserRole } from '@/lib/auth/get-user-role'
 import { getBarberProfileByUserId } from '@/lib/barbers/service'
 
@@ -45,10 +45,26 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: { code: 'PROFILE_MISSING', message: 'Your barber profile is not active yet.' } }, { status: 400 })
   }
 
-  const body = await request.json()
-  const result = await createGalleryImage(profile.id, {
-    imageUrl: body.imageUrl,
-    caption: body.caption,
+  const formData = await request.formData().catch(() => null)
+  const file = formData?.get('file')
+  const caption = formData?.get('caption')
+
+  if (!(file instanceof File)) {
+    return Response.json(
+      {
+        ok: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Choose an image file before uploading.',
+        },
+      },
+      { status: 400 }
+    )
+  }
+
+  const result = await uploadGalleryImage(profile.id, {
+    file,
+    caption: typeof caption === 'string' ? caption : null,
   })
 
   if (!result.ok) {

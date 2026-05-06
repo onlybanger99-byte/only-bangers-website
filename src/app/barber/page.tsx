@@ -38,10 +38,8 @@ export default async function PublicBarberPage() {
       <div className={styles.shell}>
         <section className={styles.heroCard}>
           <p className={styles.eyebrow}>Only Bangers Barbers</p>
-          <h1 className={styles.title}>Book approved active barbers with confidence</h1>
-          <p className={styles.text}>
-            Every barber shown here has been approved and activated in the Only Bangers booking flow. Availability depends on each barber.
-          </p>
+          <h1 className={styles.title}>Live barbers ready to book</h1>
+          <p className={styles.text}>Browse active profiles, compare locations, and open a live barber page.</p>
         </section>
 
         <section className={styles.grid}>
@@ -56,6 +54,12 @@ export default async function PublicBarberPage() {
                   <span className={styles.badge}>Choose an available barber and time</span>
                 </div>
                 <div className={styles.linksRow}>
+                  <Link href={`/barbers/${barber.slug}`} className={styles.link}>
+                    View Barber
+                  </Link>
+                  <Link href={`/barbers/${barber.slug}`} className={styles.link}>
+                    Book
+                  </Link>
                   {barber.instagram_url ? (
                     <Link href={toExternalHref('instagram', barber.instagram_url) ?? '#'} className={styles.link}>
                       Instagram

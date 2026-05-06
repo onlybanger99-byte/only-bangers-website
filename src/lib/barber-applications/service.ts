@@ -674,35 +674,97 @@ export async function updateApprovedBarberProfile(userId: string, input: UpdateB
   }
 
   const supabase = await createClient()
-  const payload = {
-    display_name: normalizeText(input.displayName) || 'Only Bangers Barber',
-    full_name: normalizeText(input.displayName) || 'Only Bangers Barber',
+  const existingProfile = await getBarberProfileByUserId(userId)
+  const displayName =
+    normalizeText(input.displayName) ||
+    normalizeText(input.fullName) ||
+    existingProfile?.displayName ||
+    'Only Bangers Barber'
+  const fullName =
+    normalizeText(input.fullName) ||
+    existingProfile?.fullName ||
+    displayName
+  const slug = await ensureUniqueBarberSlug({
+    displayName,
+    fullName,
+    excludeProfileId: existingProfile?.id ?? null,
+  })
+  const basePayload = {
+    slug,
+    display_name: displayName,
+    full_name: fullName,
+    phone: normalizeNullableText(input.phone),
     cutting_location: normalizeText(input.cuttingLocation),
-    location: normalizeText(input.cuttingLocation),
+    location: normalizeText(input.location) || normalizeText(input.cuttingLocation),
     map_url: normalizeNullableText(input.mapUrl),
+    latitude: typeof input.latitude === 'number' ? input.latitude : null,
+    longitude: typeof input.longitude === 'number' ? input.longitude : null,
     instagram_url: normalizeNullableText(input.instagramUrl),
     tiktok_url: normalizeNullableText(input.tiktokUrl),
     facebook_url: normalizeNullableText(input.facebookUrl),
     portfolio_url: normalizeNullableText(input.portfolioUrl),
+    avatar_url: normalizeNullableText(input.avatarUrl),
+    profile_image_url:
+      normalizeNullableText(input.profileImageUrl) ?? normalizeNullableText(input.avatarUrl),
+    profile_photo_url:
+      normalizeNullableText(input.profileImageUrl) ?? normalizeNullableText(input.avatarUrl),
+    cover_image_url: normalizeNullableText(input.coverImageUrl),
     bio: normalizeText(input.bio),
-    available_days: [],
-    available_start_time: null,
-    available_end_time: null,
     updated_at: new Date().toISOString(),
   }
+  const optionalColumns = [
+    'map_url',
+    'latitude',
+    'longitude',
+    'avatar_url',
+    'profile_image_url',
+    'profile_photo_url',
+    'portfolio_url',
+    'instagram_url',
+    'tiktok_url',
+    'facebook_url',
+    'full_name',
+    'phone',
+    'slug',
+    'location',
+    'cover_image_url',
+  ] as const
+  let payload: Record<string, unknown> = { ...basePayload }
+  let saveError: { message?: string } | null = null
 
-  const { error } = await supabase
-    .from('barber_profiles')
-    .update(payload)
-    .eq('user_id', userId)
+  for (let attempt = 0; attempt <= optionalColumns.length; attempt += 1) {
+    const { error } = await supabase
+      .from('barber_profiles')
+      .update(payload)
+      .eq('user_id', userId)
 
-  if (error) {
-    console.error('[barber-applications] Failed to update barber profile', error)
+    if (!error) {
+      return { ok: true as const }
+    }
+
+    saveError = error
+
+    if (!isMissingColumnError(error)) {
+      break
+    }
+
+    const match = /column ["']?([a-zA-Z0-9_]+)["']?/i.exec(error.message ?? '')
+    const missingColumn = match?.[1]
+
+    if (!missingColumn || !(missingColumn in payload)) {
+      break
+    }
+
+    delete payload[missingColumn]
+  }
+
+  if (saveError) {
+    console.error('[barber-applications] Failed to update barber profile', saveError)
     return {
       ok: false as const,
       code: 'DATABASE_ERROR',
       message: 'We could not update your barber profile.',
-      details: [error.message],
+      details: [saveError.message ?? 'Unknown database error while saving the barber profile.'],
     }
   }
 

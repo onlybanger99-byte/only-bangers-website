@@ -20,6 +20,8 @@ export interface PortalBookingCard {
   pendingExpiresAtLabel: string | null
   pendingExpiresAt: string | null
   whatsappPaymentUrl: string | null
+  reviewEligible?: boolean
+  hasReview?: boolean
 }
 
 export interface PortalTaskItem {
@@ -69,4 +71,7 @@ export interface PortalDashboardViewModel {
   }
   profile: PortalProfileSummary
   barberApplication: PortalBarberApplicationSummary
+  reviewPrompt: {
+    booking: PortalBookingCard | null
+  }
 }

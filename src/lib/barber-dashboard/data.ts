@@ -5,9 +5,11 @@ import { listGalleryImagesForOwner } from '@/lib/barber-gallery/service'
 import { listBarberServicePricesForOwner } from '@/lib/barber-service-prices/service'
 import { getBarberProfileByUserId } from '@/lib/barbers/service'
 import { buildBarberSetupChecklist } from '@/lib/barbers/setup'
+import { getBarberSetupStatus } from '@/lib/barber/setup-status'
 import { listBookings } from '@/lib/bookings/service'
 import { getCustomerProfilesByUserIds } from '@/lib/customer-profiles/service'
 import { formatDate, formatDateTime, formatTime } from '@/lib/date-time'
+import { getSafeImage } from '@/lib/safe-image'
 import type { BarberDashboardBooking, BarberDashboardViewModel, BarberOperatorProfile } from './types'
 
 type BarberDashboardIdentity = {
@@ -41,10 +43,14 @@ async function buildOperatorProfile(identity: BarberDashboardIdentity): Promise<
 
   if (liveProfile) {
     return {
+      email: identity.email ?? null,
       displayName: liveProfile.displayName,
+      fullName: liveProfile.fullName,
+      phone: liveProfile.phone,
       slug: liveProfile.slug,
       specialty: liveProfile.specialty,
       image: liveProfile.profileImageUrl ?? null,
+      coverImageUrl: liveProfile.coverImageUrl ?? null,
       bio: liveProfile.bio,
       location: liveProfile.location,
       cuttingLocation: liveProfile.cuttingLocation,
@@ -61,6 +67,7 @@ async function buildOperatorProfile(identity: BarberDashboardIdentity): Promise<
       activeStatus: liveProfile.isActive ? 'active' : 'inactive',
       isLive: liveProfile.isLive,
       setupStatus: liveProfile.setupStatus,
+      goLiveRejectionReason: liveProfile.goLiveRejectionReason,
       editProfileHref: '/barber/dashboard',
     }
   }
@@ -72,12 +79,16 @@ async function buildOperatorProfile(identity: BarberDashboardIdentity): Promise<
     barbers.find((barber) => emailValue.includes(barber.name.split(' ')[0].toLowerCase())) ??
     barbers[0]
 
-  return {
-    displayName: matched.name,
-    slug: null,
-    specialty: matched.specialty,
-    image: matched.image ?? null,
-    bio:
+    return {
+      email: identity.email ?? null,
+      displayName: matched.name,
+      fullName: latestApplication?.displayName ?? matched.name,
+      phone: latestApplication?.phone ?? null,
+      slug: null,
+      specialty: matched.specialty,
+      image: matched.image ?? null,
+      coverImageUrl: null,
+      bio:
       latestApplication?.bio ||
       'Your public barber profile can be completed once profile management is connected.',
     location: latestApplication?.cuttingLocation ?? null,
@@ -92,12 +103,13 @@ async function buildOperatorProfile(identity: BarberDashboardIdentity): Promise<
     availableDays: latestApplication?.availableDays ?? [],
     availableStartTime: latestApplication?.availableStartTime ?? null,
     availableEndTime: latestApplication?.availableEndTime ?? null,
-    activeStatus: 'inactive',
-    isLive: false,
-    setupStatus: 'draft',
-    editProfileHref: '/barber/dashboard',
+      activeStatus: 'inactive',
+      isLive: false,
+      setupStatus: 'draft',
+      goLiveRejectionReason: null,
+      editProfileHref: '/barber/dashboard',
+    }
   }
-}
 
 async function getLiveAppointments(
   identity: BarberDashboardIdentity
@@ -147,7 +159,7 @@ async function getLiveAppointments(
         pendingExpiresAtLabel:
           row.pending_expires_at ? formatDateTime(row.pending_expires_at) : 'Date not set',
         notes: row.notes ?? 'No customer notes were captured for this booking.',
-        customerAvatarUrl: profile?.profileImageUrl ?? '/images/header-bg.png',
+        customerAvatarUrl: profile?.profileImageUrl ?? getSafeImage(null),
         messageCustomerHref: buildWhatsAppHref(profile?.phoneNumber ?? null),
         rawStartsAt: row.starts_at,
       }
@@ -212,6 +224,13 @@ export async function getBarberDashboardViewModel(
     profile: galleryResult,
     servicePrices,
     availabilitySlots,
+    galleryImageCount: galleryImagesResult.ok ? galleryImagesResult.data.length : 0,
+  })
+  const setupStatus = getBarberSetupStatus({
+    profile: galleryResult,
+    servicePrices,
+    availabilitySlots,
+    galleryImageCount: galleryImagesResult.ok ? galleryImagesResult.data.length : 0,
   })
 
   return {
@@ -228,6 +247,7 @@ export async function getBarberDashboardViewModel(
     availabilitySlots,
     galleryImages: galleryImagesResult.ok ? galleryImagesResult.data : [],
     setupChecklist,
+    setupStatus,
     today: liveAppointments.today,
     upcoming: liveAppointments.upcoming,
     awaitingPayment: liveAppointments.awaitingPayment,

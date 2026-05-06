@@ -1,6 +1,9 @@
 import Link from 'next/link'
+import { PublicBarberImage } from '@/components/barbers/PublicBarberImage'
+import { SitePageBackground } from '@/components/site/SitePageBackground'
 import { listPublicBarberDirectoryCards } from '@/lib/barbers/service'
-import { getSafeImage } from '@/lib/safe-image'
+import { getSiteContentMap } from '@/lib/site-content/service'
+import { getSiteImage } from '@/lib/site-content/public'
 
 function ratingLabel(averageRating: number | null, reviewCount: number) {
   if (averageRating == null || reviewCount === 0) {
@@ -12,9 +15,11 @@ function ratingLabel(averageRating: number | null, reviewCount: number) {
 
 export default async function PublicBarbersPage() {
   const barbers = await listPublicBarberDirectoryCards()
+  const contentMap = await getSiteContentMap()
+  const defaultBarberAvatar = getSiteImage(contentMap, 'default_barber_avatar')
 
   return (
-    <div className="page-background">
+    <SitePageBackground backgroundKeys={['global_page_background', 'site_background_image']}>
       <div className="main-content">
         <div className="page-header">
           <h1 className="page-title">Live Barbers</h1>
@@ -26,8 +31,9 @@ export default async function PublicBarbersPage() {
             {barbers.map((barber) => (
               <article key={barber.id} className="service-card">
                 <div className="card-content">
-                  <img
-                    src={getSafeImage(barber.profile_image_url)}
+                  <PublicBarberImage
+                    src={barber.profile_image_url || defaultBarberAvatar}
+                    name={barber.display_name}
                     alt={barber.display_name}
                     style={{ width: '100%', height: 220, objectFit: 'cover', borderRadius: 18, marginBottom: 18 }}
                   />
@@ -59,6 +65,6 @@ export default async function PublicBarbersPage() {
           </div>
         )}
       </div>
-    </div>
+    </SitePageBackground>
   )
 }

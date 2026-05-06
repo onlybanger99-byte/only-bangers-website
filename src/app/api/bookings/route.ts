@@ -26,7 +26,8 @@ export async function GET(request: NextRequest) {
     return bookingApiResponse(
       await getAvailabilityForBarberDate(
         searchParams.get('barberId') ?? '',
-        searchParams.get('date') ?? ''
+        searchParams.get('date') ?? '',
+        searchParams.get('servicePriceId') ?? undefined
       )
     )
   }
@@ -52,11 +53,12 @@ export async function POST(request: NextRequest) {
     const result = await createBooking({
       barberId: body.barberId,
       barberServicePriceId: body.barberServicePriceId,
-      serviceId: body.serviceId,
-      serviceName: body.serviceName,
-      startsAt: body.startsAt,
-      notes: body.notes,
-    })
+        serviceId: body.serviceId,
+        serviceName: body.serviceName,
+        startsAt: body.startsAt,
+        endsAt: body.endsAt,
+        notes: body.notes,
+      })
 
     return bookingApiResponse(result)
   } catch (error) {

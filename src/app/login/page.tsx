@@ -7,6 +7,9 @@ import { readBookingDraft } from "@/lib/bookings/draft";
 import { supabase } from "@/lib/supabase/client";
 import type { AppRole } from "@/lib/auth/roles";
 import { getDefaultDashboardForRole, normalizeRole } from "@/lib/auth/roles";
+import { useSiteContent } from "@/hooks/useSiteContent";
+import { getSiteContentImage, getSiteImage } from "@/lib/site-content/public";
+import { getSafeImage } from "@/lib/safe-image";
 import styles from "./login.module.css";
 
 type AuthMode = "login" | "create";
@@ -32,10 +35,19 @@ function LoginPageContent() {
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [createEmail, setCreateEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [magicLinkLoading, setMagicLinkLoading] = useState(false);
+  const [magicLinkSuccess, setMagicLinkSuccess] = useState("");
+  const [magicLinkError, setMagicLinkError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [authMessage, setAuthMessage] = useState("");
+  const { contentMap } = useSiteContent();
   const nextPath = sanitizeNextPath(searchParams.get("next"));
+  const loginBackground =
+    getSiteImage(contentMap, ["login_background_image", "global_page_background", "site_background_image"]) ||
+    getSafeImage(null);
 
   const getCallbackUrl = () => {
     const url = new URL("/auth/callback", window.location.origin);
@@ -206,8 +218,79 @@ function LoginPageContent() {
     await signInWithPassword();
   };
 
+  const handlePasswordReset = async () => {
+    if (!email.trim()) {
+      setAuthMessage("Enter your email address first so we know where to send the recovery link.");
+      return;
+    }
+
+    resetFeedback();
+    setResettingPassword(true);
+
+    const response = await fetch("/api/auth/request-password-reset", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email }),
+    });
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok || !payload?.ok) {
+      const details = Array.isArray(payload?.error?.details) ? payload.error.details.join(" ") : "";
+      setAuthMessage(
+        payload?.error?.message
+          ? `${payload.error.message}${details ? ` ${details}` : ""}`
+          : "We could not send the password reset email."
+      );
+      setResettingPassword(false);
+      return;
+    }
+
+    setSuccessMessage(payload?.message ?? "Check your email for the password setup or recovery link.");
+    setResettingPassword(false);
+  };
+
+  const handleCreateWithEmailMagicLink = async () => {
+    if (!createEmail.trim()) {
+      setMagicLinkSuccess("");
+      setMagicLinkError("Enter your email address to receive your secure setup link.");
+      return;
+    }
+
+    setMagicLinkSuccess("");
+    setMagicLinkError("");
+    setAuthMessage("");
+    setSuccessMessage("");
+    setMagicLinkLoading(true);
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email: createEmail.trim(),
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/portal/profile/complete`,
+      },
+    });
+
+    if (error) {
+      setMagicLinkError(error.message);
+      setMagicLinkLoading(false);
+      return;
+    }
+
+    setMagicLinkSuccess("Check your email for your secure setup link.");
+    setMagicLinkLoading(false);
+  };
+
   return (
-    <div className="page-background">
+    <div
+      className="page-background"
+      style={{
+        backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.78)), url('${loginBackground}')`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
       <div className={styles.loginShell}>
         <div className={styles.loginCard}>
           <div className={styles.heroBlock}>
@@ -217,7 +300,7 @@ function LoginPageContent() {
             </h1>
             <p className={styles.loginSubtitle}>
               {mode === "create"
-                ? "Use Google or Facebook to create your account. Email and password is only for logging in."
+                ? "Create your account with Google, Facebook, or email."
                 : "Use your email and password to get back to your role-based dashboard and active bookings."}
             </p>
           </div>
@@ -289,48 +372,125 @@ function LoginPageContent() {
                 <button type="submit" disabled={loading} className={styles.primaryButton}>
                   {loading ? "Logging in..." : "Login"}
                 </button>
+                <button
+                  type="button"
+                  disabled={resettingPassword || loading}
+                  className={styles.secondaryButton}
+                  onClick={handlePasswordReset}
+                >
+                  {resettingPassword ? "Sending..." : "Forgot password"}
+                </button>
               </div>
             </form>
-          ) : (
-            <div className={styles.createAccountPanel}>
-              <p className={styles.createAccountText}>
-                Use Google or Facebook to create your account. Once you sign in for the first time,
-                Only Bangers will create your default customer role and profile automatically.
-              </p>
+          ) : null}
+
+          {mode === "create" ? (
+            <div className={styles.createOptions}>
+              <div className={styles.oauthSection}>
+                <button
+                  onClick={signInWithGoogle}
+                  disabled={loading || magicLinkLoading}
+                  aria-label="Sign in with Google"
+                  className={styles.oauthButton}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                  </svg>
+                  Create with Google
+                </button>
+                <button
+                  onClick={signInWithFacebook}
+                  disabled={loading || magicLinkLoading}
+                  aria-label="Sign in with Facebook"
+                  className={styles.oauthButton}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                  </svg>
+                  Create with Facebook
+                </button>
+              </div>
+
+              <div className={styles.divider}>
+                <span>Or create with email</span>
+              </div>
+
+              <div className={styles.magicLinkPanel}>
+                <label className={styles.field}>
+                  <span>Email</span>
+                  <input
+                    type="email"
+                    placeholder="your@email.com"
+                    value={createEmail}
+                    onChange={(event) => setCreateEmail(event.target.value)}
+                    className={styles.input}
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  disabled={magicLinkLoading || loading}
+                  className={styles.primaryButton}
+                  onClick={handleCreateWithEmailMagicLink}
+                >
+                  {magicLinkLoading ? "Sending setup link..." : "Send setup link"}
+                </button>
+
+                <p className={styles.helperText}>
+                  We&apos;ll email you a secure link to create your account and finish your profile.
+                </p>
+
+                {magicLinkError ? (
+                  <div className={styles.errorMessage} role="alert">
+                    <p>{magicLinkError}</p>
+                  </div>
+                ) : null}
+
+                {magicLinkSuccess ? (
+                  <div className={styles.successMessage} role="status">
+                    <p>{magicLinkSuccess}</p>
+                  </div>
+                ) : null}
+              </div>
             </div>
+          ) : (
+            <>
+              <div className={styles.divider}>
+                <span>Or continue with</span>
+              </div>
+
+              <div className={styles.oauthSection}>
+                <button
+                  onClick={signInWithGoogle}
+                  disabled={loading}
+                  aria-label="Sign in with Google"
+                  className={styles.oauthButton}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                  </svg>
+                  Continue with Google
+                </button>
+                <button
+                  onClick={signInWithFacebook}
+                  disabled={loading}
+                  aria-label="Sign in with Facebook"
+                  className={styles.oauthButton}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                  </svg>
+                  Continue with Facebook
+                </button>
+              </div>
+            </>
           )}
-
-          <div className={styles.divider}>
-            <span>{mode === "create" ? "Create with" : "Or continue with"}</span>
-          </div>
-
-          <div className={styles.oauthSection}>
-            <button
-              onClick={signInWithGoogle}
-              disabled={loading}
-              aria-label="Sign in with Google"
-              className={styles.oauthButton}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-              </svg>
-              {mode === "create" ? "Create with Google" : "Continue with Google"}
-            </button>
-            <button
-              onClick={signInWithFacebook}
-              disabled={loading}
-              aria-label="Sign in with Facebook"
-              className={styles.oauthButton}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-              </svg>
-              {mode === "create" ? "Create with Facebook" : "Continue with Facebook"}
-            </button>
-          </div>
         </div>
       </div>
     </div>

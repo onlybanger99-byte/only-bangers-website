@@ -272,7 +272,7 @@ export function AdminBarberActions({
             disabled={loadingAction !== null}
             onClick={deactivateBarber}
           >
-            {loadingAction === 'deactivate' ? 'Deactivating...' : 'Deactivate Account'}
+            {loadingAction === 'deactivate' ? 'Deactivating...' : 'Deactivate'}
           </button>
         ) : (
           <button
@@ -281,7 +281,7 @@ export function AdminBarberActions({
             disabled={loadingAction !== null}
             onClick={() => runAction('activate', 'Barber account activated.')}
           >
-            {loadingAction === 'activate' ? 'Activating...' : 'Activate Account'}
+            {loadingAction === 'activate' ? 'Activating...' : 'Activate Barber'}
           </button>
         )}
         <button
@@ -310,7 +310,7 @@ export function AdminBarberActions({
             router.refresh()
           }}
         >
-          {loadingAction === 'delete' ? 'Deleting...' : 'Delete Barber Profile'}
+          {loadingAction === 'delete' ? 'Deleting...' : 'Delete'}
         </button>
       </div>
       {message ? <p className={styles.successText}>{message}</p> : null}

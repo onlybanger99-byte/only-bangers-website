@@ -32,6 +32,11 @@ export async function PATCH(
       typeof body?.sortOrder === 'number' && Number.isFinite(body.sortOrder)
         ? body.sortOrder
         : 0,
+    imageUrl: typeof body?.imageUrl === 'string' ? body.imageUrl : null,
+    backgroundImageUrl:
+      typeof body?.backgroundImageUrl === 'string' ? body.backgroundImageUrl : null,
+    mediaStoragePath:
+      typeof body?.mediaStoragePath === 'string' ? body.mediaStoragePath : null,
   })
 
   if (!result.ok) {

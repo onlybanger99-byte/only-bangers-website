@@ -167,7 +167,6 @@
   justify-content: center;
 }
 
-.bookNowButton,
 .heroButton,
 .sidebarBookNow {
   display: inline-flex;
@@ -181,14 +180,6 @@
   transition: transform 0.22s ease, background 0.22s ease, box-shadow 0.22s ease;
 }
 
-.bookNowButton {
-  padding: 0.88rem 1.25rem;
-  background: linear-gradient(135deg, #b88916 0%, #d4af37 55%, #f1d77a 100%);
-  color: #111;
-  box-shadow: 0 10px 30px rgba(212, 175, 55, 0.22);
-}
-
-.bookNowButton:hover,
 .heroButton:hover,
 .sidebarBookNow:hover {
   transform: translateY(-1px);
@@ -197,6 +188,13 @@
 
 .searchShell {
   position: relative;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.searchShell[data-hidden='true'] {
+  opacity: 0;
+  transform: translateY(-0.5rem);
+  pointer-events: none;
 }
 
 .searchPanel {

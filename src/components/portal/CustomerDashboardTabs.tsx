@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import type { PortalBookingCard, PortalDashboardViewModel } from '@/lib/portal-dashboard/types'
 import styles from '@/app/portal/dashboard/dashboard.module.css'
 import { BookingCard } from './BookingCard'
@@ -175,7 +176,13 @@ export function CustomerDashboardTabs({
 }: {
   dashboard: PortalDashboardViewModel
 }) {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabId>('active')
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const [reviewRating, setReviewRating] = useState(5)
+  const [reviewComment, setReviewComment] = useState('')
+  const [reviewLoading, setReviewLoading] = useState(false)
+  const [reviewError, setReviewError] = useState('')
 
   const hasActiveBookings = dashboard.bookings.active.length > 0
   const historyBookings = dashboard.bookings.history
@@ -183,6 +190,40 @@ export function CustomerDashboardTabs({
     () => (dashboard.profile.isComplete ? 'Complete' : 'Needs attention'),
     [dashboard.profile.isComplete]
   )
+  const reviewPrompt = dashboard.reviewPrompt.booking
+
+  const submitReview = async () => {
+    if (!reviewPrompt) {
+      return
+    }
+
+    setReviewLoading(true)
+    setReviewError('')
+
+    const response = await fetch('/api/barber-reviews', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        bookingId: reviewPrompt.id,
+        rating: reviewRating,
+        comment: reviewComment,
+      }),
+    })
+    const payload = await response.json().catch(() => null)
+
+    if (!response.ok || !payload?.ok) {
+      setReviewError(payload?.error?.message ?? 'Could not save your review.')
+      setReviewLoading(false)
+      return
+    }
+
+    setReviewLoading(false)
+    setReviewOpen(false)
+    setReviewComment('')
+    router.refresh()
+  }
 
   return (
     <>
@@ -270,10 +311,77 @@ export function CustomerDashboardTabs({
               <ProfileSummaryCard profile={dashboard.profile} />
             </article>
 
+            {reviewPrompt ? (
+              <article className={styles.panel}>
+                <div className={styles.sectionHeader}>
+                  <div>
+                    <p className={styles.eyebrow}>Review</p>
+                    <h2 className={styles.sectionTitle}>Review last cut</h2>
+                  </div>
+                </div>
+                <p className={styles.cardText}>
+                  {reviewPrompt.service} with {reviewPrompt.barberName} on {reviewPrompt.startsAtLabel}
+                </p>
+                <div className={styles.inlineActions}>
+                  <button type="button" className={styles.primaryLink} onClick={() => setReviewOpen(true)}>
+                    Review last cut
+                  </button>
+                </div>
+              </article>
+            ) : null}
+
             <BecomeBarberCard application={dashboard.barberApplication} />
           </section>
         ) : null}
       </div>
+
+      {reviewOpen && reviewPrompt ? (
+        <div className="modal-overlay" onClick={() => setReviewOpen(false)}>
+          <div className="modal-container" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Review Last Cut</h3>
+              <button type="button" className="modal-close-btn" onClick={() => setReviewOpen(false)}>
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <p className={styles.cardText}>
+                {reviewPrompt.service} with {reviewPrompt.barberName}
+              </p>
+              <div className={styles.inlineActions}>
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={value === reviewRating ? styles.primaryLink : styles.inlineLink}
+                    onClick={() => setReviewRating(value)}
+                  >
+                    {value} Star{value === 1 ? '' : 's'}
+                  </button>
+                ))}
+              </div>
+              <div className={styles.inlineActions}>
+                <textarea
+                  className={styles.input}
+                  rows={4}
+                  value={reviewComment}
+                  onChange={(event) => setReviewComment(event.target.value)}
+                  placeholder="Tell us about the cut, service, and overall experience."
+                />
+              </div>
+              {reviewError ? <p className={styles.cardText}>{reviewError}</p> : null}
+              <div className="modal-footer">
+                <button type="button" className="modal-btn secondary" onClick={() => setReviewOpen(false)}>
+                  Close
+                </button>
+                <button type="button" className="modal-btn primary" disabled={reviewLoading} onClick={submitReview}>
+                  {reviewLoading ? 'Submitting...' : 'Submit Review'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   )
 }

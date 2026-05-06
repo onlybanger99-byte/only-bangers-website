@@ -83,8 +83,10 @@
 
 .primaryButton,
 .secondaryButton {
-  padding: 0.95rem 1.75rem;
-  border-radius: 0.85rem;
+  min-height: 48px;
+  max-height: 56px;
+  padding: 0.75rem 1rem;
+  border-radius: 999px;
   font-weight: 700;
   font-size: 0.9rem;
   letter-spacing: 0.05em;
@@ -98,6 +100,18 @@
   justify-content: center;
   white-space: nowrap;
   font-family: inherit;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+@media (max-width: 760px) {
+  .primaryButton,
+  .secondaryButton {
+    min-height: 48px;
+    max-height: 54px;
+    padding: 0.7rem 0.95rem;
+    font-size: 0.85rem;
+  }
 }
 
 .primaryButton {
@@ -448,6 +462,7 @@
   border-radius: 1.25rem;
   text-align: left;
   cursor: pointer;
+  overflow: hidden;
 }
 
 .offerCard:hover {

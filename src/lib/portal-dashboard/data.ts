@@ -9,6 +9,8 @@ import {
   buildBookingWhatsAppUrl,
 } from '@/lib/whatsapp/booking-message'
 import { formatDate, formatDateTime, formatTime, isValidDateValue } from '@/lib/date-time'
+import { getSafeImage } from '@/lib/safe-image'
+import { getReviewForBooking } from '@/lib/barber-reviews/service'
 import type { PortalBookingCard, PortalDashboardViewModel } from './types'
 
 function getFirstName(email: string) {
@@ -158,6 +160,23 @@ function toPortalBookingCard(input: {
   }
 }
 
+async function enrichReviewState(booking: PortalBookingCard): Promise<PortalBookingCard> {
+  const existingReview = await getReviewForBooking(booking.id)
+  const startsAt = new Date(booking.startsAt).getTime()
+  const isPast = Number.isFinite(startsAt) && startsAt < Date.now()
+  const isEligible =
+    isPast &&
+    (booking.status === 'completed' ||
+      booking.status === 'paid' ||
+      (booking.status === 'confirmed' && booking.paymentStatus === 'paid'))
+
+  return {
+    ...booking,
+    reviewEligible: isEligible,
+    hasReview: Boolean(existingReview),
+  }
+}
+
 function sortByStartsAtAscending(left: PortalBookingCard, right: PortalBookingCard) {
   return new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime()
 }
@@ -181,7 +200,7 @@ export async function getPortalDashboardViewModel(input: {
   const firstName = profile?.firstName || getFirstName(input.email)
   const fullName = profile?.fullName || getFullName(input.email)
   const phoneNumber = profile?.phoneNumber || 'Phone number pending'
-  const profileImageUrl = profile?.profileImageUrl || '/images/header-bg.png'
+  const profileImageUrl = profile?.profileImageUrl || getSafeImage(null)
 
   if (!bookingsResult.ok) {
     if (bookingsResult.code !== 'TABLE_MISSING') {
@@ -219,18 +238,25 @@ export async function getPortalDashboardViewModel(input: {
         editProfileHref: '/portal/profile/complete?next=%2Fportal%2Fdashboard',
       },
       barberApplication: buildBarberApplicationSummary(profileState.isComplete, latestApplication),
+      reviewPrompt: {
+        booking: null,
+      },
     }
   }
 
-  const bookings = bookingsResult.data
-    .map((booking) =>
-      toPortalBookingCard({
-        booking,
-        customerName: fullName,
-        phoneNumber,
-      })
+  const bookings = (
+    await Promise.all(
+      bookingsResult.data.map((booking) =>
+        enrichReviewState(
+          toPortalBookingCard({
+            booking,
+            customerName: fullName,
+            phoneNumber,
+          })
+        )
+      )
     )
-    .sort(sortByStartsAtDescending)
+  ).sort(sortByStartsAtDescending)
 
   const now = Date.now()
   const pendingPayment = bookings
@@ -250,6 +276,8 @@ export async function getPortalDashboardViewModel(input: {
       return booking.status === 'confirmed' && new Date(booking.startsAt).getTime() < now
     })
     .sort(sortByStartsAtDescending)
+  const reviewPromptBooking =
+    history.find((booking) => booking.reviewEligible && !booking.hasReview) ?? null
 
   return {
     source: 'live',
@@ -276,6 +304,9 @@ export async function getPortalDashboardViewModel(input: {
       editProfileHref: '/portal/profile/complete?next=%2Fportal%2Fdashboard',
     },
     barberApplication: buildBarberApplicationSummary(profileState.isComplete, latestApplication),
+    reviewPrompt: {
+      booking: reviewPromptBooking,
+    },
   }
 }
 

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { BarberServicePriceSummary } from '@/lib/barber-service-prices/types'
 import { parseDurationToMinutes } from '@/lib/services/duration'
+import { BarberDashboardModal } from './BarberDashboardModal'
 import styles from '@/app/barber/dashboard/dashboard.module.css'
 
 type ServiceOption = {
@@ -15,14 +16,16 @@ type ServiceOption = {
   isActive: boolean
 }
 
-type DraftMap = Record<
-  string,
-  {
-    price: string
-    durationMinutes: string
-    isActive: boolean
-  }
->
+type DraftState = {
+  price: string
+  durationMinutes: string
+  isActive: boolean
+}
+
+type FeedbackState = {
+  message?: string
+  error?: string
+}
 
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -37,21 +40,22 @@ export function BarberServicePricesManager({
 }) {
   const [prices, setPrices] = useState(initialPrices)
   const [services, setServices] = useState<ServiceOption[]>([])
-  const [drafts, setDrafts] = useState<DraftMap>({})
+  const [drafts, setDrafts] = useState<Record<string, DraftState>>({})
+  const [activeServiceId, setActiveServiceId] = useState<string | null>(null)
   const [loadingServiceId, setLoadingServiceId] = useState<string | null>(null)
-  const [message, setMessage] = useState('')
-  const [error, setError] = useState('')
+  const [feedbackByService, setFeedbackByService] = useState<Record<string, FeedbackState>>({})
+  const [catalogError, setCatalogError] = useState('')
 
   useEffect(() => {
     setPrices(initialPrices)
   }, [initialPrices])
 
   useEffect(() => {
-    let isActive = true
+    let mounted = true
 
     fetch('/api/services')
       .then(async (response) => {
-        const payload = await response.json()
+        const payload = await response.json().catch(() => null)
 
         if (!response.ok || !payload?.ok) {
           throw new Error(payload?.error?.message ?? 'Could not load approved services.')
@@ -60,45 +64,27 @@ export function BarberServicePricesManager({
         return Array.isArray(payload.data) ? (payload.data as ServiceOption[]) : []
       })
       .then((data) => {
-        if (!isActive) {
+        if (!mounted) {
           return
         }
 
-        const validServices = data.filter((service) => isUuid(service.id))
-        setServices(validServices)
+        setServices(
+          data
+            .filter((service) => isUuid(service.id))
+            .sort((left, right) => left.sortOrder - right.sortOrder)
+        )
       })
-      .catch((loadError) => {
-        console.error('[barber-service-prices] Failed to load service catalog:', loadError)
-        if (isActive) {
-          setError('Could not load approved services.')
+      .catch((error) => {
+        console.error('[barber-service-prices] Failed to load service catalog:', error)
+        if (mounted) {
+          setCatalogError('Could not load approved services.')
         }
       })
 
     return () => {
-      isActive = false
+      mounted = false
     }
   }, [])
-
-  useEffect(() => {
-    const nextDrafts = Object.fromEntries(
-      services.map((service) => {
-        const existing = prices.find((price) => price.serviceId === service.id)
-        return [
-          service.id,
-          {
-            price: existing ? String(existing.price) : '',
-            durationMinutes:
-              existing?.durationMinutes != null
-                ? String(existing.durationMinutes)
-                : String(parseDurationToMinutes(service.duration)),
-            isActive: existing?.isActive ?? true,
-          },
-        ]
-      })
-    )
-
-    setDrafts(nextDrafts)
-  }, [prices, services])
 
   const pricesByServiceId = useMemo(
     () =>
@@ -110,31 +96,82 @@ export function BarberServicePricesManager({
     [prices]
   )
 
+  const activeService = useMemo(
+    () => services.find((service) => service.id === activeServiceId) ?? null,
+    [activeServiceId, services]
+  )
+
+  useEffect(() => {
+    const nextDrafts = Object.fromEntries(
+      services.map((service) => {
+        const existing = pricesByServiceId.get(service.id)
+        return [
+          service.id,
+          {
+            price: existing ? String(existing.price) : '',
+            durationMinutes:
+              existing?.durationMinutes != null
+                ? String(existing.durationMinutes)
+                : String(parseDurationToMinutes(service.duration)),
+            isActive: existing?.isActive ?? true,
+          } satisfies DraftState,
+        ]
+      })
+    )
+
+    setDrafts(nextDrafts)
+  }, [pricesByServiceId, services])
+
   async function loadPrices() {
     const response = await fetch('/api/barber/service-prices')
     const payload = await response.json().catch(() => null)
 
     if (!response.ok || !payload?.ok) {
-      setError(payload?.error?.message ?? 'Could not load barber prices.')
+      setCatalogError(payload?.error?.message ?? 'Could not load barber prices.')
       return
     }
 
     setPrices(Array.isArray(payload.data) ? payload.data : [])
   }
 
-  const saveService = async (service: ServiceOption) => {
+  function setDraft(serviceId: string, updater: (current: DraftState) => DraftState) {
+    setDrafts((current) => ({
+      ...current,
+      [serviceId]: updater(
+        current[serviceId] ?? {
+          price: '',
+          durationMinutes: '',
+          isActive: true,
+        }
+      ),
+    }))
+  }
+
+  function setFeedback(serviceId: string, feedback: FeedbackState) {
+    setFeedbackByService((current) => ({
+      ...current,
+      [serviceId]: feedback,
+    }))
+  }
+
+  async function saveService(service: ServiceOption) {
     const draft = drafts[service.id]
     const existing = pricesByServiceId.get(service.id) ?? null
+    const price = Number.parseFloat(draft?.price ?? '')
+    const durationMinutes = Number.parseInt(draft?.durationMinutes ?? '', 10)
 
-    if (!draft?.price || Number.parseFloat(draft.price) <= 0) {
-      setError(`Enter a valid price for ${service.name}.`)
-      setMessage('')
+    if (!draft?.price || !Number.isFinite(price) || price <= 0) {
+      setFeedback(service.id, { error: 'Price must be greater than 0.' })
+      return
+    }
+
+    if (!draft?.durationMinutes || !Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+      setFeedback(service.id, { error: 'Duration must be greater than 0 minutes.' })
       return
     }
 
     setLoadingServiceId(service.id)
-    setMessage('')
-    setError('')
+    setFeedback(service.id, {})
 
     const response = await fetch(
       existing ? `/api/barber/service-prices/${existing.id}` : '/api/barber/service-prices',
@@ -145,207 +182,221 @@ export function BarberServicePricesManager({
         },
         body: JSON.stringify({
           serviceId: service.id,
-          price: Number.parseFloat(draft.price),
-          durationMinutes: Number.parseInt(draft.durationMinutes, 10),
+          price,
+          durationMinutes,
           isActive: draft.isActive,
         }),
       }
     )
-
     const payload = await response.json().catch(() => null)
 
     if (!response.ok || !payload?.ok) {
       const details = Array.isArray(payload?.error?.details) ? payload.error.details.join(' ') : ''
-      setError(
-        payload?.error?.message
+      setFeedback(service.id, {
+        error: payload?.error?.message
           ? `${payload.error.message}${details ? ` ${details}` : ''}`
-          : `Could not save ${service.name}.`
-      )
+          : `Could not save ${service.name}.`,
+      })
       setLoadingServiceId(null)
       return
     }
 
-    setMessage(existing ? `${service.name} updated.` : `${service.name} added.`)
+    setFeedback(service.id, {
+      message: existing ? `${service.name} updated.` : `${service.name} saved.`,
+    })
     setLoadingServiceId(null)
     await loadPrices()
+    setActiveServiceId(null)
   }
 
-  const deactivateService = async (priceId: string, serviceName: string) => {
-    setLoadingServiceId(priceId)
-    setMessage('')
-    setError('')
+  async function deactivateService(serviceId: string, serviceName: string) {
+    const existing = pricesByServiceId.get(serviceId)
 
-    const response = await fetch(`/api/barber/service-prices/${priceId}`, {
+    if (!existing) {
+      return
+    }
+
+    setLoadingServiceId(serviceId)
+    setFeedback(serviceId, {})
+
+    const response = await fetch(`/api/barber/service-prices/${existing.id}`, {
       method: 'DELETE',
     })
     const payload = await response.json().catch(() => null)
 
     if (!response.ok || !payload?.ok) {
-      setError(payload?.error?.message ?? `Could not deactivate ${serviceName}.`)
+      setFeedback(serviceId, {
+        error: payload?.error?.message ?? `Could not deactivate ${serviceName}.`,
+      })
       setLoadingServiceId(null)
       return
     }
 
-    setMessage(`${serviceName} deactivated.`)
+    setFeedback(serviceId, { message: `${serviceName} deactivated.` })
     setLoadingServiceId(null)
     await loadPrices()
+    setActiveServiceId(null)
   }
 
   return (
     <div className={styles.formStack}>
-      {message ? <p className={styles.successText}>{message}</p> : null}
-      {error ? <p className={styles.errorText}>{error}</p> : null}
+      {catalogError ? <p className={styles.errorText}>{catalogError}</p> : null}
 
-      <div className={styles.cardGrid}>
+      <div className={styles.serviceButtonGrid}>
         {services.map((service) => {
           const existing = pricesByServiceId.get(service.id) ?? null
-          const durationMinutes = parseDurationToMinutes(service.duration)
-          const draft = drafts[service.id] ?? {
-            price: '',
-            durationMinutes: String(durationMinutes),
-            isActive: true,
-          }
-          const isBusy = loadingServiceId === service.id || loadingServiceId === existing?.id
+          const feedback = feedbackByService[service.id]
 
           return (
-            <article key={service.id} className={styles.recordCard}>
-              <div className={styles.recordTop}>
-                <div>
-                  <p className={styles.referenceText}>Approved Service</p>
-                  <h3 className={styles.cardTitle}>{service.name}</h3>
-                  <p className={styles.cardText}>{service.description}</p>
-                </div>
-                <div className={styles.badgeCluster}>
-                  <span className={styles.secondaryButton}>{service.duration}</span>
-                  <span className={styles.secondaryButton}>
-                    {existing?.isActive ? 'Active' : existing ? 'Inactive' : 'Not added'}
-                  </span>
-                </div>
+            <article key={service.id} className={styles.serviceSummaryCard}>
+              <div className={styles.serviceSummaryCopy}>
+                <p className={styles.referenceText}>{service.name}</p>
+                <p className={styles.cardSubmeta}>
+                  {existing ? `R${existing.price}` : 'Price not set'} ·{' '}
+                  {existing?.durationMinutes ? `${existing.durationMinutes} min` : 'Duration not set'}
+                </p>
               </div>
 
-              <div className={styles.metaGrid}>
-                <div>
-                  <span className={styles.metaLabel}>Duration</span>
-                  <strong className={styles.metaValue}>
-                    {draft.durationMinutes ? `${draft.durationMinutes} min` : `${durationMinutes} min`}
-                  </strong>
-                </div>
-                <div>
-                  <span className={styles.metaLabel}>Current Price</span>
-                  <strong className={styles.metaValue}>{existing ? `R${existing.price}` : 'Not priced yet'}</strong>
-                </div>
-                <div>
-                  <span className={styles.metaLabel}>Status</span>
-                  <strong className={styles.metaValue}>{draft.isActive ? 'Active' : 'Inactive'}</strong>
-                </div>
-              </div>
-
-              <div className={styles.filtersGridCompactWide}>
-                <label className={styles.field}>
-                  <span className={styles.metaLabel}>Price</span>
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    className={styles.input}
-                    value={draft.price}
-                    onChange={(event) =>
-                      setDrafts((current) => ({
-                        ...current,
-                        [service.id]: {
-                          ...current[service.id],
-                          price: event.target.value,
-                        },
-                      }))
-                    }
-                    placeholder="150"
-                  />
-                </label>
-
-                <label className={styles.field}>
-                  <span className={styles.metaLabel}>Duration (min)</span>
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    className={styles.input}
-                    value={draft.durationMinutes}
-                    onChange={(event) =>
-                      setDrafts((current) => ({
-                        ...current,
-                        [service.id]: {
-                          ...current[service.id],
-                          durationMinutes: event.target.value,
-                        },
-                      }))
-                    }
-                    placeholder={String(durationMinutes)}
-                  />
-                </label>
-
-                <label className={styles.field}>
-                  <span className={styles.metaLabel}>Status</span>
-                  <div className={styles.toggleGroup}>
-                    <button
-                      type="button"
-                      className={styles.toggleButton}
-                      data-active={draft.isActive}
-                      onClick={() =>
-                        setDrafts((current) => ({
-                          ...current,
-                          [service.id]: {
-                            ...current[service.id],
-                            isActive: true,
-                          },
-                        }))
-                      }
-                    >
-                      Active
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.toggleButton}
-                      data-active={!draft.isActive}
-                      onClick={() =>
-                        setDrafts((current) => ({
-                          ...current,
-                          [service.id]: {
-                            ...current[service.id],
-                            isActive: false,
-                          },
-                        }))
-                      }
-                    >
-                      Inactive
-                    </button>
-                  </div>
-                </label>
-              </div>
-
-              <div className={styles.inlineActions}>
+              <div className={styles.serviceSummaryActions}>
+                <span className={styles.secondaryButton}>
+                  {existing?.isActive ? 'Active' : existing ? 'Inactive' : 'Incomplete'}
+                </span>
                 <button
                   type="button"
                   className={styles.primaryButton}
-                  disabled={isBusy}
-                  onClick={() => saveService(service)}
+                  onClick={() => setActiveServiceId(service.id)}
                 >
-                  {isBusy ? 'Saving...' : existing ? 'Save Price' : 'Add Service'}
+                  Edit
                 </button>
-                {existing ? (
-                  <button
-                    type="button"
-                    className={styles.secondaryButton}
-                    disabled={isBusy}
-                    onClick={() => deactivateService(existing.id, service.name)}
-                  >
-                    Deactivate
-                  </button>
-                ) : null}
               </div>
+
+              {feedback?.message ? <p className={styles.successText}>{feedback.message}</p> : null}
+              {feedback?.error ? <p className={styles.errorText}>{feedback.error}</p> : null}
             </article>
           )
         })}
       </div>
+
+      <BarberDashboardModal
+        open={Boolean(activeService)}
+        onClose={() => setActiveServiceId(null)}
+        eyebrow="Services"
+        title={activeService?.name ?? 'Edit Service'}
+        subtitle={activeService?.description ?? 'Update the service price, duration, and active state.'}
+        footer={
+          <div className={styles.modalFooterActions}>
+            <button type="button" className={styles.secondaryButton} onClick={() => setActiveServiceId(null)}>
+              Cancel
+            </button>
+            {activeService && pricesByServiceId.get(activeService.id) ? (
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                disabled={loadingServiceId === activeService.id}
+                onClick={() => void deactivateService(activeService.id, activeService.name)}
+              >
+                {loadingServiceId === activeService.id ? 'Saving...' : 'Deactivate'}
+              </button>
+            ) : null}
+            {activeService ? (
+              <button
+                type="button"
+                className={styles.primaryButton}
+                disabled={loadingServiceId === activeService.id}
+                onClick={() => void saveService(activeService)}
+              >
+                {loadingServiceId === activeService.id ? 'Saving...' : 'Save Service'}
+              </button>
+            ) : null}
+          </div>
+        }
+      >
+        {activeService ? (
+          <div className={styles.formStack}>
+            <div className={styles.summaryCard}>
+              <p className={styles.referenceText}>Approved service</p>
+              <p className={styles.cardSubmeta}>{activeService.description}</p>
+            </div>
+
+            <div className={styles.formGrid}>
+              <label className={styles.field}>
+                <span className={styles.metaLabel}>Price</span>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  className={styles.input}
+                  value={drafts[activeService.id]?.price ?? ''}
+                  onChange={(event) =>
+                    setDraft(activeService.id, (current) => ({
+                      ...current,
+                      price: event.target.value,
+                    }))
+                  }
+                  placeholder="150"
+                />
+              </label>
+
+              <label className={styles.field}>
+                <span className={styles.metaLabel}>Duration</span>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  className={styles.input}
+                  value={drafts[activeService.id]?.durationMinutes ?? ''}
+                  onChange={(event) =>
+                    setDraft(activeService.id, (current) => ({
+                      ...current,
+                      durationMinutes: event.target.value,
+                    }))
+                  }
+                  placeholder={String(parseDurationToMinutes(activeService.duration))}
+                />
+              </label>
+            </div>
+
+            <div className={styles.inlineFieldRow}>
+              <span className={styles.metaLabel}>Status</span>
+              <div className={styles.toggleGroup}>
+                <button
+                  type="button"
+                  className={styles.toggleButton}
+                  data-active={drafts[activeService.id]?.isActive}
+                  onClick={() =>
+                    setDraft(activeService.id, (current) => ({
+                      ...current,
+                      isActive: true,
+                    }))
+                  }
+                >
+                  Active
+                </button>
+                <button
+                  type="button"
+                  className={styles.toggleButton}
+                  data-active={!drafts[activeService.id]?.isActive}
+                  onClick={() =>
+                    setDraft(activeService.id, (current) => ({
+                      ...current,
+                      isActive: false,
+                    }))
+                  }
+                >
+                  Inactive
+                </button>
+              </div>
+            </div>
+
+            {feedbackByService[activeService.id]?.message ? (
+              <p className={styles.successText}>{feedbackByService[activeService.id]?.message}</p>
+            ) : null}
+            {feedbackByService[activeService.id]?.error ? (
+              <p className={styles.errorText}>{feedbackByService[activeService.id]?.error}</p>
+            ) : null}
+          </div>
+        ) : null}
+      </BarberDashboardModal>
     </div>
   )
 }

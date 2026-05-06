@@ -1,3 +1,5 @@
+import { getSafeImage } from '@/lib/safe-image'
+
 export interface Barber {
   id: number
   name: string
@@ -16,13 +18,13 @@ export const barbers: Barber[] = [
     id: 2,
     name: 'Michael Johnson',
     specialty: 'Fade Specialist',
-    image: '/images/barber-placeholder.jpg',
+    image: getSafeImage(null),
   },
   {
     id: 3,
     name: 'David Williams',
     specialty: 'Beard Expert',
-    image: '/images/barber-placeholder.jpg',
+    image: getSafeImage(null),
   },
 ]
 

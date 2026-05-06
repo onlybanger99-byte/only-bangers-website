@@ -15,6 +15,7 @@ export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
   const nextPath = sanitizeNextPath(requestUrl.searchParams.get('next'))
+  const isMagicLinkProfileSetup = nextPath === '/portal/profile/complete'
 
   if (!code) {
     return createLoginRedirect(requestUrl, 'missing-code')
@@ -67,7 +68,14 @@ export async function GET(request: Request) {
 
   const profile = await getCustomerProfileCompletionState(user.id)
   const defaultDashboard = getDefaultDashboardForRole(role)
-  const resolvedNextPath = role === 'customer' && nextPath ? nextPath : defaultDashboard
+  const resolvedNextPath =
+    role === 'customer' && nextPath
+      ? nextPath
+      : defaultDashboard
+
+  if (isMagicLinkProfileSetup) {
+    return NextResponse.redirect(new URL('/portal/profile/complete?setup=1', requestUrl.origin))
+  }
 
   if (!profile.isComplete) {
     const profileUrl = new URL('/portal/profile/complete', requestUrl.origin)

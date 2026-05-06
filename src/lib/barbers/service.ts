@@ -3,6 +3,9 @@ import { listActiveBarberServicePricesForPublic } from '@/lib/barber-service-pri
 import type { BarberServicePriceSummary } from '@/lib/barber-service-prices/types'
 import { getBarberReviewAggregate } from '@/lib/barber-reviews/service'
 import { listAvailabilitySlotsByBarberProfileId } from '@/lib/barber-availability/service'
+import { ensureUniqueBarberSlug, slugifyBarberName } from '@/lib/barbers/slug'
+import { getSiteContentMap } from '@/lib/site-content/service'
+import { getSiteImage } from '@/lib/site-content/public'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { isSafeImageSource } from '@/lib/safe-image'
@@ -13,8 +16,10 @@ export interface BarberProfileSummary {
   slug: string | null
   displayName: string
   fullName: string | null
+  phone: string | null
   specialty: string
   profileImageUrl: string | null
+  coverImageUrl: string | null
   bio: string
   location: string | null
   cuttingLocation: string | null
@@ -31,6 +36,7 @@ export interface BarberProfileSummary {
   isActive: boolean
   isLive: boolean
   setupStatus: string
+  goLiveRejectionReason: string | null
 }
 
 export interface PublicBarberSummary {
@@ -137,8 +143,39 @@ function resolveBarberImage(profile: BarberProfileRow | null | undefined) {
   return valid ?? null
 }
 
+function resolvePublicBarberDisplayImage(input: {
+  profileImageUrl?: string | null
+  galleryImages?: Array<{ imageUrl: string }>
+  defaultBarberAvatar?: string | null
+}) {
+  if (isSafeImageSource(input.profileImageUrl)) {
+    return input.profileImageUrl ?? null
+  }
+
+  const galleryImage = input.galleryImages?.find((item) => isSafeImageSource(item.imageUrl))
+
+  if (galleryImage) {
+    return galleryImage.imageUrl
+  }
+
+  if (isSafeImageSource(input.defaultBarberAvatar)) {
+    return input.defaultBarberAvatar ?? null
+  }
+
+  return null
+}
+
+function resolveBarberCoverImage(profile: BarberProfileRow | null | undefined) {
+  const coverImageUrl = normalizeText(profile?.cover_image_url)
+  return isSafeImageSource(coverImageUrl) ? coverImageUrl : null
+}
+
 function resolveBarberSpecialty(profile: BarberProfileRow | null | undefined) {
   return normalizeText(profile?.specialty) || 'Only Bangers Team'
+}
+
+function resolveBarberPhone(profile: BarberProfileRow | null | undefined) {
+  return normalizeNullableText(profile?.phone)
 }
 
 function resolveBarberBio(profile: BarberProfileRow | null | undefined) {
@@ -178,6 +215,10 @@ function resolveBarberSetupStatus(profile: BarberProfileRow | null | undefined) 
   return normalizeText(profile?.setup_status) || 'draft'
 }
 
+function resolveGoLiveRejectionReason(profile: BarberProfileRow | null | undefined) {
+  return normalizeNullableText(profile?.go_live_rejection_reason)
+}
+
 function resolveOptionalLink(
   profile: BarberProfileRow | null | undefined,
   key: 'instagram_url' | 'tiktok_url' | 'facebook_url' | 'portfolio_url' | 'map_url'
@@ -196,6 +237,95 @@ function resolveBarberCuttingLocation(profile: BarberProfileRow | null | undefin
 
 function resolveBarberSlug(profile: BarberProfileRow | null | undefined) {
   return normalizeNullableText(profile?.slug)
+}
+
+async function ensureBarberSlug(
+  profile: BarberProfileRow | null | undefined,
+  authUser?: AuthUserSummary
+) {
+  const existingSlug = resolveBarberSlug(profile)
+
+  if (existingSlug) {
+    return existingSlug
+  }
+
+  const userId = typeof profile?.user_id === 'string' ? profile.user_id : ''
+  const profileId = typeof profile?.id === 'string' ? profile.id : null
+  const displayName = resolveBarberDisplayName(userId || 'barber', profile, authUser)
+  const fullName = resolveBarberFullName(profile)
+  const fallbackSlug = slugifyBarberName(displayName || fullName || 'only-bangers-barber')
+
+  if (!profileId) {
+    return fallbackSlug
+  }
+
+  const nextSlug = await ensureUniqueBarberSlug({
+    displayName,
+    fullName,
+    excludeProfileId: profileId,
+  })
+
+  const adminClient = createAdminClient()
+
+  if (!adminClient) {
+    return nextSlug
+  }
+
+  const { error } = await adminClient
+    .from('barber_profiles')
+    .update({
+      slug: nextSlug,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', profileId)
+
+  if (error) {
+    console.error('[barbers] Failed to persist generated barber slug:', error)
+  }
+
+  return nextSlug
+}
+
+async function normalizeBarberProfileRow(
+  profile: BarberProfileRow,
+  authUser?: AuthUserSummary
+): Promise<BarberProfileRow & { slug: string }> {
+  const slug = await ensureBarberSlug(profile, authUser)
+  return {
+    ...profile,
+    slug,
+  }
+}
+
+async function findBarberProfileBySlugFallback(
+  supabase: Awaited<ReturnType<typeof createClient>> | NonNullable<ReturnType<typeof createAdminClient>>,
+  slug: string
+) {
+  const normalizedSlug = slugifyBarberName(slug)
+  const { data, error } = await supabase
+    .from('barber_profiles')
+    .select('*')
+    .eq('is_active', true)
+    .eq('is_live', true)
+
+  if (error && error.code !== 'PGRST116' && error.code !== '42P01' && error.code !== 'PGRST205') {
+    console.error('[barbers] Failed to load fallback barber rows:', error)
+    return null
+  }
+
+  const rows = (data ?? []) as BarberProfileRow[]
+
+  for (const row of rows) {
+    const matchesStoredSlug = resolveBarberSlug(row) === normalizedSlug
+    const matchesDisplayName = slugifyBarberName(resolveBarberDisplayName('barber', row)) === normalizedSlug
+    const matchesFullName = slugifyBarberName(resolveBarberFullName(row) ?? '') === normalizedSlug
+
+    if (matchesStoredSlug || matchesDisplayName || matchesFullName) {
+      return row
+    }
+  }
+
+  return null
 }
 
 function fallbackDisplayName(userId: string, authUser?: AuthUserSummary) {
@@ -277,6 +407,7 @@ function toPublicSummary(profile: BarberProfileRow, authUser?: AuthUserSummary):
 export async function listPublicBarbers(): Promise<PublicBarberSummary[]> {
   const privilegedSupabase = getPrivilegedSupabase()
   const supabase = privilegedSupabase ?? (await createClient())
+  const { data: allProfiles } = await supabase.from('barber_profiles').select('id, is_active, is_live')
 
   const { data: profileRows, error } = await supabase
     .from('barber_profiles')
@@ -290,6 +421,24 @@ export async function listPublicBarbers(): Promise<PublicBarberSummary[]> {
     return []
   }
 
+  const totalCount = Array.isArray(allProfiles) ? allProfiles.length : 0
+  const activeCount = Array.isArray(allProfiles)
+    ? allProfiles.filter((row) => row.is_active === true).length
+    : 0
+  const liveCount = Array.isArray(allProfiles)
+    ? allProfiles.filter((row) => row.is_live === true).length
+    : 0
+  const activeLiveCount = Array.isArray(allProfiles)
+    ? allProfiles.filter((row) => row.is_active === true && row.is_live === true).length
+    : 0
+
+  console.info('[barbers] public visibility counts', {
+    totalBarberProfiles: totalCount,
+    activeBarbers: activeCount,
+    liveBarbers: liveCount,
+    activeAndLiveBarbers: activeLiveCount,
+  })
+
   const rows = (profileRows ?? []) as BarberProfileRow[]
   const authUsers = await loadAuthUsersByIds(
     rows
@@ -297,7 +446,16 @@ export async function listPublicBarbers(): Promise<PublicBarberSummary[]> {
       .filter(Boolean)
   )
 
-  return rows
+  const normalizedRows = await Promise.all(
+    rows.map(async (row) =>
+      normalizeBarberProfileRow(
+        row,
+        typeof row.user_id === 'string' ? authUsers.get(row.user_id) : undefined
+      )
+    )
+  )
+
+  return normalizedRows
     .map((row) =>
       toPublicSummary(
         row,
@@ -310,10 +468,13 @@ export async function listPublicBarbers(): Promise<PublicBarberSummary[]> {
 
 export async function listPublicBarberDirectoryCards(): Promise<PublicBarberDirectoryCard[]> {
   const barbers = await listPublicBarbers()
+  const activeSiteContentMap = await getSiteContentMap()
+  const defaultBarberAvatar = getSiteImage(activeSiteContentMap, 'default_barber_avatar')
 
   const priced = await Promise.all(
     barbers.map(async (barber) => {
       const publicProfile = await getBarberProfileByUserId(barber.id)
+      const gallery = publicProfile?.id ? await listVisibleGalleryImages(publicProfile.id) : []
       const reviewAggregate = publicProfile?.id
         ? await getBarberReviewAggregate(publicProfile.id)
         : { averageRating: null, reviewCount: 0, recentReviews: [] }
@@ -325,6 +486,11 @@ export async function listPublicBarberDirectoryCards(): Promise<PublicBarberDire
 
       return {
         ...barber,
+        profile_image_url: resolvePublicBarberDisplayImage({
+          profileImageUrl: barber.profile_image_url,
+          galleryImages: gallery,
+          defaultBarberAvatar,
+        }),
         startingPrice,
         averageRating: reviewAggregate.averageRating,
         reviewCount: reviewAggregate.reviewCount,
@@ -344,8 +510,10 @@ export async function listBookableBarbers(): Promise<BarberProfileSummary[]> {
     slug: row.slug,
     displayName: row.display_name,
     fullName: row.full_name,
+    phone: null,
     specialty: row.specialty,
     profileImageUrl: row.profile_image_url,
+    coverImageUrl: null,
     bio: row.bio,
     location: row.location,
     cuttingLocation: row.cutting_location,
@@ -362,6 +530,7 @@ export async function listBookableBarbers(): Promise<BarberProfileSummary[]> {
     isActive: row.is_active,
     isLive: row.is_live,
     setupStatus: row.setup_status,
+    goLiveRejectionReason: null,
   }))
 }
 
@@ -385,30 +554,35 @@ export async function getBarberProfileByUserId(userId: string) {
 
   const authUsers = await loadAuthUsersByIds([userId])
 
+  const normalizedProfile = await normalizeBarberProfileRow(data as BarberProfileRow, authUsers.get(userId))
+
   return {
-    id: typeof data.id === 'string' ? data.id : null,
-    userId: typeof data.user_id === 'string' ? data.user_id : userId,
-    slug: resolveBarberSlug(data as BarberProfileRow),
-    displayName: resolveBarberDisplayName(userId, data as BarberProfileRow, authUsers.get(userId)),
-    fullName: resolveBarberFullName(data as BarberProfileRow),
-    specialty: resolveBarberSpecialty(data as BarberProfileRow),
-    profileImageUrl: resolveBarberImage(data as BarberProfileRow),
-    bio: resolveBarberBio(data as BarberProfileRow),
-    location: resolveBarberLocation(data as BarberProfileRow),
-    cuttingLocation: resolveBarberCuttingLocation(data as BarberProfileRow),
-    latitude: normalizeNumber((data as BarberProfileRow).latitude),
-    longitude: normalizeNumber((data as BarberProfileRow).longitude),
-    mapUrl: resolveOptionalLink(data as BarberProfileRow, 'map_url'),
-    instagramUrl: resolveOptionalLink(data as BarberProfileRow, 'instagram_url'),
-    tiktokUrl: resolveOptionalLink(data as BarberProfileRow, 'tiktok_url'),
-    facebookUrl: resolveOptionalLink(data as BarberProfileRow, 'facebook_url'),
-    portfolioUrl: resolveOptionalLink(data as BarberProfileRow, 'portfolio_url'),
-    availableDays: resolveBarberDays(data as BarberProfileRow),
-    availableStartTime: resolveOptionalTime(data as BarberProfileRow, 'available_start_time'),
-    availableEndTime: resolveOptionalTime(data as BarberProfileRow, 'available_end_time'),
-    isActive: resolveBarberActive(data as BarberProfileRow),
-    isLive: resolveBarberLive(data as BarberProfileRow),
-    setupStatus: resolveBarberSetupStatus(data as BarberProfileRow),
+    id: typeof normalizedProfile.id === 'string' ? normalizedProfile.id : null,
+    userId: typeof normalizedProfile.user_id === 'string' ? normalizedProfile.user_id : userId,
+    slug: resolveBarberSlug(normalizedProfile),
+    displayName: resolveBarberDisplayName(userId, normalizedProfile, authUsers.get(userId)),
+    fullName: resolveBarberFullName(normalizedProfile),
+    phone: resolveBarberPhone(normalizedProfile),
+    specialty: resolveBarberSpecialty(normalizedProfile),
+    profileImageUrl: resolveBarberImage(normalizedProfile),
+    coverImageUrl: resolveBarberCoverImage(normalizedProfile),
+    bio: resolveBarberBio(normalizedProfile),
+    location: resolveBarberLocation(normalizedProfile),
+    cuttingLocation: resolveBarberCuttingLocation(normalizedProfile),
+    latitude: normalizeNumber(normalizedProfile.latitude),
+    longitude: normalizeNumber(normalizedProfile.longitude),
+    mapUrl: resolveOptionalLink(normalizedProfile, 'map_url'),
+    instagramUrl: resolveOptionalLink(normalizedProfile, 'instagram_url'),
+    tiktokUrl: resolveOptionalLink(normalizedProfile, 'tiktok_url'),
+    facebookUrl: resolveOptionalLink(normalizedProfile, 'facebook_url'),
+    portfolioUrl: resolveOptionalLink(normalizedProfile, 'portfolio_url'),
+    availableDays: resolveBarberDays(normalizedProfile),
+    availableStartTime: resolveOptionalTime(normalizedProfile, 'available_start_time'),
+    availableEndTime: resolveOptionalTime(normalizedProfile, 'available_end_time'),
+    isActive: resolveBarberActive(normalizedProfile),
+    isLive: resolveBarberLive(normalizedProfile),
+    setupStatus: resolveBarberSetupStatus(normalizedProfile),
+    goLiveRejectionReason: resolveGoLiveRejectionReason(normalizedProfile),
   } satisfies BarberProfileSummary
 }
 
@@ -421,7 +595,7 @@ export async function getBarberProfileBySlug(slug: string): Promise<PublicBarber
 
   const privilegedSupabase = getPrivilegedSupabase()
   const supabase = privilegedSupabase ?? (await createClient())
-  const { data, error } = await supabase
+  const { data: exactMatch, error } = await supabase
     .from('barber_profiles')
     .select('*')
     .eq('slug', normalizedSlug)
@@ -434,12 +608,20 @@ export async function getBarberProfileBySlug(slug: string): Promise<PublicBarber
     return null
   }
 
-  if (!data || typeof data.id !== 'string' || typeof data.user_id !== 'string') {
+  const resolvedRow =
+    exactMatch ??
+    (await findBarberProfileBySlugFallback(supabase, normalizedSlug))
+
+  if (!resolvedRow || typeof resolvedRow.id !== 'string' || typeof resolvedRow.user_id !== 'string') {
     return null
   }
 
-  const authUsers = await loadAuthUsersByIds([data.user_id])
-  const barber = toPublicSummary(data as BarberProfileRow, authUsers.get(data.user_id))
+  const authUsers = await loadAuthUsersByIds([resolvedRow.user_id])
+  const normalizedRow = await normalizeBarberProfileRow(
+    resolvedRow as BarberProfileRow,
+    authUsers.get(resolvedRow.user_id)
+  )
+  const barber = toPublicSummary(normalizedRow, authUsers.get(resolvedRow.user_id))
 
   if (!barber) {
     return null
@@ -447,13 +629,22 @@ export async function getBarberProfileBySlug(slug: string): Promise<PublicBarber
 
   const [servicePricesResult, gallery, reviews, availability] = await Promise.all([
     listActiveBarberServicePricesForPublic(barber.id),
-    listVisibleGalleryImages(String(data.id)),
-    getBarberReviewAggregate(String(data.id)),
-    listAvailabilitySlotsByBarberProfileId(String(data.id)),
+    listVisibleGalleryImages(String(resolvedRow.id)),
+    getBarberReviewAggregate(String(resolvedRow.id)),
+    listAvailabilitySlotsByBarberProfileId(String(resolvedRow.id)),
   ])
+  const activeSiteContentMap = await getSiteContentMap()
+  const defaultBarberAvatar = getSiteImage(activeSiteContentMap, 'default_barber_avatar')
 
   return {
-    barber,
+    barber: {
+      ...barber,
+      profile_image_url: resolvePublicBarberDisplayImage({
+        profileImageUrl: barber.profile_image_url,
+        galleryImages: gallery,
+        defaultBarberAvatar,
+      }),
+    },
     servicePrices: servicePricesResult.ok ? servicePricesResult.data : [],
     gallery,
     reviews,
@@ -484,7 +675,13 @@ export async function getBarberProfilesByUserIds(
   const authUsers = await loadAuthUsersByIds(uniqueUserIds)
   const byId = new Map<string, BarberProfileSummary>()
 
-  for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+  const normalizedRows = await Promise.all(
+    ((data ?? []) as Array<Record<string, unknown>>).map(async (row) =>
+      normalizeBarberProfileRow(row, typeof row.user_id === 'string' ? authUsers.get(row.user_id) : undefined)
+    )
+  )
+
+  for (const row of normalizedRows) {
     if (typeof row.user_id !== 'string') {
       continue
     }
@@ -495,8 +692,10 @@ export async function getBarberProfilesByUserIds(
       slug: resolveBarberSlug(row),
       displayName: resolveBarberDisplayName(row.user_id, row, authUsers.get(row.user_id)),
       fullName: resolveBarberFullName(row),
+      phone: resolveBarberPhone(row),
       specialty: resolveBarberSpecialty(row),
       profileImageUrl: resolveBarberImage(row),
+      coverImageUrl: resolveBarberCoverImage(row),
       bio: resolveBarberBio(row),
       location: resolveBarberLocation(row),
       cuttingLocation: resolveBarberCuttingLocation(row),
@@ -513,6 +712,7 @@ export async function getBarberProfilesByUserIds(
       isActive: resolveBarberActive(row),
       isLive: resolveBarberLive(row),
       setupStatus: resolveBarberSetupStatus(row),
+      goLiveRejectionReason: resolveGoLiveRejectionReason(row),
     })
   }
 

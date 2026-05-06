@@ -298,6 +298,159 @@ export async function createBarberAvailabilitySlot(userId: string, input: Availa
   }
 }
 
+export async function createBulkBarberAvailabilitySlots(
+  userId: string,
+  input: {
+    dates: string[]
+    startTime: string
+    endTime: string
+  }
+) {
+  const normalizedDates = Array.from(
+    new Set(
+      (Array.isArray(input.dates) ? input.dates : [])
+        .map((value) => normalizeText(value))
+        .filter(Boolean)
+    )
+  )
+  const details: string[] = []
+
+  if (normalizedDates.length === 0) {
+    details.push('Select at least one date before applying availability.')
+  }
+
+  const baseValidation = validateSlot({
+    availableDate: normalizedDates[0] ?? '',
+    startTime: input.startTime,
+    endTime: input.endTime,
+  })
+
+  if (baseValidation.details.length > 0) {
+    details.push(...baseValidation.details.filter((detail) => !detail.includes('Availability date')))
+  }
+
+  const invalidDates = normalizedDates.filter((date) => !isValidDate(date))
+
+  if (invalidDates.length > 0) {
+    details.push('All selected dates must be valid and formatted as YYYY-MM-DD.')
+  }
+
+  if (details.length > 0) {
+    return {
+      ok: false as const,
+      message: 'Bulk availability is invalid.',
+      details,
+    }
+  }
+
+  const barberProfileId = await getBarberProfileIdentity(userId)
+
+  if (!barberProfileId) {
+    return {
+      ok: false as const,
+      message: 'Your barber profile is not active yet.',
+      details: ['A barber profile is required before availability can be managed.'],
+    }
+  }
+
+  const supabase = await createClient()
+  const normalizedStartTime = normalizeTime(input.startTime)
+  const normalizedEndTime = normalizeTime(input.endTime)
+  const { data: existingRows, error: existingError } = await supabase
+    .from('barber_availability_slots')
+    .select('*')
+    .eq('user_id', userId)
+    .in('available_date', normalizedDates)
+    .order('available_date', { ascending: true })
+    .order('start_time', { ascending: true })
+
+  if (existingError && existingError.code !== '42P01' && existingError.code !== 'PGRST205') {
+    console.error('[barber-availability] Failed to inspect bulk availability slots', existingError)
+    return {
+      ok: false as const,
+      message: 'We could not inspect your existing availability slots.',
+      details: [existingError.message],
+    }
+  }
+
+  const rows = (existingRows ?? []) as AvailabilitySlotRecord[]
+  const exactMatches = rows.filter(
+    (row) =>
+      row.available_date &&
+      normalizedDates.includes(row.available_date) &&
+      row.start_time.slice(0, 5) === normalizedStartTime.slice(0, 5) &&
+      row.end_time.slice(0, 5) === normalizedEndTime.slice(0, 5)
+  )
+  const rowsToReactivate = exactMatches.filter((row) => row.is_active === false)
+  const existingKeys = new Set(
+    exactMatches.map(
+      (row) => `${row.available_date}|${row.start_time.slice(0, 5)}|${row.end_time.slice(0, 5)}`
+    )
+  )
+  const rowsToInsert = normalizedDates.filter(
+    (date) => !existingKeys.has(`${date}|${normalizedStartTime.slice(0, 5)}|${normalizedEndTime.slice(0, 5)}`)
+  )
+
+  if (rowsToReactivate.length > 0) {
+    const { error: reactivateError } = await supabase
+      .from('barber_availability_slots')
+      .update({
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      })
+      .in(
+        'id',
+        rowsToReactivate.map((row) => row.id)
+      )
+      .eq('user_id', userId)
+
+    if (reactivateError) {
+      console.error('[barber-availability] Failed to reactivate slots in bulk flow', reactivateError)
+      return {
+        ok: false as const,
+        message: 'We could not reactivate existing availability slots.',
+        details: [reactivateError.message],
+      }
+    }
+  }
+
+  if (rowsToInsert.length > 0) {
+    const { error: insertError } = await supabase
+      .from('barber_availability_slots')
+      .insert(
+        rowsToInsert.map((date) => ({
+          barber_profile_id: barberProfileId,
+          user_id: userId,
+          available_date: date,
+          start_time: normalizedStartTime,
+          end_time: normalizedEndTime,
+          is_active: true,
+        }))
+      )
+
+    if (insertError) {
+      console.error('[barber-availability] Failed to create slots in bulk flow', insertError)
+      return {
+        ok: false as const,
+        message: 'We could not apply availability to the selected dates.',
+        details: [insertError.message],
+      }
+    }
+  }
+
+  const refreshed = await listBarberAvailabilitySlots(userId)
+
+  return {
+    ok: true as const,
+    data: refreshed.ok ? refreshed.data : [],
+    summary: {
+      appliedDates: normalizedDates.length,
+      inserted: rowsToInsert.length,
+      reactivated: rowsToReactivate.length,
+    },
+  }
+}
+
 export async function removeBarberAvailabilitySlot(userId: string, slotId: string) {
   const supabase = await createClient()
   const { error } = await supabase

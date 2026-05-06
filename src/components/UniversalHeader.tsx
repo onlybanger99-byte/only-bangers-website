@@ -5,6 +5,9 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { getDefaultDashboardForRole, normalizeRole, type UserRole } from '@/lib/auth/roles'
 import { supabase } from '@/lib/supabase/client'
+import { useSiteContent } from '@/hooks/useSiteContent'
+import { getSiteImage } from '@/lib/site-content/public'
+import { getSafeImage } from '@/lib/safe-image'
 import styles from './UniversalHeader.module.css'
 
 type SearchResult = {
@@ -21,7 +24,7 @@ type NavLink = {
 }
 
 const BOOK_NOW_HREF = '/services'
-const BARBER_PUBLIC_HREF = '/barber'
+const BARBER_PUBLIC_HREF = '/barbers'
 
 const navLinks: NavLink[] = [
   { label: 'Home', href: '/' },
@@ -127,6 +130,7 @@ export default function UniversalHeader() {
   const [cartItemsCount, setCartItemsCount] = useState(0)
   const [searchQuery, setSearchQuery] = useState('')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [showSearchShortcut, setShowSearchShortcut] = useState(true)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [userRole, setUserRole] = useState<UserRole>(null)
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
@@ -134,6 +138,7 @@ export default function UniversalHeader() {
   const searchPanelRef = useRef<HTMLDivElement>(null)
   const menuPanelRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const { contentMap } = useSiteContent()
 
   const showHero = useMemo(() => {
     if (!pathname) {
@@ -221,6 +226,30 @@ export default function UniversalHeader() {
   }, [isSearchOpen])
 
   useEffect(() => {
+    let lastScrollY = typeof window !== 'undefined' ? window.scrollY : 0
+
+    const handleScroll = () => {
+      const nextScrollY = window.scrollY
+      const scrollingDown = nextScrollY > lastScrollY + 8
+      const scrollingUp = nextScrollY < lastScrollY - 8
+
+      if (nextScrollY <= 32 || scrollingUp || isSearchOpen) {
+        setShowSearchShortcut(true)
+      } else if (scrollingDown) {
+        setShowSearchShortcut(false)
+      }
+
+      lastScrollY = nextScrollY
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+    }
+  }, [isSearchOpen])
+
+  useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node
 
@@ -258,6 +287,15 @@ export default function UniversalHeader() {
 
   const dashboardHref = getDefaultDashboardForRole(userRole)
   const profileHref = isLoggedIn && userRole ? dashboardHref : '/login'
+  const siteLogo = contentMap.site_logo?.imageUrl || contentMap.site_logo?.value || ''
+  const heroBackground =
+    getSiteImage(contentMap, [
+      'site_banner_image',
+      'global_page_background',
+      'site_background_image',
+      'home_background_image',
+    ]) ||
+    getSafeImage(null)
 
   const searchableContent = useMemo(() => {
     const dynamicItems: SearchResult[] = [
@@ -406,13 +444,21 @@ export default function UniversalHeader() {
               </button>
 
               <Link href="/" className={styles.mobileBrand} aria-label="Only Bangers home">
-                ONLY BANGERS
+                {siteLogo ? (
+                  <img src={siteLogo} alt="Only Bangers logo" style={{ height: '1.8rem', width: 'auto' }} />
+                ) : (
+                  'ONLY BANGERS'
+                )}
               </Link>
             </div>
 
             <div className={styles.desktopBrandRow}>
               <Link href="/" className={styles.brand} aria-label="Only Bangers home">
-                ONLY BANGERS
+                {siteLogo ? (
+                  <img src={siteLogo} alt="Only Bangers logo" style={{ height: '2.1rem', width: 'auto' }} />
+                ) : (
+                  'ONLY BANGERS'
+                )}
               </Link>
 
               <nav className={styles.desktopNav} aria-label="Primary navigation">
@@ -430,7 +476,11 @@ export default function UniversalHeader() {
             </div>
 
             <div className={styles.actions}>
-              <div className={styles.searchShell} ref={searchPanelRef}>
+              <div
+                className={styles.searchShell}
+                data-hidden={!showSearchShortcut && !isSearchOpen}
+                ref={searchPanelRef}
+              >
                 <button
                   type="button"
                   onClick={() => (isSearchOpen ? closeSearch() : openSearch())}
@@ -515,9 +565,6 @@ export default function UniversalHeader() {
                 </Link>
               ) : null}
 
-              <Link href={BOOK_NOW_HREF} className={styles.bookNowButton}>
-                Book Now
-              </Link>
             </div>
           </div>
         </div>
@@ -525,13 +572,12 @@ export default function UniversalHeader() {
         {showHero ? (
           <section className={styles.heroSection}>
             <img
-              src="/images/header-bg.png"
+              src={heroBackground}
               alt="Only Bangers premium barbering hero background"
               className={styles.heroImage}
             />
             <div className={styles.heroOverlay} />
             <div className={styles.heroContent}>
-              <p className={styles.kicker}>Only Bangers</p>
               <h1 className={styles.heroTitle}>ONLY BANGERS</h1>
               <p className={styles.heroSubtitle}>LIVE THE VIBE</p>
               <Link href={BOOK_NOW_HREF} className={styles.heroButton}>
@@ -583,10 +629,6 @@ export default function UniversalHeader() {
                 {link.label}
               </Link>
             ))}
-
-            <Link href={BOOK_NOW_HREF} className={styles.sidebarBookNow} onClick={() => setIsMenuOpen(false)}>
-              Book Now
-            </Link>
           </nav>
 
           <div className={styles.sidebarSection}>

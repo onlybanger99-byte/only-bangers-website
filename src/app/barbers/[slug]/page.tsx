@@ -1,7 +1,12 @@
 import { notFound } from 'next/navigation'
+import { PublicBarberImage } from '@/components/barbers/PublicBarberImage'
+import { PublicBarberAvailabilityCalendar } from '@/components/barbers/PublicBarberAvailabilityCalendar'
 import { PublicBarberBookingPanel } from '@/components/barbers/PublicBarberBookingPanel'
-import { formatDate, formatTimeRange } from '@/lib/date-time'
+import { SitePageBackground } from '@/components/site/SitePageBackground'
+import { formatDate } from '@/lib/date-time'
 import { getBarberProfileBySlug } from '@/lib/barbers/service'
+import { getSiteContentMap } from '@/lib/site-content/service'
+import { getSiteImage } from '@/lib/site-content/public'
 import { getSafeImage } from '@/lib/safe-image'
 
 export default async function BarberDetailPage({
@@ -11,6 +16,8 @@ export default async function BarberDetailPage({
 }) {
   const { slug } = await params
   const data = await getBarberProfileBySlug(slug)
+  const contentMap = await getSiteContentMap()
+  const defaultBarberAvatar = getSiteImage(contentMap, 'default_barber_avatar')
 
   if (!data) {
     notFound()
@@ -24,12 +31,13 @@ export default async function BarberDetailPage({
       : null)
 
   return (
-    <div className="page-background">
+    <SitePageBackground backgroundKeys={['global_page_background', 'site_background_image']}>
       <div className="main-content">
         <div className="service-card" style={{ marginBottom: 24 }}>
           <div className="card-content">
-            <img
-              src={getSafeImage(data.barber.profile_image_url)}
+            <PublicBarberImage
+              src={data.barber.profile_image_url || defaultBarberAvatar}
+              name={data.barber.display_name}
               alt={data.barber.display_name}
               style={{ width: '100%', maxHeight: 320, objectFit: 'cover', borderRadius: 20, marginBottom: 20 }}
             />
@@ -44,12 +52,20 @@ export default async function BarberDetailPage({
             {mapHref ? (
               <p className="card-description">
                 <a href={mapHref} target="_blank" rel="noreferrer" className="card-button secondary">
-                  Open Map
+                  Open in Maps
                 </a>
               </p>
             ) : (
               <p className="card-description">Map not available yet.</p>
             )}
+            {data.barber.latitude != null && data.barber.longitude != null ? (
+              <iframe
+                title={`${data.barber.display_name} location map`}
+                src={`https://www.google.com/maps?q=${data.barber.latitude},${data.barber.longitude}&z=15&output=embed`}
+                style={{ width: '100%', minHeight: 260, border: 0, borderRadius: 18, marginTop: 16 }}
+                loading="lazy"
+              />
+            ) : null}
           </div>
         </div>
 
@@ -73,28 +89,25 @@ export default async function BarberDetailPage({
 
         <section style={{ marginBottom: 28 }}>
           <div className="page-header">
-            <h2 className="page-title">Availability Preview</h2>
-            <p className="page-subtitle">Recently published dates and time ranges.</p>
+            <h2 className="page-title">Availability Calendar</h2>
+            <p className="page-subtitle">Highlighted dates reflect live bookable time slots after current bookings are filtered out.</p>
           </div>
-          <div className="services-grid">
-            {data.availabilityPreview.length > 0 ? (
-              data.availabilityPreview.map((slot) => (
-                <article key={slot.id} className="service-card">
-                  <div className="card-content">
-                    <h3 className="card-title">{formatDate(slot.availableDate)}</h3>
-                    <p className="card-description">{formatTimeRange(slot.startTime, slot.endTime)}</p>
-                  </div>
-                </article>
-              ))
-            ) : (
-              <article className="service-card">
-                <div className="card-content">
-                  <h3 className="card-title">No slots published yet</h3>
-                  <p className="card-description">Availability will appear here as soon as this barber publishes bookable dates.</p>
-                </div>
-              </article>
-            )}
-          </div>
+          {data.servicePrices.length > 0 ? (
+            <PublicBarberAvailabilityCalendar
+              barberUserId={data.barber.id}
+              services={data.servicePrices.map((price) => ({
+                id: price.id,
+                label: price.serviceName,
+              }))}
+            />
+          ) : (
+            <div className="service-card">
+              <div className="card-content">
+                <h3 className="card-title">No live services yet</h3>
+                <p className="card-description">Availability will appear here as soon as this barber publishes live pricing.</p>
+              </div>
+            </div>
+          )}
         </section>
 
         <section style={{ marginBottom: 28 }}>
@@ -154,6 +167,6 @@ export default async function BarberDetailPage({
           </div>
         </section>
       </div>
-    </div>
+    </SitePageBackground>
   )
 }

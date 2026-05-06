@@ -28,6 +28,8 @@ export interface PublicBarberServicePriceSummary extends BarberServicePriceSumma
   bio: string
   profileImageUrl: string | null
   barberIsActive: boolean
+  availabilityStatus: string
+  nextAvailableSlot: string | null
 }
 
 export interface BarberServicePriceInput {

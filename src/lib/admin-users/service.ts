@@ -6,6 +6,7 @@ type AdminClient = NonNullable<ReturnType<typeof createAdminClient>>
 type CreateUserFailureStep =
   | 'service_role_validation'
   | 'supabase.auth.admin.createUser'
+  | 'supabase.auth.admin.inviteUserByEmail'
   | 'user_roles.upsert'
   | 'customer_profiles.upsert'
   | 'barber_profiles.upsert'
@@ -223,6 +224,70 @@ function createFailure(params: {
   }
 }
 
+async function provisionAdminManagedUser(
+  adminClient: AdminClient,
+  input: {
+    userId: string
+    email: string
+    role: AppRole
+    displayName?: string | null
+  }
+) {
+  const { error: roleError } = await adminClient
+    .from('user_roles')
+    .upsert({ user_id: input.userId, role: input.role }, { onConflict: 'user_id' })
+
+  if (roleError) {
+    return {
+      ok: false as const,
+      step: 'user_roles.upsert' as const,
+      error: roleError,
+    }
+  }
+
+  const profileSeedName = normalizeText(input.displayName) || fallbackDisplayNameFromEmail(input.email)
+  const customerProfileResult = await saveCustomerProfileFromInput(adminClient, input.userId, {
+    fullName: profileSeedName,
+    phoneNumber: null,
+    profileImageUrl: null,
+  })
+
+  if (!customerProfileResult.ok) {
+    return {
+      ok: false as const,
+      step: 'customer_profiles.upsert' as const,
+      error: customerProfileResult.error,
+    }
+  }
+
+  if (input.role === 'barber') {
+    const slug = await ensureUniqueBarberSlug({
+      displayName: profileSeedName,
+      fullName: profileSeedName,
+    })
+    const barberProfileResult = await saveBarberProfile(adminClient, input.userId, {
+      slug,
+      display_name: profileSeedName,
+      full_name: profileSeedName,
+      specialty: 'Only Bangers Team',
+      bio: 'New barber profile created by admin.',
+      is_active: true,
+      is_live: false,
+      setup_status: 'draft',
+    })
+
+    if (!barberProfileResult.ok) {
+      return {
+        ok: false as const,
+        step: 'barber_profiles.upsert' as const,
+        error: barberProfileResult.error,
+      }
+    }
+  }
+
+  return { ok: true as const }
+}
+
 export async function createManualUser(input: {
   email: string
   password: string
@@ -230,7 +295,8 @@ export async function createManualUser(input: {
 }) {
   const email = normalizeText(input.email).toLowerCase()
   const password = normalizeText(input.password)
-  const role = isAppRole(input.role ?? '') ? input.role : 'customer'
+  const requestedRole = input.role ?? ''
+  const role: AppRole = isAppRole(requestedRole) ? requestedRole : 'customer'
 
   if (!email || !password) {
     return {
@@ -283,103 +349,155 @@ export async function createManualUser(input: {
 
   const userId = createdUser.data.user.id
 
-  const { error: roleError } = await adminClient
-    .from('user_roles')
-    .upsert({ user_id: userId, role }, { onConflict: 'user_id' })
+  const provisionResult = await provisionAdminManagedUser(adminClient, {
+    userId,
+    email,
+    role,
+  })
 
-  if (roleError) {
+  if (!provisionResult.ok) {
     const rollback = await rollbackCreatedUser(adminClient, userId)
-    console.error('[admin-users.createManualUser] user role upsert failed', {
-      step: 'user_roles.upsert',
+    console.error('[admin-users.createManualUser] provisioning failed', {
+      step: provisionResult.step,
       userId,
       email,
       role,
-      code: roleError.code ?? null,
-      message: roleError.message,
+      code: provisionResult.error.code ?? null,
+      message: provisionResult.error.message,
       rollbackOk: rollback.ok,
       rollbackMessage: rollback.ok ? null : rollback.error.message,
     })
 
     return createFailure({
-      step: 'user_roles.upsert',
-      message: 'User was created, but the role could not be assigned.',
+      step: provisionResult.step,
+      message:
+        provisionResult.step === 'user_roles.upsert'
+          ? 'User was created, but the role could not be assigned.'
+          : provisionResult.step === 'customer_profiles.upsert'
+            ? 'User was created, but the profile row could not be saved.'
+            : 'User was created, but the barber profile could not be saved.',
       details: [
-        roleError.message,
+        provisionResult.error.message,
         rollback.ok ? 'The partially created auth user was rolled back.' : `Rollback failed: ${rollback.error.message}`,
       ],
-      code: roleError.code ?? null,
+      code: provisionResult.error.code ?? null,
       rollbackFailed: !rollback.ok,
       rollbackDetails: rollback.ok ? [] : [rollback.error.message],
     })
-  }
-
-  const customerProfileResult = await saveCustomerProfile(adminClient, userId, email)
-
-  if (!customerProfileResult.ok) {
-    const rollback = await rollbackCreatedUser(adminClient, userId)
-    console.error('[admin-users.createManualUser] customer profile upsert failed', {
-      step: 'customer_profiles.upsert',
-      userId,
-      email,
-      role,
-      code: customerProfileResult.error.code ?? null,
-      message: customerProfileResult.error.message,
-      rollbackOk: rollback.ok,
-      rollbackMessage: rollback.ok ? null : rollback.error.message,
-    })
-
-    return createFailure({
-      step: 'customer_profiles.upsert',
-      message: 'User was created, but the profile row could not be saved.',
-      details: [
-        customerProfileResult.error.message,
-        rollback.ok ? 'The partially created auth user was rolled back.' : `Rollback failed: ${rollback.error.message}`,
-      ],
-      code: customerProfileResult.error.code ?? null,
-      rollbackFailed: !rollback.ok,
-      rollbackDetails: rollback.ok ? [] : [rollback.error.message],
-    })
-  }
-
-  if (role === 'barber') {
-    const barberProfileResult = await saveBarberProfile(adminClient, userId, {
-      display_name: fallbackDisplayNameFromEmail(email),
-      specialty: 'Only Bangers Team',
-      bio: 'New barber profile created by admin.',
-      is_active: true,
-    })
-
-    if (!barberProfileResult.ok) {
-      const rollback = await rollbackCreatedUser(adminClient, userId)
-      console.error('[admin-users.createManualUser] barber profile upsert failed', {
-        step: 'barber_profiles.upsert',
-        userId,
-        email,
-        role,
-        code: barberProfileResult.error.code ?? null,
-        message: barberProfileResult.error.message,
-        rollbackOk: rollback.ok,
-        rollbackMessage: rollback.ok ? null : rollback.error.message,
-      })
-
-      return createFailure({
-        step: 'barber_profiles.upsert',
-        message: 'User was created, but the barber profile could not be saved.',
-        details: [
-          barberProfileResult.error.message,
-          rollback.ok ? 'The partially created auth user was rolled back.' : `Rollback failed: ${rollback.error.message}`,
-        ],
-        code: barberProfileResult.error.code ?? null,
-        rollbackFailed: !rollback.ok,
-        rollbackDetails: rollback.ok ? [] : [rollback.error.message],
-      })
-    }
   }
 
   return {
     ok: true as const,
     data: {
       id: userId,
+      email,
+      role,
+    },
+  }
+}
+
+export async function inviteUserByEmailAsAdmin(input: {
+  email: string
+  role?: AppRole
+  displayName?: string | null
+  redirectTo: string
+}) {
+  const email = normalizeText(input.email).toLowerCase()
+  const requestedRole = input.role ?? ''
+  const role: AppRole = isAppRole(requestedRole) ? requestedRole : 'customer'
+  const redirectTo = normalizeText(input.redirectTo)
+
+  if (!email) {
+    return {
+      ok: false as const,
+      message: 'Email is required.',
+      details: ['Provide the user email before sending an invite.'],
+    }
+  }
+
+  if (!redirectTo) {
+    return {
+      ok: false as const,
+      message: 'Invite redirect URL is required.',
+      details: ['Configure the complete-profile redirect before sending invites.'],
+    }
+  }
+
+  let adminClient: AdminClient
+
+  try {
+    adminClient = requireAdminClient()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Supabase admin client is not configured.'
+    return createFailure({
+      step: 'service_role_validation',
+      message,
+      details: [message],
+    })
+  }
+
+  const inviteResult = await adminClient.auth.admin.inviteUserByEmail(email, {
+    redirectTo,
+    data: {
+      role,
+      display_name: normalizeText(input.displayName) || null,
+    },
+  })
+
+  if (inviteResult.error || !inviteResult.data.user) {
+    console.error('[admin-users.inviteUserByEmailAsAdmin] invite failed', {
+      step: 'supabase.auth.admin.inviteUserByEmail',
+      email,
+      role,
+      code: inviteResult.error?.code ?? null,
+      message: inviteResult.error?.message ?? 'Invite failed.',
+    })
+
+    return createFailure({
+      step: 'supabase.auth.admin.inviteUserByEmail',
+      message: inviteResult.error?.message ?? 'Could not send this invite.',
+      details: [
+        inviteResult.error?.message ??
+          'Supabase could not send the invite email. Check email provider and redirect URL configuration.',
+      ],
+      code: inviteResult.error?.code ?? null,
+    })
+  }
+
+  const provisionResult = await provisionAdminManagedUser(adminClient, {
+    userId: inviteResult.data.user.id,
+    email,
+    role,
+    displayName: input.displayName,
+  })
+
+  if (!provisionResult.ok) {
+    console.error('[admin-users.inviteUserByEmailAsAdmin] provisioning failed after invite', {
+      step: provisionResult.step,
+      email,
+      role,
+      userId: inviteResult.data.user.id,
+      code: provisionResult.error.code ?? null,
+      message: provisionResult.error.message,
+    })
+
+    return createFailure({
+      step: provisionResult.step,
+      message:
+        provisionResult.step === 'user_roles.upsert'
+          ? 'Invitation sent, but the user role could not be saved.'
+          : provisionResult.step === 'customer_profiles.upsert'
+            ? 'Invitation sent, but the customer profile could not be saved.'
+            : 'Invitation sent, but the barber profile could not be saved.',
+      details: [provisionResult.error.message],
+      code: provisionResult.error.code ?? null,
+    })
+  }
+
+  return {
+    ok: true as const,
+    data: {
+      id: inviteResult.data.user.id,
       email,
       role,
     },

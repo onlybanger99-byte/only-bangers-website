@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase/client'
 import type { CustomerProfileSummary } from '@/lib/customer-profiles/types'
 import styles from '@/app/portal/profile/complete/complete.module.css'
 
@@ -77,12 +76,20 @@ export function CompleteProfileForm({
     setSuccessMessage('')
 
     if (requirePasswordSetup) {
-      const { error: passwordError } = await supabase.auth.updateUser({
-        password: formData.password,
+      const passwordResponse = await fetch('/api/auth/set-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          password: formData.password,
+          confirmPassword: formData.confirmPassword,
+        }),
       })
+      const passwordPayload = await passwordResponse.json().catch(() => null)
 
-      if (passwordError) {
-        setErrorMessage(passwordError.message || 'We could not secure your password right now.')
+      if (!passwordResponse.ok || !passwordPayload?.ok) {
+        setErrorMessage(passwordPayload?.error?.message || 'We could not secure your password right now.')
         setSaving(false)
         return
       }

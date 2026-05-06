@@ -4,25 +4,31 @@ import { AdminDashboardTabs } from '@/components/admin/AdminDashboardTabs'
 import { getUserRole } from '@/lib/auth/get-user-role'
 import { getDefaultDashboardForRole } from '@/lib/auth/roles'
 import { getAdminDashboardViewModel } from '@/lib/admin-dashboard/data'
+import { listActiveSiteContent } from '@/lib/site-content/service'
+import { getSiteContentImage, getSiteImage } from '@/lib/site-content/public'
 import styles from './dashboard.module.css'
 
 export const dynamic = 'force-dynamic'
 
 type AdminTabId =
+  | 'pending-actions'
   | 'overview'
   | 'bookings'
   | 'barbers'
   | 'users'
-  | 'products'
   | 'services'
+  | 'products'
+  | 'settings'
 
 const VALID_TABS = new Set<AdminTabId>([
+  'pending-actions',
   'overview',
   'bookings',
   'barbers',
   'users',
-  'products',
   'services',
+  'products',
+  'settings',
 ] as const)
 
 export default async function AdminDashboardPage({
@@ -59,7 +65,7 @@ export default async function AdminDashboardPage({
       typeof resolvedSearchParams.booking_page === 'string'
         ? resolvedSearchParams.booking_page
         : '1',
-    tab: typeof resolvedSearchParams.tab === 'string' ? resolvedSearchParams.tab : 'overview',
+    tab: typeof resolvedSearchParams.tab === 'string' ? resolvedSearchParams.tab : 'pending-actions',
   }
 
   const dashboard = await getAdminDashboardViewModel({
@@ -76,19 +82,32 @@ export default async function AdminDashboardPage({
 
   const initialTab: AdminTabId = VALID_TABS.has(current.tab as AdminTabId)
     ? (current.tab as AdminTabId)
-    : 'overview'
+    : 'pending-actions'
+  const siteContent = await listActiveSiteContent()
+  const adminBackground =
+    getSiteImage(siteContent.ok ? siteContent.map : {}, ['admin_dashboard_background', 'global_page_background']) ??
+    null
 
   return (
-    <div className="page-background">
+    <div
+      className="page-background"
+      style={
+        adminBackground
+          ? {
+              backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.92)), url('${adminBackground}')`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }
+          : undefined
+      }
+    >
       <div className={styles.shell}>
         <header className={styles.panelCard}>
           <div className={styles.heroCopy}>
             <div>
-              <p className={styles.eyebrow}>Only Bangers Operations</p>
-              <h1 className={styles.sectionTitle}>Admin command center</h1>
-              <p className={styles.heroText}>
-                Signed in with admin access. Use the dashboard below to review approvals, manage bookings, and control user roles.
-              </p>
+              <p className={styles.eyebrow}>Operational control center</p>
+              <h1 className={styles.sectionTitle}>Admin dashboard</h1>
+              <p className={styles.heroText}>Clear actions, manage the platform, and keep public content current.</p>
             </div>
           </div>
 
@@ -96,7 +115,7 @@ export default async function AdminDashboardPage({
             <div className={styles.identityCard}>
               <span className={styles.metaLabel}>Signed in as</span>
               <strong className={styles.metaValue}>{user.email}</strong>
-              <p className={styles.cardSubmeta}>Admin role verified for full operational control.</p>
+              <p className={styles.cardSubmeta}>Admin access verified.</p>
             </div>
 
             <div className={styles.inlineActions}>

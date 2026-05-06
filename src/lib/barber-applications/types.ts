@@ -40,12 +40,20 @@ export interface CreateBarberApplicationInput {
 
 export interface UpdateBarberProfileInput {
   displayName?: string | null
+  fullName?: string | null
+  phone?: string | null
+  location?: string | null
   cuttingLocation: string
   mapUrl?: string | null
+  latitude?: number | null
+  longitude?: number | null
   instagramUrl?: string | null
   tiktokUrl?: string | null
   facebookUrl?: string | null
   portfolioUrl?: string | null
+  avatarUrl?: string | null
+  profileImageUrl?: string | null
+  coverImageUrl?: string | null
   bio: string
 }
 

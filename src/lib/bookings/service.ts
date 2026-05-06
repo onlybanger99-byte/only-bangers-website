@@ -1,18 +1,21 @@
 import { getUserRole } from '@/lib/auth/get-user-role'
-import { listBarberAvailabilitySlotsForDate } from '@/lib/barber-availability/service'
 import { getBarberServicePriceById } from '@/lib/barber-service-prices/service'
 import { getBarberProfileByUserId } from '@/lib/barbers/service'
 import {
   getCustomerProfile,
   isProfileComplete,
 } from '@/lib/customer-profiles/service'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import {
   buildBookingWhatsAppMessage,
   buildBookingWhatsAppUrl,
 } from '@/lib/whatsapp/booking-message'
 import { formatDate, formatTime } from '@/lib/date-time'
+import {
+  getAvailabilityForBarberServiceDate,
+  isBookableSlotStillAvailable,
+} from './availability'
+import { calculateEndTime } from './time'
 import type {
   BookingAvailability,
   BookingActor,
@@ -53,6 +56,7 @@ type RawBookingRecord = {
   service?: string | null
   service_title?: string | null
   starts_at?: string | null
+  ends_at?: string | null
   status?: string | null
   payment_status?: string | null
   notes?: string | null
@@ -389,18 +393,6 @@ function getPendingExpiryTimestamp(now = new Date()) {
   return new Date(now.getTime() + PENDING_BOOKING_WINDOW_MINUTES * 60 * 1000).toISOString()
 }
 
-function isExpiredPendingBooking(row: {
-  status?: BookingStatus | null
-  pending_expires_at?: string | null
-}) {
-  if (row.status !== 'pending_payment' || !row.pending_expires_at) {
-    return false
-  }
-
-  const expiresAt = new Date(row.pending_expires_at)
-  return !Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() <= Date.now()
-}
-
 function normalizeBookingStatus(
   status: string | null | undefined,
   pendingExpiresAt: string | null | undefined
@@ -434,6 +426,7 @@ function normalizeBookingRecord(row: RawBookingRecord): BookingRecord {
     service_id: row.service_id ?? null,
     service_name: serviceName,
     starts_at: row.starts_at ?? '',
+    ends_at: row.ends_at ?? null,
     status: normalizeBookingStatus(row.status, pendingExpiresAt),
     payment_status: isPaymentStatus(row.payment_status)
       ? row.payment_status
@@ -453,10 +446,6 @@ function getDateOnly(value: string) {
   return value.slice(0, 10)
 }
 
-function getTimeOnly(value: string) {
-  return value.slice(11, 16)
-}
-
 function isValidBookableSlot(startsAt: string) {
   const parsed = new Date(startsAt)
 
@@ -465,16 +454,6 @@ function isValidBookableSlot(startsAt: string) {
   }
 
   return parsed.getTime() > Date.now()
-}
-
-function buildDateRange(date: string) {
-  const start = new Date(`${date}T00:00:00.000Z`)
-  const end = new Date(`${date}T23:59:59.999Z`)
-
-  return {
-    start: start.toISOString(),
-    end: end.toISOString(),
-  }
 }
 
 function applyScopedFilters<T extends { eq: Function }>(
@@ -549,6 +528,7 @@ async function getActorOrError(): Promise<BookingResult<BookingActor>> {
 function validateCreateInput(input: CreateBookingInput, actor: BookingActor) {
   const details: string[] = []
   const startsAt = normalizeTimestamp(input.startsAt)
+  const endsAt = input.endsAt ? normalizeTimestamp(input.endsAt) : null
   const notes = normalizeOptionalText(input.notes)
   const barberId = normalizeRequiredText(input.barberId)
   const barberServicePriceId = normalizeOptionalText(input.barberServicePriceId)
@@ -581,6 +561,7 @@ function validateCreateInput(input: CreateBookingInput, actor: BookingActor) {
     serviceId,
     serviceName: serviceName ?? undefined,
     startsAt,
+    endsAt,
     notes,
   })
 }
@@ -909,6 +890,10 @@ export async function createBooking(
     return failure('VALIDATION_ERROR', 'Selected barber does not exist.')
   }
 
+  if (!barber.isActive || !barber.isLive || !barber.id) {
+    return failure('VALIDATION_ERROR', 'Selected barber is not available for booking.')
+  }
+
   if (!barberPrice || !barberPrice.isActive) {
     return failure('VALIDATION_ERROR', 'Selected barber service price does not exist.')
   }
@@ -925,20 +910,23 @@ export async function createBooking(
     )
   }
 
-  const availability = await getAvailabilityForBarberDate(
-    payload.barberId ?? '',
-    getDateOnly(payload.startsAt)
-  )
+  const durationMinutes = barberPrice.durationMinutes ?? 30
+  const endsAt = payload.endsAt ?? calculateEndTime(payload.startsAt, durationMinutes)
+
+  if (!endsAt) {
+    return failure('VALIDATION_ERROR', 'Selected booking time could not be calculated.')
+  }
+
+  const availability = await isBookableSlotStillAvailable({
+    barberId: payload.barberId ?? '',
+    servicePriceId: barberPrice.id,
+    date: getDateOnly(payload.startsAt),
+    startsAt: payload.startsAt,
+    endsAt,
+  })
 
   if (!availability.ok) {
     return availability
-  }
-
-  if (!availability.data.availableSlots.includes(getTimeOnly(payload.startsAt))) {
-    return failure(
-      'SLOT_UNAVAILABLE',
-      'This time slot is no longer available.'
-    )
   }
 
   const amountDue = barberPrice.price
@@ -979,6 +967,7 @@ export async function createBooking(
       service_id: barberPrice.serviceId ?? payload.serviceId ?? null,
       service_name: barberPrice.serviceName,
       starts_at: payload.startsAt,
+      ends_at: endsAt,
       status: 'pending_payment',
       payment_status: 'unpaid',
       notes: payload.notes,
@@ -994,7 +983,7 @@ export async function createBooking(
     if (isUniqueSlotViolation(error)) {
       return failure(
         'SLOT_UNAVAILABLE',
-        'This time slot is no longer available.'
+        'This time has just been booked. Please choose another time.'
       )
     }
 
@@ -1015,200 +1004,44 @@ export async function createBooking(
 
 export async function getAvailabilityForBarberDate(
   barberId: string,
-  date: string
+  date: string,
+  servicePriceId?: string
 ): Promise<BookingResult<BookingAvailability>> {
-  console.info('[bookings][availability] request', { barberId, date })
   if (!barberId) {
     return failure('VALIDATION_ERROR', 'barberId is required.')
+  }
+
+  if (!servicePriceId) {
+    return failure('VALIDATION_ERROR', 'servicePriceId is required.')
   }
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return failure('VALIDATION_ERROR', 'date must be formatted as YYYY-MM-DD.')
   }
 
-  const dateStart = new Date(`${date}T00:00:00.000Z`)
-
-  if (Number.isNaN(dateStart.getTime())) {
-    return success({
-      barberId,
-      date,
-      slots: [],
-      availabilitySlots: [],
-      availableSlots: [],
-      bookedSlots: [],
-      temporarilyReservedSlots: [],
-    })
-  }
-
-  const barber = await getBarberProfileByUserId(barberId)
-
-  if (!barber) {
-    console.warn('[bookings][availability] barber_not_found', { barberId, date })
-    return failure('VALIDATION_ERROR', 'Selected barber does not exist.')
-  }
-
-  console.info('[bookings][availability] barber_found', {
+  const availability = await getAvailabilityForBarberServiceDate({
     barberId,
-    barberProfileId: barber.id,
-    displayName: barber.displayName,
-  })
-
-  const slotsResult = await listBarberAvailabilitySlotsForDate(barberId, date)
-
-  if (!slotsResult.ok) {
-    console.error('[bookings][availability] slot_lookup_failed', {
-      barberId,
-      date,
-      message: slotsResult.message,
-    })
-    return failure('DATABASE_ERROR', slotsResult.message)
-  }
-
-  const privilegedSupabase = createAdminClient()
-  const dateRange = buildDateRange(date)
-  let blockedRows:
-    | Array<{ starts_at?: string | null; status?: string | null; pending_expires_at?: string | null }>
-    | null = null
-  let error:
-    | { code?: string; message?: string; details?: string; hint?: string }
-    | null = null
-
-  if (privilegedSupabase) {
-    const response = await privilegedSupabase
-      .from('bookings')
-      .select('starts_at, status, pending_expires_at')
-      .eq('barber_id', barberId)
-      .gte('starts_at', dateRange.start)
-      .lte('starts_at', dateRange.end)
-      .in('status', ['pending_payment', 'confirmed', 'completed'])
-
-    blockedRows = response.data as Array<{
-      starts_at?: string | null
-      status?: string | null
-      pending_expires_at?: string | null
-    }> | null
-    error = response.error
-  } else {
-    const supabase = await createClient()
-    const response = await supabase.rpc('get_booked_barber_slots', {
-      p_barber_id: barberId,
-      p_day: date,
-    })
-
-    blockedRows = ((response.data ?? []) as Array<{ starts_at?: string | null }>).map((row) => ({
-      starts_at: row.starts_at ?? null,
-      status: 'confirmed',
-      pending_expires_at: null,
-    }))
-    error = response.error
-  }
-
-  if (error) {
-    if (error.code === '42883' || isMissingRelationError(error)) {
-      return failure(
-        'TABLE_MISSING',
-        'Booking availability is not configured yet. Run the latest booking schema SQL.'
-      )
-    }
-
-    console.error('[bookings] getAvailabilityForBarberDate failed:', error)
-    return failure('DATABASE_ERROR', 'Failed to load booking availability.')
-  }
-
-  const activeRows = (blockedRows ?? []).filter((row) => {
-    const normalizedStatus = normalizeBookingStatus(row.status, row.pending_expires_at)
-
-    if (normalizedStatus === 'expired' || normalizedStatus === 'cancelled') {
-      return false
-    }
-
-    if (normalizedStatus === 'pending_payment') {
-      return !isExpiredPendingBooking({
-        status: normalizedStatus,
-        pending_expires_at: row.pending_expires_at ?? null,
-      })
-    }
-
-    return true
-  })
-
-  const bookedSlots = activeRows
-    .filter((row) => normalizeBookingStatus(row.status, row.pending_expires_at) !== 'pending_payment')
-    .map((row) => row.starts_at)
-    .filter((value): value is string => typeof value === 'string')
-    .map((value) => getTimeOnly(new Date(value).toISOString()))
-
-  const temporarilyReservedSlots = activeRows
-    .filter((row) => normalizeBookingStatus(row.status, row.pending_expires_at) === 'pending_payment')
-    .map((row) => row.starts_at)
-    .filter((value): value is string => typeof value === 'string')
-    .map((value) => getTimeOnly(new Date(value).toISOString()))
-
-  const blockedSet = new Set([...bookedSlots, ...temporarilyReservedSlots])
-  const slots = slotsResult.data.map((slot) => ({
-    id: slot.id,
-    available_date: slot.availableDate,
-    start_time: slot.startTime,
-    end_time: slot.endTime,
-  }))
-
-  const availableSlots = Array.from(
-    new Set(
-      slotsResult.data
-        .flatMap((slot) => buildTimesFromAvailabilitySlot(slot.startTime, slot.endTime))
-        .filter((slot) => !blockedSet.has(slot))
-        .filter((slot) => new Date(`${date}T${slot}:00.000Z`).getTime() > Date.now())
-    )
-  ).sort()
-
-  console.info('[bookings][availability] response', {
-    barberId,
+    servicePriceId,
     date,
-    slotCount: slots.length,
-    availableCount: availableSlots.length,
   })
+
+  if (!availability.ok) {
+    return availability
+  }
 
   return success({
     barberId,
     date,
-    slots,
-    availabilitySlots: slotsResult.data,
-    bookedSlots,
-    temporarilyReservedSlots,
-    availableSlots,
+    servicePriceId,
+    durationMinutes: availability.data.durationMinutes,
+    slots: [],
+    availabilitySlots: [],
+    bookedSlots: [],
+    temporarilyReservedSlots: [],
+    availableSlots: availability.data.availableTimes.map((slot) => slot.startTime),
+    availableTimes: availability.data.availableTimes,
+    message: availability.data.message,
   })
-}
-
-function buildTimesFromAvailabilitySlot(startTime: string, endTime: string) {
-  const slots: string[] = []
-  const start = parseTimeToMinutes(startTime)
-  const end = parseTimeToMinutes(endTime)
-
-  if (start === null || end === null || end <= start) {
-    return slots
-  }
-
-  for (let cursor = start; cursor < end; cursor += 60) {
-    slots.push(formatMinutesAsTime(cursor))
-  }
-
-  return slots
-}
-
-function parseTimeToMinutes(value: string) {
-  const [hours, minutes] = value.slice(0, 5).split(':').map((part) => Number.parseInt(part, 10))
-
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
-    return null
-  }
-
-  return hours * 60 + minutes
-}
-
-function formatMinutesAsTime(value: number) {
-  const hours = Math.floor(value / 60)
-  const minutes = value % 60
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
 }
 
 export async function updateBooking(

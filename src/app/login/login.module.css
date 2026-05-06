@@ -2,7 +2,7 @@
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 2rem 0;
+  padding: 6.5rem 0 2rem;
 }
 
 .loginCard {
@@ -86,6 +86,23 @@
   line-height: 1.65;
 }
 
+.createOptions {
+  display: grid;
+  gap: 1rem;
+}
+
+.magicLinkPanel {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.helperText {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.94rem;
+  line-height: 1.6;
+}
+
 .field {
   display: grid;
   gap: 0.45rem;
@@ -104,8 +121,19 @@
   border: 1px solid rgba(212, 175, 55, 0.18);
   background: rgba(255, 255, 255, 0.03);
   color: var(--text-primary);
-  padding: 0.95rem 1rem;
+  min-height: 48px;
+  max-height: 56px;
+  padding: 0.75rem 1rem;
   font: inherit;
+  box-sizing: border-box;
+}
+
+@media (max-width: 760px) {
+  .input {
+    min-height: 48px;
+    max-height: 54px;
+    padding: 0.7rem 0.95rem;
+  }
 }
 
 .input::placeholder {
@@ -119,9 +147,9 @@
 }
 
 .actionRow {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
-  flex-wrap: wrap;
 }
 
 .primaryButton,
@@ -131,21 +159,36 @@
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  min-height: 3rem;
+  min-height: 48px;
+  max-height: 56px;
   border-radius: 999px;
-  padding: 0.9rem 1.2rem;
+  padding: 0.75rem 1rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-decoration: none;
   transition: all 0.22s ease;
   cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+@media (max-width: 760px) {
+  .primaryButton,
+  .secondaryButton,
+  .oauthButton {
+    min-height: 48px;
+    max-height: 54px;
+    padding: 0.7rem 0.95rem;
+    font-size: 0.85rem;
+  }
 }
 
 .primaryButton {
-  flex: 1 1 12rem;
   border: none;
   background: var(--premium-gold);
   color: var(--premium-dark);
+  width: 100%;
 }
 
 .primaryButton:hover:not(:disabled) {
@@ -154,10 +197,10 @@
 }
 
 .secondaryButton {
-  flex: 1 1 10rem;
   border: 1px solid rgba(212, 175, 55, 0.2);
   background: rgba(255, 255, 255, 0.02);
   color: var(--text-primary);
+  width: 100%;
 }
 
 .secondaryButton:hover {
@@ -232,8 +275,14 @@
 }
 
 @media (max-width: 640px) {
+  .loginShell {
+    padding: 5.75rem 0 1rem;
+  }
+
   .loginCard {
-    padding: 1.1rem;
+    width: min(100%, calc(100% - 1rem));
+    padding: 1rem;
+    gap: 1rem;
   }
 
   .modeBar {
@@ -241,6 +290,12 @@
   }
 
   .actionRow {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+  }
+
+  .primaryButton,
+  .secondaryButton,
+  .oauthButton {
+    width: 100%;
   }
 }

@@ -28,7 +28,7 @@ export function AdminProfileSettings({
   const [form, setForm] = useState({
     fullName: profile.fullName,
     phoneNumber: profile.phoneNumber,
-    profileImageUrl: profile.profileImageUrl === '/images/header-bg.png' ? '' : profile.profileImageUrl,
+    profileImageUrl: profile.profileImageUrl.startsWith('data:image/') ? '' : profile.profileImageUrl,
   })
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')

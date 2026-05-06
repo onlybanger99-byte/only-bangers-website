@@ -7,9 +7,16 @@ import {
   readBookingDraft,
   writeBookingDraft,
 } from '@/lib/bookings/draft'
-import { formatDate, formatTime } from '@/lib/date-time'
+import {
+  clearBookingSelectionCart,
+  readBookingSelectionCart,
+  writeBookingSelectionCart,
+  type BookingSelectionCartItem,
+} from '@/lib/bookings/selection-cart'
+import { formatDate, formatDateTime, formatTime } from '@/lib/date-time'
 import { getSafeImage } from '@/lib/safe-image'
 import { supabase } from '@/lib/supabase/client'
+import { buildBookingWhatsAppUrl } from '@/lib/whatsapp/booking-message'
 
 interface BookingFlowModalProps {
   service: {
@@ -38,6 +45,15 @@ interface BarberOffer {
   durationMinutes: number | null
   serviceId: string | null
   serviceName: string
+  availabilityStatus: string
+  nextAvailableSlot: string | null
+}
+
+interface AvailableTimeOption {
+  startTime: string
+  endTime: string
+  startsAt: string
+  endsAt: string
 }
 
 type Step = 'barber' | 'date' | 'time' | 'confirm'
@@ -52,8 +68,57 @@ function isSelectableDate(dateStr: string) {
   return date >= todayUtc
 }
 
-function buildStartsAt(date: string, time: string) {
-  return `${date}T${time}:00.000Z`
+function getCartKey(item: {
+  barberServicePriceId: string
+  startsAt: string
+}) {
+  return `${item.barberServicePriceId}:${item.startsAt}`
+}
+
+function getMonthDays(currentMonth: Date) {
+  const year = currentMonth.getFullYear()
+  const month = currentMonth.getMonth()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+
+  return Array.from({ length: daysInMonth }, (_, index) => {
+    const day = index + 1
+    return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  })
+}
+
+function buildCombinedWhatsAppMessage(input: {
+  customerName: string
+  phoneNumber: string
+  items: Array<{
+    barberName: string
+    serviceName: string
+    date: string
+    time: string
+    reference: string
+    amount: number
+  }>
+}) {
+  const lines = [
+    'Hi Only Bangers, I would like to confirm payment for the following bookings.',
+    `Customer: ${input.customerName}`,
+    `Phone: ${input.phoneNumber}`,
+    '',
+  ]
+
+  input.items.forEach((item, index) => {
+    lines.push(
+      `${index + 1}. ${item.serviceName}`,
+      `Barber: ${item.barberName}`,
+      `Date: ${item.date}`,
+      `Time: ${item.time}`,
+      `Booking Reference: ${item.reference}`,
+      `Amount Due: R${item.amount}`,
+      ''
+    )
+  })
+
+  lines.push('Please send payment proof here so the team can verify and confirm the bookings.')
+  return lines.join('\n')
 }
 
 export default function BookingFlowModal({
@@ -63,21 +128,111 @@ export default function BookingFlowModal({
   preferredBarberUserId = null,
 }: BookingFlowModalProps) {
   const router = useRouter()
+  const [bookingCart, setBookingCart] = useState<BookingSelectionCartItem[]>([])
   const [step, setStep] = useState<Step>('barber')
   const [selectedOffer, setSelectedOffer] = useState<BarberOffer | null>(null)
   const [selectedDate, setSelectedDate] = useState('')
-  const [selectedTime, setSelectedTime] = useState('')
-  const [availableTimes, setAvailableTimes] = useState<string[]>([])
+  const [selectedSlot, setSelectedSlot] = useState<AvailableTimeOption | null>(null)
+  const [availableTimes, setAvailableTimes] = useState<AvailableTimeOption[]>([])
+  const [monthAvailability, setMonthAvailability] = useState<Record<string, number>>({})
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [offers, setOffers] = useState<BarberOffer[]>([])
   const [loadingOffers, setLoadingOffers] = useState(false)
   const [loadingTimes, setLoadingTimes] = useState(false)
+  const [loadingCalendar, setLoadingCalendar] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
+  const [availabilityMessage, setAvailabilityMessage] = useState('')
 
   const selectedLocation = useMemo(() => {
     return selectedOffer?.cuttingLocation || selectedOffer?.location || 'Location not set'
   }, [selectedOffer])
+
+  const cartForCurrentOffer = useMemo(() => {
+    if (!selectedOffer) {
+      return bookingCart
+    }
+
+    return bookingCart.filter((item) => item.barberServicePriceId === selectedOffer.id)
+  }, [bookingCart, selectedOffer])
+
+  const syncCart = (items: BookingSelectionCartItem[]) => {
+    writeBookingSelectionCart(items)
+  }
+
+  const loadAvailability = async (
+    offer: BarberOffer,
+    date: string,
+    currentSelectedTime = selectedSlot?.startTime ?? ''
+  ) => {
+    setLoadingTimes(true)
+    setErrorMessage('')
+    setAvailabilityMessage('')
+
+    try {
+      const params = new URLSearchParams({
+        barberId: offer.barberUserId,
+        servicePriceId: offer.id,
+        date,
+      })
+
+      const response = await fetch(`/api/bookings/availability?${params.toString()}`)
+      const payload = await response.json()
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error?.message ?? 'Failed to load availability.')
+      }
+
+      const slots = Array.isArray(payload?.data?.availableTimes)
+        ? (payload.data.availableTimes as AvailableTimeOption[])
+        : []
+
+      setAvailableTimes(slots)
+      setAvailabilityMessage(typeof payload?.data?.message === 'string' ? payload.data.message : '')
+      setMonthAvailability((current) => ({
+        ...current,
+        [date]: slots.length,
+      }))
+      setSelectedSlot(slots.find((slot) => slot.startTime === currentSelectedTime) ?? null)
+    } catch (error) {
+      console.error('[booking-flow] Failed to load availability:', error)
+      setAvailableTimes([])
+      setSelectedSlot(null)
+      setAvailabilityMessage('')
+      setErrorMessage(error instanceof Error ? error.message : 'Could not load availability.')
+    } finally {
+      setLoadingTimes(false)
+    }
+  }
+
+  const loadMonthAvailability = async (offer: BarberOffer, month: Date) => {
+    setLoadingCalendar(true)
+
+    try {
+      const days = getMonthDays(month).filter(isSelectableDate)
+      const entries = await Promise.all(
+        days.map(async (date) => {
+          const params = new URLSearchParams({
+            barberId: offer.barberUserId,
+            servicePriceId: offer.id,
+            date,
+          })
+          const response = await fetch(`/api/bookings/availability?${params.toString()}`)
+          const payload = await response.json().catch(() => null)
+          const count = Array.isArray(payload?.data?.availableTimes) ? payload.data.availableTimes.length : 0
+          return [date, count] as const
+        })
+      )
+
+      setMonthAvailability(Object.fromEntries(entries))
+    } catch (error) {
+      console.error('[booking-flow] Failed to load month availability', error)
+      setMonthAvailability({})
+    } finally {
+      setLoadingCalendar(false)
+    }
+  }
 
   useEffect(() => {
     if (isOpen) {
@@ -96,16 +251,22 @@ export default function BookingFlowModal({
       setStep('barber')
       setSelectedOffer(null)
       setSelectedDate('')
-      setSelectedTime('')
+      setSelectedSlot(null)
       setAvailableTimes([])
+      setMonthAvailability({})
       setCurrentMonth(new Date())
       setErrorMessage('')
+      setSuccessMessage('')
+      setAvailabilityMessage('')
       return
     }
 
     let isActive = true
+    setBookingCart(readBookingSelectionCart())
     setLoadingOffers(true)
     setErrorMessage('')
+    setSuccessMessage('')
+    setAvailabilityMessage('')
 
     const params = new URLSearchParams({
       serviceId: service.id,
@@ -154,7 +315,7 @@ export default function BookingFlowModal({
     return () => {
       isActive = false
     }
-  }, [isOpen, preferredBarberUserId, service.id, service.name])
+  }, [isOpen, preferredBarberUserId, service.id])
 
   useEffect(() => {
     if (!isOpen || offers.length === 0) {
@@ -179,68 +340,30 @@ export default function BookingFlowModal({
 
     setSelectedOffer(draftOffer)
     setSelectedDate(draft.date)
-    setSelectedTime(draft.time)
-    setStep(draft.date ? (draft.time ? 'confirm' : 'time') : 'date')
+    setStep(draft.date ? 'time' : 'date')
   }, [isOpen, offers, service.id])
+
+  useEffect(() => {
+    if (!selectedOffer || !isOpen) {
+      return
+    }
+
+    loadMonthAvailability(selectedOffer, currentMonth).catch(() => undefined)
+  }, [currentMonth, isOpen, selectedOffer])
 
   useEffect(() => {
     if (!selectedOffer || !selectedDate) {
       setAvailableTimes([])
+      setSelectedSlot(null)
+      setAvailabilityMessage('')
       return
     }
 
-    let isActive = true
-    setLoadingTimes(true)
-    setErrorMessage('')
-
-    const params = new URLSearchParams({
-      availability: 'true',
-      barberId: selectedOffer.barberUserId,
-      date: selectedDate,
-    })
-
-    fetch(`/api/bookings?${params.toString()}`)
-      .then(async (response) => {
-        const payload = await response.json()
-
-        if (!response.ok || !payload?.ok) {
-          throw new Error(payload?.error?.message ?? 'Failed to load availability.')
-        }
-
-        return Array.isArray(payload?.data?.availableSlots) ? (payload.data.availableSlots as string[]) : []
-      })
-      .then((slots) => {
-        if (!isActive) {
-          return
-        }
-
-        setAvailableTimes(slots)
-
-        if (selectedTime && !slots.includes(selectedTime)) {
-          setSelectedTime('')
-        }
-      })
-      .catch((error) => {
-        console.error('[booking-flow] Failed to load availability:', error)
-
-        if (isActive) {
-          setAvailableTimes([])
-          setErrorMessage(error instanceof Error ? error.message : 'Could not load availability.')
-        }
-      })
-      .finally(() => {
-        if (isActive) {
-          setLoadingTimes(false)
-        }
-      })
-
-    return () => {
-      isActive = false
-    }
-  }, [selectedDate, selectedOffer, selectedTime])
+    loadAvailability(selectedOffer, selectedDate, selectedSlot?.startTime ?? '').catch(() => undefined)
+  }, [selectedDate, selectedOffer])
 
   const persistDraft = () => {
-    if (!selectedOffer || !selectedDate || !selectedTime) {
+    if (!selectedOffer || !selectedDate || !selectedSlot) {
       return
     }
 
@@ -253,7 +376,7 @@ export default function BookingFlowModal({
       barberId: selectedOffer.barberUserId,
       barberName: selectedOffer.barberName,
       date: selectedDate,
-      time: selectedTime,
+      time: selectedSlot.startTime,
     })
   }
 
@@ -267,41 +390,66 @@ export default function BookingFlowModal({
     router.push(`/portal/profile/complete?next=${encodeURIComponent('/services?resumeBooking=1')}`)
   }
 
-  const handleContinueToConfirm = async () => {
-    if (!selectedOffer || !selectedDate || !selectedTime) {
+  const addCurrentSlotToCart = () => {
+    if (!selectedOffer || !selectedDate || !selectedSlot) {
+      setErrorMessage('Please select a barber, date, and time before adding to cart.')
       return
     }
 
-    persistDraft()
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      routeToAuth()
-      return
+    const nextItem: BookingSelectionCartItem = {
+      key: getCartKey({
+        barberServicePriceId: selectedOffer.id,
+        startsAt: selectedSlot.startsAt,
+      }),
+      serviceId: selectedOffer.serviceId ?? service.id,
+      serviceName: selectedOffer.serviceName,
+      serviceImage: service.image,
+      barberId: selectedOffer.barberUserId,
+      barberName: selectedOffer.barberName,
+      barberServicePriceId: selectedOffer.id,
+      price: selectedOffer.price,
+      date: selectedDate,
+      startTime: selectedSlot.startTime,
+      endTime: selectedSlot.endTime,
+      startsAt: selectedSlot.startsAt,
+      endsAt: selectedSlot.endsAt,
     }
 
-    const profileResponse = await fetch('/api/profile')
-    const profilePayload = await profileResponse.json()
-
-    if (profileResponse.status === 401) {
-      routeToAuth()
-      return
-    }
-
-    if (!profileResponse.ok || !profilePayload?.data?.requiredFieldsComplete) {
-      routeToProfile()
-      return
-    }
-
+    const existing = readBookingSelectionCart()
+    const withoutDuplicate = existing.filter((item) => item.key !== nextItem.key)
+    syncCart([...withoutDuplicate, nextItem])
     setErrorMessage('')
-    setStep('confirm')
+    setSuccessMessage('✓ Slot added to your booking cart.')
+    setSelectedSlot(null)
+    
+    // Auto-clear success message after 3 seconds
+    setTimeout(() => {
+      setSuccessMessage('')
+    }, 3000)
   }
 
-  const handleConfirmBooking = async () => {
-    if (!selectedOffer || !selectedDate || !selectedTime) {
+  const removeCartItem = (itemKey: string) => {
+    removeFromCart(itemKey)
+  }
+
+  const handleReviewCart = () => {
+    if (selectedSlot) {
+      addCurrentSlotToCart()
+    }
+
+    const nextCart = readBookingSelectionCart()
+
+    if (nextCart.length > 0) {
+      setBookingCart(nextCart)
+      setStep('confirm')
+    }
+  }
+
+  const handleCheckout = async () => {
+    const items = readBookingSelectionCart()
+
+    if (items.length === 0) {
+      setErrorMessage('Add at least one slot to your booking cart before checkout.')
       return
     }
 
@@ -309,70 +457,173 @@ export default function BookingFlowModal({
     setSubmitting(true)
     setErrorMessage('')
 
-    const response = await fetch('/api/bookings', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        barberId: selectedOffer.barberUserId,
-        barberServicePriceId: selectedOffer.id,
-        serviceId: selectedOffer.serviceId ?? service.id,
-        serviceName: selectedOffer.serviceName,
-        startsAt: buildStartsAt(selectedDate, selectedTime),
-      }),
-    })
-    const payload = await response.json()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-    if (!response.ok || !payload?.ok) {
-      const code = payload?.error?.code
-      const message =
-        payload?.error?.message ?? 'We could not create the WhatsApp checkout. Please try again.'
-
-      if (code === 'UNAUTHORIZED') {
-        setSubmitting(false)
-        routeToAuth()
-        return
-      }
-
-      if (code === 'INCOMPLETE_PROFILE') {
-        setSubmitting(false)
-        routeToProfile()
-        return
-      }
-
-      if (code === 'SLOT_UNAVAILABLE') {
-        setStep('time')
-        setSelectedTime('')
-      }
-
-      setErrorMessage(message)
+    if (!user) {
       setSubmitting(false)
+      routeToAuth()
       return
     }
 
-    const whatsappUrl = payload?.data?.whatsapp_redirect_url
+    const profileResponse = await fetch('/api/profile')
+    const profilePayload = await profileResponse.json().catch(() => null)
 
-    if (!whatsappUrl) {
-      setErrorMessage(
-        'Your booking was created, but WhatsApp checkout is not configured yet. Please contact support.'
-      )
+    if (profileResponse.status === 401) {
       setSubmitting(false)
-      router.refresh()
+      routeToAuth()
       return
+    }
+
+    if (!profileResponse.ok || !profilePayload?.data?.requiredFieldsComplete) {
+      setSubmitting(false)
+      routeToProfile()
+      return
+    }
+
+    const created: Array<{
+      reference: string
+      amount: number
+      barberName: string
+      serviceName: string
+      date: string
+      time: string
+      whatsappUrl: string | null
+      itemKey: string
+    }> = []
+    const failedKeys = new Set<string>()
+    let lastSlotError = ''
+
+    for (const item of items) {
+      const response = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          barberId: item.barberId,
+          barberServicePriceId: item.barberServicePriceId,
+          serviceId: item.serviceId,
+          serviceName: item.serviceName,
+          startsAt: item.startsAt,
+          endsAt: item.endsAt,
+        }),
+      })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok || !payload?.ok) {
+        const code = payload?.error?.code
+        const message = payload?.error?.message ?? 'We could not create the WhatsApp checkout.'
+
+        if (code === 'UNAUTHORIZED') {
+          setSubmitting(false)
+          routeToAuth()
+          return
+        }
+
+        if (code === 'INCOMPLETE_PROFILE') {
+          setSubmitting(false)
+          routeToProfile()
+          return
+        }
+
+        if (code === 'SLOT_UNAVAILABLE') {
+          failedKeys.add(item.key)
+          lastSlotError = message
+
+          if (selectedOffer?.id === item.barberServicePriceId && selectedDate === item.date) {
+            await loadAvailability(selectedOffer, item.date, '')
+          }
+
+          continue
+        }
+
+        setSubmitting(false)
+        setErrorMessage(message)
+        return
+      }
+
+      created.push({
+        reference:
+          payload.data?.payment_reference || `OB-${String(payload.data?.id || '').slice(0, 8).toUpperCase()}`,
+        amount: typeof payload.data?.amount_due === 'number' ? payload.data.amount_due : item.price,
+        barberName: item.barberName,
+        serviceName: item.serviceName,
+        date: formatDate(item.date),
+        time: `${formatTime(item.startTime)} - ${formatTime(item.endTime)}`,
+        whatsappUrl: payload.data?.whatsapp_redirect_url ?? null,
+        itemKey: item.key,
+      })
+    }
+
+    const remainingItems = items.filter((item) => failedKeys.has(item.key))
+    syncCart(remainingItems)
+
+    if (created.length === 0) {
+      setSubmitting(false)
+      setErrorMessage(lastSlotError || 'We could not create your bookings. Please try again.')
+      return
+    }
+
+    const profile = profilePayload?.data?.profile
+    const customerName =
+      profile?.fullName ||
+      [profile?.firstName, profile?.lastName].filter(Boolean).join(' ') ||
+      user.email ||
+      'Only Bangers Customer'
+    const phoneNumber = profile?.phoneNumber || 'Not provided'
+    const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_BOOKING_NUMBER ?? ''
+    const combinedMessage = buildCombinedWhatsAppMessage({
+      customerName,
+      phoneNumber,
+      items: created.map((item) => ({
+        barberName: item.barberName,
+        serviceName: item.serviceName,
+        date: item.date,
+        time: item.time,
+        reference: item.reference,
+        amount: item.amount,
+      })),
+    })
+
+    let redirectUrl = created[0]?.whatsappUrl ?? null
+
+    try {
+      redirectUrl = buildBookingWhatsAppUrl(whatsappNumber, combinedMessage)
+    } catch {
+      redirectUrl = created[0]?.whatsappUrl ?? null
     }
 
     setSubmitting(false)
     router.refresh()
     clearBookingDraft()
-    window.location.href = whatsappUrl
+
+    if (failedKeys.size === 0) {
+      clearBookingSelectionCart()
+    }
+
+    if (lastSlotError && failedKeys.size > 0) {
+      setErrorMessage(lastSlotError)
+    }
+
+    if (!redirectUrl) {
+      setErrorMessage(
+        'Your booking was created, but WhatsApp checkout is not configured yet. Please contact support.'
+      )
+      return
+    }
+
+    window.location.href = redirectUrl
   }
 
   const handleDateSelect = (dateStr: string) => {
     setSelectedDate(dateStr)
-    setSelectedTime('')
+    setSelectedSlot(null)
     setStep('time')
     setErrorMessage('')
+    setSuccessMessage('')
+    setAvailabilityMessage('')
   }
 
   const generateCalendar = () => {
@@ -390,15 +641,19 @@ export default function BookingFlowModal({
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
       const isDisabled = !isSelectableDate(dateStr)
       const isSelected = dateStr === selectedDate
+      const availableCount = monthAvailability[dateStr] ?? 0
 
       days.push(
-        <div
+        <button
           key={dateStr}
-          className={`calendar-day ${isDisabled ? 'unavailable' : ''} ${isSelected ? 'selected' : ''}`}
+          type="button"
+          className={`calendar-day ${isDisabled ? 'unavailable' : ''} ${isSelected ? 'selected' : ''} ${availableCount > 0 ? 'available' : ''}`}
           onClick={() => !isDisabled && handleDateSelect(dateStr)}
+          disabled={isDisabled}
         >
           <span className="day-number">{day}</span>
-        </div>
+          {!isDisabled && availableCount > 0 ? <span className="day-status">{availableCount}</span> : null}
+        </button>
       )
     }
 
@@ -426,17 +681,15 @@ export default function BookingFlowModal({
         </div>
 
         <div className="modal-body">
-          <div className="barber-card">
-            <div className="barber-info">
-              <p className="modal-subtitle">Selected cut</p>
-              <h4>{service.name}</h4>
-              {service.description ? <p>{service.description}</p> : null}
-            </div>
-          </div>
-
           {errorMessage ? (
             <div className="no-times-message">
               <p>{errorMessage}</p>
+            </div>
+          ) : null}
+
+          {successMessage ? (
+            <div className="no-times-message">
+              <p>{successMessage}</p>
             </div>
           ) : null}
 
@@ -448,18 +701,21 @@ export default function BookingFlowModal({
                 <div className="loading-times">Loading barber prices...</div>
               ) : offers.length === 0 ? (
                 <div className="no-times-message">
-                  <p>No barbers are currently offering this service.</p>
+                  <p>No live barbers currently offer this service.</p>
                 </div>
               ) : (
                 <div className="barber-list">
                   {offers.map((offer) => (
-                    <div
+                    <button
                       key={offer.id}
+                      type="button"
                       className="barber-card"
                       onClick={() => {
                         setSelectedOffer(offer)
                         setSelectedDate('')
-                        setSelectedTime('')
+                        setSelectedSlot(null)
+                        setAvailabilityMessage('')
+                        setSuccessMessage('')
                         setStep('date')
                       }}
                     >
@@ -475,18 +731,13 @@ export default function BookingFlowModal({
                         <p>{offer.cuttingLocation || offer.location || 'Location not set'}</p>
                         <p>R{offer.price}</p>
                         <p>{offer.durationMinutes ? `${offer.durationMinutes} minutes` : 'Duration not set'}</p>
-                        <p>Available to book</p>
-                        {offer.bio ? <p>{offer.bio}</p> : null}
+                        <p>{offer.availabilityStatus}</p>
+                        {offer.nextAvailableSlot ? <p>{formatDateTime(offer.nextAvailableSlot)}</p> : null}
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
-              <div className="modal-actions">
-                <button className="modal-btn secondary" onClick={onClose}>
-                  Cancel
-                </button>
-              </div>
             </>
           ) : null}
 
@@ -507,6 +758,7 @@ export default function BookingFlowModal({
                   Next
                 </button>
               </div>
+              {loadingCalendar ? <div className="loading-times">Loading calendar...</div> : null}
               <div className="calendar-grid">
                 <div className="calendar-header">Sun</div>
                 <div className="calendar-header">Mon</div>
@@ -516,6 +768,9 @@ export default function BookingFlowModal({
                 <div className="calendar-header">Fri</div>
                 <div className="calendar-header">Sat</div>
                 {generateCalendar()}
+              </div>
+              <div className="calendar-legend">
+                <span><span className="legend-box today"></span>Available dates show slot counts</span>
               </div>
               <div className="modal-actions">
                 <button className="modal-btn secondary" onClick={() => setStep('barber')}>
@@ -535,20 +790,20 @@ export default function BookingFlowModal({
                 <div className="loading-times">Loading available times...</div>
               ) : availableTimes.length === 0 ? (
                 <div className="no-times-message">
-                  <p>No availability set for this date.</p>
+                  <p>{availabilityMessage || 'No availability set for this date.'}</p>
                   <button className="modal-btn primary" onClick={() => setStep('date')}>
                     Back to Calendar
                   </button>
                 </div>
               ) : (
                 <div className="time-slots">
-                  {availableTimes.map((time) => (
+                  {availableTimes.map((slot) => (
                     <button
-                      key={time}
-                      className={`time-slot ${selectedTime === time ? 'selected' : ''}`}
-                      onClick={() => setSelectedTime(time)}
+                      key={slot.startsAt}
+                      className={`time-slot ${selectedSlot?.startsAt === slot.startsAt ? 'selected' : ''}`}
+                      onClick={() => setSelectedSlot(slot)}
                     >
-                      {formatTime(time)}
+                      {formatTime(slot.startTime)}
                     </button>
                   ))}
                 </div>
@@ -558,50 +813,60 @@ export default function BookingFlowModal({
                   Back
                 </button>
                 <button
-                  className="modal-btn primary"
-                  onClick={handleContinueToConfirm}
-                  disabled={!selectedTime || loadingTimes}
+                  className="modal-btn secondary"
+                  onClick={addCurrentSlotToCart}
+                  disabled={!selectedSlot || loadingTimes}
                 >
-                  Continue
+                  Add to Cart
                 </button>
+                {bookingCart.length > 0 ? (
+                  <button
+                    className="modal-btn primary"
+                    onClick={() => setStep('confirm')}
+                  >
+                    View Cart ({bookingCart.length})
+                  </button>
+                ) : null}
               </div>
             </>
           ) : null}
 
           {step === 'confirm' ? (
             <>
-              <h2>Confirm Booking</h2>
+              <h2>Booking Cart</h2>
               <p className="modal-subtitle">
-                Review your appointment before we reserve the slot and continue to WhatsApp checkout.
+                Review every selected slot before we reserve them and continue to WhatsApp checkout.
               </p>
-              <div className="barber-card">
-                <img
-                  src={getSafeImage(selectedOffer?.profileImageUrl)}
-                  alt={selectedOffer?.barberName || 'Selected barber'}
-                  onError={(event) => {
-                    event.currentTarget.src = getSafeImage(null)
-                  }}
-                />
-                <div className="barber-info">
-                  <h4>{selectedOffer?.serviceName ?? service.name}</h4>
-                  <p>{selectedOffer?.barberName ?? 'Barber not selected'}</p>
-                  <p>{selectedLocation}</p>
-                  <p>{selectedDate ? formatDate(selectedDate) : 'Date not set'}</p>
-                  <p>{selectedTime ? formatTime(selectedTime) : 'Time not set'}</p>
-                  <p>{selectedOffer ? `R${selectedOffer.price}` : 'Price not set'}</p>
+              {bookingCart.length > 0 ? (
+                <div className="barber-list">
+                  {bookingCart.map((item) => (
+                    <div key={item.key} className="barber-card">
+                      <div className="barber-info">
+                        <h4>{item.serviceName}</h4>
+                        <p>{item.barberName}</p>
+                        <p>{formatDate(item.date)}</p>
+                        <p>{formatTime(item.startTime)} - {formatTime(item.endTime)}</p>
+                        <p>R{item.price}</p>
+                      </div>
+                      <button className="modal-btn secondary" onClick={() => removeCartItem(item.key)}>
+                        Remove
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              ) : (
+                <div className="no-times-message">
+                  <p>No booking slots have been added yet.</p>
+                </div>
+              )}
               <div className="modal-actions">
-                <button className="modal-btn secondary" onClick={onClose} disabled={submitting}>
-                  Continue Browsing
-                </button>
-                <button className="modal-btn secondary" onClick={() => setStep('time')}>
-                  Back
+                <button className="modal-btn secondary" onClick={() => setStep('barber')}>
+                  Continue Shopping
                 </button>
                 <button
                   className="modal-btn primary"
-                  onClick={handleConfirmBooking}
-                  disabled={submitting || !selectedOffer}
+                  onClick={handleCheckout}
+                  disabled={submitting || bookingCart.length === 0}
                 >
                   {submitting ? 'Creating Checkout...' : 'Checkout on WhatsApp'}
                 </button>

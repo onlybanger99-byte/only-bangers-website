@@ -9,28 +9,28 @@ type AppRole = 'customer' | 'barber' | 'admin'
 export function AdminCreateUserForm() {
   const router = useRouter()
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [displayName, setDisplayName] = useState('')
   const [role, setRole] = useState<AppRole>('customer')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [errorDetails, setErrorDetails] = useState<string[]>([])
 
-  const createUser = async (event: React.FormEvent<HTMLFormElement>) => {
+  const sendInvite = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setLoading(true)
     setMessage('')
     setError('')
     setErrorDetails([])
 
-    const response = await fetch('/api/admin/users/create', {
+    const response = await fetch('/api/admin/users/invite', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         email,
-        password,
+        displayName,
         role,
       }),
     })
@@ -41,58 +41,63 @@ export function AdminCreateUserForm() {
       const details = Array.isArray(payload?.error?.details)
         ? payload.error.details.filter((detail: unknown): detail is string => typeof detail === 'string' && detail.trim().length > 0)
         : []
-      const message =
+      const nextMessage =
         payload?.error?.message ??
         payload?.message ??
         payload?.error ??
-        'Could not create this user.'
+        'Could not send this invite.'
 
-      setError(message)
+      setError(nextMessage)
       setErrorDetails(details)
       setLoading(false)
       return
     }
 
     setEmail('')
-    setPassword('')
+    setDisplayName('')
     setRole('customer')
-    setMessage('User created.')
+    setMessage(payload?.message ?? 'Invitation sent to email.')
     setLoading(false)
     router.refresh()
   }
 
   return (
-    <form className={styles.filtersGridCompact} onSubmit={createUser}>
-      <input
-        type="email"
-        className={styles.input}
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-        placeholder="Email address"
-        required
-      />
-      <input
-        type="password"
-        className={styles.input}
-        value={password}
-        onChange={(event) => setPassword(event.target.value)}
-        placeholder="Temporary password"
-        required
-      />
-      <select className={styles.input} value={role} onChange={(event) => setRole(event.target.value as AppRole)}>
-        <option value="customer">Customer</option>
-        <option value="barber">Barber</option>
-        <option value="admin">Admin</option>
-      </select>
-      <button type="submit" className={styles.primaryButton} disabled={loading}>
-        {loading ? 'Creating...' : 'Add User'}
-      </button>
+    <form className={styles.formStack} onSubmit={sendInvite}>
+      <p className={styles.cardSubmeta}>
+        Send an account setup email so the user can complete their profile and set their own password.
+      </p>
+
+      <div className={styles.filtersGridCompactWide}>
+        <input
+          type="email"
+          className={styles.input}
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="Email address"
+          required
+        />
+        <input
+          className={styles.input}
+          value={displayName}
+          onChange={(event) => setDisplayName(event.target.value)}
+          placeholder="Display name (optional)"
+        />
+        <select className={styles.input} value={role} onChange={(event) => setRole(event.target.value as AppRole)}>
+          <option value="customer">Customer</option>
+          <option value="barber">Barber</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button type="submit" className={styles.primaryButton} disabled={loading}>
+          {loading ? 'Sending...' : 'Send Invite'}
+        </button>
+      </div>
+
       {message ? <p className={styles.successText}>{message}</p> : null}
       {error ? (
         <div className={styles.errorText}>
           <p>{error}</p>
           {errorDetails.length > 0 ? (
-            <ul>
+            <ul className={styles.errorList}>
               {errorDetails.map((detail) => (
                 <li key={detail}>{detail}</li>
               ))}
