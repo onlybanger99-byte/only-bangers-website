@@ -429,7 +429,9 @@ export default function BookingFlowModal({
   }
 
   const removeCartItem = (itemKey: string) => {
-    removeFromCart(itemKey)
+    const nextCart = readBookingSelectionCart().filter((item) => item.key !== itemKey)
+    syncCart(nextCart)
+    setBookingCart(nextCart)
   }
 
   const handleReviewCart = () => {
