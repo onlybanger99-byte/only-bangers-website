@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { SitePageBackground } from '@/components/site/SitePageBackground'
 import { useSiteContent } from '@/hooks/useSiteContent'
 import { getSiteContentImage, getSiteContentValue, getSiteContentVideo, getSiteImage } from '@/lib/site-content/public'
+import { BRAND_ASSETS } from '@/lib/brand-assets'
 import { getSafeImage } from '@/lib/safe-image'
 import styles from './page.module.css'
 
@@ -136,11 +137,11 @@ export default function HomePage() {
 
   const proofTiles = PROOF_TILES.map((tile) => ({
     ...tile,
-    image: getSiteContentImage(contentMap, tile.imageKey, '') || getSafeImage(null),
+    image: getSiteContentImage(contentMap, tile.imageKey, '') || BRAND_ASSETS.hero,
   }))
   const currentProofTile = proofTiles[activeProof]
   const heroImage =
-    getSiteImage(contentMap, ['site_banner_image', 'home_hero_image']) || getSafeImage(null)
+    getSiteImage(contentMap, ['site_banner_image', 'home_hero_image']) || BRAND_ASSETS.hero
   const heroVideo = getSiteContentVideo(contentMap, 'home_hero_video')
   const ctaImage = getSiteImage(contentMap, 'home_section_7_image')
   const instagramUrl = getSiteContentValue(contentMap, 'footer_instagram_url', 'https://www.instagram.com/only_bangers99')

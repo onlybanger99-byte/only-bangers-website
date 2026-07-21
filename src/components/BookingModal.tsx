@@ -1,7 +1,7 @@
 'use client'
 
 import BookingFlowModal from './BookingFlowModal'
-import { getSafeImage } from '@/lib/safe-image'
+import { BRAND_ASSETS } from '@/lib/brand-assets'
 
 interface BookingModalProps {
   service: {
@@ -22,7 +22,7 @@ export default function BookingModal({ service, isOpen, onClose }: BookingModalP
         id: service.id,
         name: service.name,
         price: service.price,
-        image: getSafeImage(null),
+        image: BRAND_ASSETS.background,
         description: service.description,
         duration: service.duration,
       }}

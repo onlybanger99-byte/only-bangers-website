@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSiteContent } from '@/hooks/useSiteContent'
 import { getSiteContentValue } from '@/lib/site-content/public'
+import { BRAND_ASSETS } from '@/lib/brand-assets'
 import styles from './UniversalFooter.module.css'
 
 export default function UniversalFooter() {
@@ -34,7 +35,7 @@ export default function UniversalFooter() {
   }
 
   const currentYear = new Date().getFullYear()
-  const siteLogo = contentMap.site_logo?.imageUrl || contentMap.site_logo?.value || ''
+  const siteLogo = getSiteContentValue(contentMap, 'site_logo', '') || BRAND_ASSETS.logo
   const businessPhone = getSiteContentValue(contentMap, 'business_phone', '+27 661591976')
   const businessEmail = getSiteContentValue(contentMap, 'business_email', 'support@onlybangers.co.za')
   const instagramUrl = getSiteContentValue(contentMap, 'footer_instagram_url', 'https://www.instagram.com/only_bangers99/')

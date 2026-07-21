@@ -8,8 +8,6 @@ import { supabase } from "@/lib/supabase/client";
 import type { AppRole } from "@/lib/auth/roles";
 import { getDefaultDashboardForRole, normalizeRole } from "@/lib/auth/roles";
 import { useSiteContent } from "@/hooks/useSiteContent";
-import { getSiteContentImage, getSiteImage } from "@/lib/site-content/public";
-import { getSafeImage } from "@/lib/safe-image";
 import styles from "./login.module.css";
 
 type AuthMode = "login" | "create";
@@ -45,9 +43,6 @@ function LoginPageContent() {
   const [authMessage, setAuthMessage] = useState("");
   const { contentMap } = useSiteContent();
   const nextPath = sanitizeNextPath(searchParams.get("next"));
-  const loginBackground =
-    getSiteImage(contentMap, ["login_background_image", "global_page_background", "site_background_image"]) ||
-    getSafeImage(null);
 
   const getCallbackUrl = () => {
     const url = new URL("/auth/callback", window.location.origin);
@@ -283,14 +278,7 @@ function LoginPageContent() {
   };
 
   return (
-    <div
-      className="page-background"
-      style={{
-        backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.78)), url('${loginBackground}')`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }}
-    >
+    <div className="page-background">
       <div className={styles.loginShell}>
         <div className={styles.loginCard}>
           <div className={styles.heroBlock}>

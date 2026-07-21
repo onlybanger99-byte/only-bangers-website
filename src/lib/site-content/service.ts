@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { BRAND_ASSETS } from '@/lib/brand-assets'
 import { getSafeImage, isSafeImageSource } from '@/lib/safe-image'
 import type {
   SiteContentDefinition,
@@ -58,7 +59,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Global Page Background',
     type: 'background',
     group: 'site-images',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.background,
     metadata: { accepts: 'image', section: 'Shared page background' },
   },
   {
@@ -66,7 +67,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Site Banner Image',
     type: 'image',
     group: 'site-images',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.hero,
     metadata: { accepts: 'image', section: 'Homepage hero banner' },
   },
   {
@@ -74,7 +75,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Site Logo',
     type: 'logo',
     group: 'brand',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.logo,
     metadata: { accepts: 'image' },
   },
   {
@@ -82,7 +83,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Site Background Image',
     type: 'background',
     group: 'backgrounds',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.background,
     metadata: { accepts: 'image' },
   },
   {
@@ -90,7 +91,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Home Background Image',
     type: 'background',
     group: 'backgrounds',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.background,
     metadata: { accepts: 'image' },
   },
   {
@@ -98,7 +99,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Homepage Section 1 Image',
     type: 'image',
     group: 'site-images',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.hero,
     metadata: { accepts: 'image', section: 'Homepage proof 1' },
   },
   {
@@ -106,7 +107,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Homepage Section 2 Image',
     type: 'image',
     group: 'site-images',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.hero,
     metadata: { accepts: 'image', section: 'Homepage proof 2' },
   },
   {
@@ -114,7 +115,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Homepage Section 3 Image',
     type: 'image',
     group: 'site-images',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.hero,
     metadata: { accepts: 'image', section: 'Homepage proof 3' },
   },
   {
@@ -122,7 +123,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Homepage Section 4 Image',
     type: 'image',
     group: 'site-images',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.hero,
     metadata: { accepts: 'image', section: 'Homepage plan 1' },
   },
   {
@@ -130,7 +131,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Homepage Section 5 Image',
     type: 'image',
     group: 'site-images',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.hero,
     metadata: { accepts: 'image', section: 'Homepage plan 2' },
   },
   {
@@ -138,7 +139,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Homepage Section 6 Image',
     type: 'image',
     group: 'site-images',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.hero,
     metadata: { accepts: 'image', section: 'Homepage plan 3' },
   },
   {
@@ -146,7 +147,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Homepage Section 7 Image',
     type: 'image',
     group: 'site-images',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.hero,
     metadata: { accepts: 'image', section: 'Homepage call to action' },
   },
   {
@@ -154,7 +155,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Home Hero Image',
     type: 'image',
     group: 'media',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.background,
     metadata: { accepts: 'image' },
   },
   {
@@ -170,7 +171,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Services Background Image',
     type: 'background',
     group: 'backgrounds',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.background,
     metadata: { accepts: 'image' },
   },
   {
@@ -178,7 +179,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Barber Dashboard Background',
     type: 'background',
     group: 'backgrounds',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.background,
     metadata: { accepts: 'image' },
   },
   {
@@ -186,7 +187,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Admin Dashboard Background',
     type: 'background',
     group: 'backgrounds',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.background,
     metadata: { accepts: 'image' },
   },
   {
@@ -194,7 +195,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Login Background Image',
     type: 'background',
     group: 'backgrounds',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.background,
     metadata: { accepts: 'image' },
   },
   {
@@ -202,7 +203,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'About Founder Image',
     type: 'image',
     group: 'site-images',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.hero,
     metadata: { accepts: 'image', section: 'Founder profile' },
   },
   {
@@ -210,7 +211,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Default Barber Avatar',
     type: 'image',
     group: 'site-images',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.logoColour,
     metadata: { accepts: 'image' },
   },
   {
@@ -218,6 +219,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Default Product Image',
     type: 'image',
     group: 'media',
+    imageUrl: BRAND_ASSETS.background,
     metadata: { accepts: 'image' },
   },
   {
@@ -274,7 +276,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Classic Fade Media',
     type: 'service_media',
     group: 'services',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.hero,
     metadata: { serviceSlug: 'classic-fade', accepts: 'image' },
   },
   {
@@ -282,7 +284,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Fade with Dye Media',
     type: 'service_media',
     group: 'services',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.hero,
     metadata: { serviceSlug: 'fade-with-dye', accepts: 'image' },
   },
   {
@@ -290,7 +292,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Brush with Trim Media',
     type: 'service_media',
     group: 'services',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.hero,
     metadata: { serviceSlug: 'brush-with-trim', accepts: 'image' },
   },
   {
@@ -298,7 +300,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Beard Trim Media',
     type: 'service_media',
     group: 'services',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.hero,
     metadata: { serviceSlug: 'beard-trim', accepts: 'image' },
   },
   {
@@ -306,7 +308,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Clean Shave Media',
     type: 'service_media',
     group: 'services',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.hero,
     metadata: { serviceSlug: 'clean-shave', accepts: 'image' },
   },
   {
@@ -314,7 +316,7 @@ export const SITE_CONTENT_DEFAULTS: SiteContentDefinition[] = [
     label: 'Hair & Beard Combo Media',
     type: 'service_media',
     group: 'services',
-    imageUrl: null,
+    imageUrl: BRAND_ASSETS.hero,
     metadata: { serviceSlug: 'hair-beard-combo', accepts: 'image' },
   },
 ]

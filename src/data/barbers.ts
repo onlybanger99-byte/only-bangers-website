@@ -1,4 +1,4 @@
-import { getSafeImage } from '@/lib/safe-image'
+import { BRAND_ASSETS } from '@/lib/brand-assets'
 
 export interface Barber {
   id: number
@@ -12,19 +12,19 @@ export const barbers: Barber[] = [
     id: 1,
     name: 'Antonio Prince',
     specialty: 'Founder & Lead Barber',
-    image: '/images/antonio-prince.jpg',
+    image: BRAND_ASSETS.hero,
   },
   {
     id: 2,
     name: 'Michael Johnson',
     specialty: 'Fade Specialist',
-    image: getSafeImage(null),
+    image: BRAND_ASSETS.logoColour,
   },
   {
     id: 3,
     name: 'David Williams',
     specialty: 'Beard Expert',
-    image: getSafeImage(null),
+    image: BRAND_ASSETS.logoColour,
   },
 ]
 

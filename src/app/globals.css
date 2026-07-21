@@ -14,6 +14,8 @@ body {
   margin: 0;
   padding: 0;
   overflow-x: hidden;
+  position: relative;
+  min-height: 100vh;
 }
 
 main {
@@ -54,42 +56,49 @@ img, video {
   --border-glow: 1px solid rgba(212, 175, 55, 0.3);
 }
 
-/* Page Background (shared) */
-.page-background {
-  min-height: 100vh;
-  background-image: var(
-    --page-background-image,
-    radial-gradient(circle at top left, rgba(212, 175, 55, 0.12), transparent 28%),
-    radial-gradient(circle at top right, rgba(212, 175, 55, 0.08), transparent 22%),
-    linear-gradient(180deg, #090909 0%, #050505 100%)
-  );
-  background-size: cover;
-  background-position: top center;
-  background-repeat: no-repeat;
-  position: relative;
-  padding: 0 1rem 2rem;
-}
-
-.page-background::before {
+body::before {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0.85) 0%,
-    rgba(0, 0, 0, 0.6) 30%,
-    rgba(0, 0, 0, 0.7) 70%,
-    rgba(0, 0, 0, 0.85) 100%
-  );
+  background-image: url('/images/only-bangers-background.png');
+  background-position: center top;
+  background-repeat: repeat-y;
+  background-size: 100% auto;
+  background-attachment: fixed;
+  opacity: 1;
   z-index: 0;
+  pointer-events: none;
 }
 
-.page-background > * {
+body::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.78) 0%,
+    rgba(0, 0, 0, 0.62) 28%,
+    rgba(0, 0, 0, 0.68) 72%,
+    rgba(0, 0, 0, 0.84) 100%
+  );
+  z-index: 0;
+  pointer-events: none;
+}
+
+body > * {
   position: relative;
   z-index: 1;
+}
+
+/* Page Background (shared wrapper for content spacing only) */
+.page-background {
+  min-height: 100vh;
+  position: relative;
+  padding: 0 1rem 2rem;
+  background: transparent;
 }
 
 /* Main Content Container */
@@ -690,6 +699,12 @@ img, video {
 
 /* Responsive */
 @media (max-width: 768px) {
+  body::before {
+    background-size: auto 100vh;
+    background-attachment: scroll;
+    background-position: center top;
+  }
+
   .page-background {
     padding: 0 0.5rem 1rem;
   }

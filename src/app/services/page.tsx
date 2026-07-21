@@ -5,8 +5,9 @@ import BookingFlowModal from '@/components/BookingFlowModal'
 import { SitePageBackground } from '@/components/site/SitePageBackground'
 import { readBookingDraft } from '@/lib/bookings/draft'
 import { useSiteContent } from '@/hooks/useSiteContent'
-import { getServiceImage, getSiteContentImage, getSiteContentValue } from '@/lib/site-content/public'
-import { getSafeImage, getSafeImageUrl } from '@/lib/safe-image'
+import { getServiceImage, getSiteContentValue } from '@/lib/site-content/public'
+import { BRAND_ASSETS } from '@/lib/brand-assets'
+import { getSafeImageUrl } from '@/lib/safe-image'
 import styles from './services.module.css'
 
 type ServiceCard = {
@@ -58,7 +59,6 @@ export default function ServicesPage() {
   const [serviceCards, setServiceCards] = useState<ServiceCard[]>([])
   const { contentMap } = useSiteContent()
 
-  const servicesBackground = getSiteContentImage(contentMap, 'services_background_image', '') || getSafeImage(null)
   const whatsappUrl = getSiteContentValue(contentMap, 'footer_whatsapp_url', 'https://wa.me/27699864730')
   const businessPhone = getSiteContentValue(contentMap, 'business_phone', '+27 661591976')
 
@@ -102,7 +102,7 @@ export default function ServicesPage() {
               getServiceImage(contentMap, {
                 slug: service.slug,
                 imageUrl: service.imageUrl,
-              }) || getSafeImage(null),
+              }) || BRAND_ASSETS.hero,
             backgroundImageUrl: getSafeImageUrl(service.backgroundImageUrl) ?? null,
             priceLabel: getPriceDisplayLabel(byService.get(service.id)?.minPrice ?? null),
           }))
@@ -149,7 +149,7 @@ export default function ServicesPage() {
   return (
     <SitePageBackground backgroundKeys={['global_page_background', 'services_background_image', 'site_background_image']}>
       <div className="main-content">
-        <div className="page-header" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url('${servicesBackground}')`, backgroundSize: 'cover', backgroundPosition: 'center', borderRadius: '1.25rem', padding: '1.5rem' }}>
+        <div className="page-header" style={{ borderRadius: '1.25rem', padding: '1.5rem' }}>
           <h1 className="page-title">Our Services</h1>
           <p className="page-subtitle">Choose one of our approved cuts, then pick the barber and price that work for you.</p>
         </div>
@@ -165,7 +165,7 @@ export default function ServicesPage() {
                     style={{
                       width: '100%',
                       height: '100%',
-                      backgroundImage: `url('${getSafeImage(null)}')`,
+                      backgroundImage: `url('${BRAND_ASSETS.background}')`,
                       backgroundSize: 'cover',
                       backgroundPosition: 'center',
                     }}

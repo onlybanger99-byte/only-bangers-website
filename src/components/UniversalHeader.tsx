@@ -7,6 +7,7 @@ import { getDefaultDashboardForRole, normalizeRole, type UserRole } from '@/lib/
 import { supabase } from '@/lib/supabase/client'
 import { useSiteContent } from '@/hooks/useSiteContent'
 import { getSiteImage } from '@/lib/site-content/public'
+import { BRAND_ASSETS } from '@/lib/brand-assets'
 import { getSafeImage } from '@/lib/safe-image'
 import styles from './UniversalHeader.module.css'
 
@@ -287,7 +288,7 @@ export default function UniversalHeader() {
 
   const dashboardHref = getDefaultDashboardForRole(userRole)
   const profileHref = isLoggedIn && userRole ? dashboardHref : '/login'
-  const siteLogo = contentMap.site_logo?.imageUrl || contentMap.site_logo?.value || ''
+  const siteLogo = getSiteImage(contentMap, 'site_logo') || BRAND_ASSETS.logo
   const heroBackground =
     getSiteImage(contentMap, [
       'site_banner_image',
@@ -295,7 +296,7 @@ export default function UniversalHeader() {
       'site_background_image',
       'home_background_image',
     ]) ||
-    getSafeImage(null)
+    BRAND_ASSETS.background
 
   const searchableContent = useMemo(() => {
     const dynamicItems: SearchResult[] = [
@@ -445,7 +446,7 @@ export default function UniversalHeader() {
 
               <Link href="/" className={styles.mobileBrand} aria-label="Only Bangers home">
                 {siteLogo ? (
-                  <img src={siteLogo} alt="Only Bangers logo" style={{ height: '1.8rem', width: 'auto' }} />
+                  <img src={siteLogo} alt="Only Bangers logo" style={{ height: '2.25rem', width: 'auto' }} />
                 ) : (
                   'ONLY BANGERS'
                 )}
@@ -455,7 +456,7 @@ export default function UniversalHeader() {
             <div className={styles.desktopBrandRow}>
               <Link href="/" className={styles.brand} aria-label="Only Bangers home">
                 {siteLogo ? (
-                  <img src={siteLogo} alt="Only Bangers logo" style={{ height: '2.1rem', width: 'auto' }} />
+                  <img src={siteLogo} alt="Only Bangers logo" style={{ height: '2.6rem', width: 'auto' }} />
                 ) : (
                   'ONLY BANGERS'
                 )}
